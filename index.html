@@ -1710,7 +1710,6 @@ async function cargarAdmin(){
     </div>`;
   actualizarEstadoOneDrive();
 }
-}
 async function cambiarRol(uid,rol){await db.collection("usuarios").doc(uid).update({rol});toast("✅ Rol actualizado","#10b981");cargarAdmin();}
 async function crearUsuario(){
   const nombre=document.getElementById("nu-nombre").value.trim();
