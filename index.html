@@ -387,6 +387,21 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 
   <div class="stats" id="stats-row"></div>
 
+  <!-- BANNER PREAVISO RECORDATORIOS (se muestra/oculta dinámicamente) -->
+  <div id="banner-recordatorios" style="display:none;margin:8px 24px 0;background:linear-gradient(135deg,#fff7ed,#fffbeb);border:1.5px solid #fed7aa;border-radius:var(--radius);padding:12px 18px;display:none;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 2px 8px rgba(249,115,22,.12)">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:22px">⏰</span>
+      <div>
+        <div id="banner-rec-titulo" style="color:#c2410c;font-weight:700;font-size:13px"></div>
+        <div id="banner-rec-lista" style="color:#9a3412;font-size:12px;margin-top:3px"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;flex-shrink:0">
+      <button onclick="setVista('alertas')" style="background:#f97316;color:white;border:none;border-radius:7px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">Ver alertas</button>
+      <button onclick="cerrarBannerRecordatorios()" style="background:transparent;border:1px solid #fed7aa;color:#9a3412;border-radius:7px;padding:7px 10px;font-size:12px;cursor:pointer">✕</button>
+    </div>
+  </div>
+
   <div class="nav">
     <button class="nav-btn active" id="nav-dashboard" onclick="setVista('dashboard')">🏠 Inicio</button>
     <button class="nav-btn" id="nav-tabla" onclick="setVista('tabla')">📋 Ofertas</button>
@@ -516,12 +531,15 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       </div>
       <div class="field"><label>Notas Internas</label><textarea id="f-notas" style="min-height:75px"></textarea></div>
       <div class="field">
-        <label>📎 Adjuntar documentos Word / PDF</label>
-        <label style="display:inline-block;background:var(--border2);color:var(--accent);padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600">
-          + Adjuntar archivo
-          <input type="file" multiple accept=".doc,.docx,.pdf,.xls,.xlsx,.txt" onchange="adjuntar(event)" style="display:none"/>
-        </label>
-        <div id="arch-lista" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px"></div>
+        <label>📎 Adjuntar documentos <span style="color:var(--text3);font-size:10px;font-weight:400">(Word, PDF, Excel · puedes seleccionar varios a la vez)</span></label>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <label style="display:inline-flex;align-items:center;gap:6px;background:var(--accent-light);color:var(--accent);border:1.5px dashed var(--accent);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s" onmouseover="this.style.background='#d0e4ff'" onmouseout="this.style.background='var(--accent-light)'">
+            📁 Seleccionar archivos
+            <input type="file" multiple accept=".doc,.docx,.pdf,.xls,.xlsx,.txt,.png,.jpg,.jpeg" onchange="adjuntar(event)" style="display:none"/>
+          </label>
+          <span id="arch-upload-status" style="color:var(--text3);font-size:11px"></span>
+        </div>
+        <div id="arch-lista" style="display:flex;flex-direction:column;gap:5px;margin-top:8px"></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -905,9 +923,17 @@ function escucharOfertas(){
 }
 
 // ===== STATS =====
+function getFechaManana(){
+  const d=new Date();d.setDate(d.getDate()+1);
+  return d.toISOString().split("T")[0];
+}
 function renderStats(){
   const hoy=new Date().toISOString().split("T")[0];
+  const manana=getFechaManana();
+  // Recordatorios vencidos o que vencen mañana (preaviso 1 día)
   const venc=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado)).length;
+  const proximos=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio===manana&&!["Ganada","Perdida","Descartada"].includes(o.estado)).length;
+  const totalRecordatorios=venc+proximos;
   const gan=ofertas.filter(o=>o.estado==="Ganada").length;
   const total=ofertas.reduce((s,o)=>s+(o.importe||0),0);
   const tasa=ofertas.length?Math.round(gan/ofertas.length*100):0;
@@ -916,13 +942,19 @@ function renderStats(){
     <div class="stat-card clickable" onclick="setVista('tabla')"><div class="stat-val" style="color:var(--accent)">${ofertas.length}</div><div class="stat-lbl">Total Ofertas</div></div>
     <div class="stat-card clickable" onclick="setVista('tabla')"><div class="stat-val" style="color:#10b981">${gan}</div><div class="stat-lbl">Ganadas</div><div class="stat-trend" style="color:#10b981">Tasa: ${tasa}%</div></div>
     <div class="stat-card clickable" onclick="setVista('estadistas')"><div class="stat-val" style="color:var(--purple)">${ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado)).length}</div><div class="stat-lbl">En pipeline</div></div>
-    <div class="stat-card clickable" onclick="setVista('alertas')" style="${venc>0?'border-color:#f97316':''}"><div class="stat-val" style="color:#fb923c">${venc}</div><div class="stat-lbl">Recordatorios</div></div>
+    <div class="stat-card clickable" onclick="setVista('alertas')" style="${totalRecordatorios>0?'border-color:#f97316':''}">
+      <div class="stat-val" style="color:#fb923c">${totalRecordatorios}</div>
+      <div class="stat-lbl">Recordatorios</div>
+      ${proximos>0?`<div class="stat-trend" style="color:#f59e0b">⏰ ${proximos} mañana</div>`:""}
+    </div>
     <div class="stat-card clickable" onclick="setVista('alertas')" style="${alertas>0?'border-color:#ef4444':''}"><div class="stat-val" style="color:#ef4444">${alertas}</div><div class="stat-lbl">Alertas inactividad</div></div>
   `;
   const al=document.getElementById("rem-alert");
-  const total_alertas=venc+alertas;
+  const total_alertas=totalRecordatorios+alertas;
   if(total_alertas>0){al.style.display="block";al.textContent=`⚠️ ${total_alertas} alerta${total_alertas>1?"s":""}`;}
   else al.style.display="none";
+  // Mostrar banner de preaviso si hay recordatorios para mañana
+  mostrarBannerRecordatorios();
 }
 
 // ===== ALERTAS INACTIVIDAD =====
@@ -935,6 +967,45 @@ function getAlertasInactivas(){
     const dias=Math.floor((hoy-ultima)/(1000*60*60*24));
     return dias>=DIAS_ALERTA;
   });
+}
+
+// ===== BANNER PREAVISO RECORDATORIOS =====
+let bannerCerradoEn=null; // fecha en que el usuario cerró el banner manualmente
+function mostrarBannerRecordatorios(){
+  const banner=document.getElementById("banner-recordatorios");
+  if(!banner)return;
+  // Si el usuario ya lo cerró hoy, no volver a mostrarlo hasta mañana
+  const hoyStr=new Date().toISOString().split("T")[0];
+  if(bannerCerradoEn===hoyStr){banner.style.display="none";return;}
+  const hoy=hoyStr;
+  const manana=getFechaManana();
+  // Ofertas con recordatorio HOY o MAÑANA (que no estén cerradas)
+  const hoyLista=ofertas.filter(o=>o.fechaRecordatorio===hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado));
+  const mananaLista=ofertas.filter(o=>o.fechaRecordatorio===manana&&!["Ganada","Perdida","Descartada"].includes(o.estado));
+  if(hoyLista.length===0&&mananaLista.length===0){banner.style.display="none";return;}
+  const tituloEl=document.getElementById("banner-rec-titulo");
+  const listaEl=document.getElementById("banner-rec-lista");
+  let titulo="";
+  const items=[];
+  if(hoyLista.length>0){
+    titulo+=`🔴 ${hoyLista.length} recordatorio${hoyLista.length>1?"s":""} para HOY`;
+    hoyLista.slice(0,3).forEach(o=>items.push(`<strong>${o.empresa}</strong> — hoy`));
+    if(hoyLista.length>3)items.push(`+${hoyLista.length-3} más`);
+  }
+  if(mananaLista.length>0){
+    if(titulo)titulo+=" · ";
+    titulo+=`🟡 ${mananaLista.length} para MAÑANA`;
+    mananaLista.slice(0,2).forEach(o=>items.push(`<strong>${o.empresa}</strong> — mañana`));
+    if(mananaLista.length>2)items.push(`+${mananaLista.length-2} más`);
+  }
+  if(tituloEl)tituloEl.textContent=titulo;
+  if(listaEl)listaEl.innerHTML=items.join(" &nbsp;·&nbsp; ");
+  banner.style.display="flex";
+}
+function cerrarBannerRecordatorios(){
+  const banner=document.getElementById("banner-recordatorios");
+  if(banner)banner.style.display="none";
+  bannerCerradoEn=new Date().toISOString().split("T")[0]; // no volver a mostrar hoy
 }
 
 // ===== FILTRAR =====
@@ -1087,6 +1158,8 @@ function renderDashboard(){
   const totalPipeline=pend.reduce((s,o)=>s+(o.importe||0),0);
   const tasa=ofertas.length?Math.round(gan.length/ofertas.length*100):0;
   const venc=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoyStr&&!["Ganada","Perdida","Descartada"].includes(o.estado));
+  const mananaStr=getFechaManana();
+  const proxManana=ofertas.filter(o=>o.fechaRecordatorio===mananaStr&&!["Ganada","Perdida","Descartada"].includes(o.estado));
   const alertasInact=getAlertasInactivas();
 
   // Últimas 5 ofertas
@@ -1102,7 +1175,11 @@ function renderDashboard(){
       <div class="dash-kpi"><div class="val" style="color:var(--accent)">${ofertas.length}</div><div class="lbl">Total ofertas</div><div class="sub" style="color:var(--text3)">${pend.length} activas en pipeline</div></div>
       <div class="dash-kpi"><div class="val" style="color:#10b981">${tasa}%</div><div class="lbl">Tasa de cierre</div><div class="sub" style="color:#10b981">${gan.length} ofertas ganadas</div></div>
       <div class="dash-kpi"><div class="val" style="color:#34d399">${totalGan.toLocaleString("es-ES")} €</div><div class="lbl">Ingresos cerrados</div><div class="sub" style="color:var(--text3)">Pipeline: ${totalPipeline.toLocaleString("es-ES")} €</div></div>
-      <div class="dash-kpi" style="${venc.length>0?'border-color:#f97316':''};cursor:pointer" onclick="setVista('alertas')"><div class="val" style="color:#fb923c">${venc.length}</div><div class="lbl">Recordatorios vencidos</div><div class="sub" style="color:#ef4444">${alertasInact.length} sin actividad +${DIAS_ALERTA}d</div></div>
+      <div class="dash-kpi" style="${(venc.length+proxManana.length)>0?'border-color:#f97316':''};cursor:pointer" onclick="setVista('alertas')">
+        <div class="val" style="color:#fb923c">${venc.length}</div>
+        <div class="lbl">Recordatorios vencidos</div>
+        ${proxManana.length>0?`<div class="sub" style="color:#f59e0b;font-weight:700">⏰ ${proxManana.length} para mañana</div>`:`<div class="sub" style="color:#ef4444">${alertasInact.length} sin actividad +${DIAS_ALERTA}d</div>`}
+      </div>
     </div>
     <div class="charts-grid">
       <div class="chart-card">
@@ -1172,7 +1249,7 @@ function renderTabla(){
     const ultima=o.fechaUltimaActividad?.toDate?o.fechaUltimaActividad.toDate():o.creadoEn?.toDate?o.creadoEn.toDate():null;
     const diasInact=ultima?Math.floor((hoyCmp-ultima)/(864e5)):null;
     const inactiva=diasInact!==null&&diasInact>=DIAS_ALERTA&&!["Ganada","Perdida","Descartada"].includes(o.estado);
-    const puedeEditar=currentProfile.rol==="admin"||o.responsableUid===currentUser.uid||o.responsableNombre===currentProfile.nombre;
+    const puedeEditar=true; // Todos los usuarios pueden editar cualquier oferta
     const filaColor=idx%2===0?"background:#ffffff":"background:#dde8f8";
     const filaBorde=idx%2!==0?"border-top:1px solid #b8cfe8;border-bottom:1px solid #b8cfe8;":"";
     return `<tr style="--ec:${inactiva?"#ef4444":col};${filaColor};${filaBorde}" onclick="verDetalle('${o.id}')">
@@ -1190,7 +1267,7 @@ function renderTabla(){
       <td style="color:${inactiva?"#ef4444":"#64748b"};font-size:11px">${diasInact!==null?`${diasInact}d${inactiva?" ⚠️":""}`:""}</td>
       <td onclick="event.stopPropagation()"><div style="display:flex;gap:3px">
         <button class="btn-sm" style="background:#1a2a1a;color:#4ade80;padding:5px 8px" onclick="abrirLlamada('${o.id}')">📞</button>
-        ${puedeEditar?`<button class="btn-sm" style="background:var(--border2);color:var(--accent);padding:5px 8px" onclick="editarOferta('${o.id}')">✏️</button>`:""}
+        <button class="btn-sm" style="background:var(--border2);color:var(--accent);padding:5px 8px" onclick="editarOferta('${o.id}')">✏️</button>
         ${currentProfile.rol==="admin"?`<button class="btn-sm" style="background:#2d1515;color:#ef4444;padding:5px 8px" onclick="eliminarOferta('${o.id}')">🗑</button>`:""}
       </div></td>
     </tr>`;
@@ -1517,35 +1594,96 @@ function renderComparativa(){
 // ===== ALERTAS =====
 function renderAlertas(){
   const hoy=new Date().toISOString().split("T")[0];
-  const venc=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado));
+  const manana=getFechaManana();
+  const estados_cerrados=["Ganada","Perdida","Descartada"];
+  // 1) Vencidos (fecha <= hoy)
+  const venc=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!estados_cerrados.includes(o.estado));
+  // 2) Mañana (preaviso)
+  const proxManana=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio===manana&&!estados_cerrados.includes(o.estado));
+  // 3) Inactividad
   const inact=getAlertasInactivas();
-  document.getElementById("vista-alertas").innerHTML=`
-    <h3 style="color:#fb923c;margin-bottom:16px">🔔 Centro de Alertas</h3>
-    ${venc.length?`<div style="margin-bottom:20px">
-      <div style="color:#fb923c;font-size:13px;font-weight:700;margin-bottom:10px">⏰ RECORDATORIOS VENCIDOS (${venc.length})</div>
-      ${venc.map(o=>`<div class="alerta-item" onclick="verDetalle('${o.id}')">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div><div style="color:#fb923c;font-weight:600">${o.empresa}</div><div style="color:var(--text3);font-size:12px">📞 ${o.contacto||"—"} · ${o.telefono||"—"} · ${(o.responsableNombre||"").split(" ")[0]}</div></div>
-          <div style="text-align:right"><div style="color:var(--text2);font-size:11px">${new Date(o.fechaRecordatorio).toLocaleDateString("es-ES")}</div>
-          <button class="llamada-btn" style="margin-top:4px;font-size:11px;padding:4px 10px" onclick="event.stopPropagation();abrirLlamada('${o.id}')">📞 Registrar llamada</button></div>
+
+  // Helper para renderizar una tarjeta de alerta de recordatorio
+  function tarjetaRecordatorio(o, estilo){
+    const fechaFmt=new Date(o.fechaRecordatorio+"T12:00:00").toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"});
+    const tel=o.telefonoMovil||o.telefono||"—";
+    return `<div class="alerta-item" style="${estilo}" onclick="verDetalle('${o.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:14px;margin-bottom:2px">${o.empresa}</div>
+          <div style="color:var(--text3);font-size:12px;margin-bottom:4px">
+            👤 ${o.contacto||"—"} &nbsp;·&nbsp; 📞 ${tel} &nbsp;·&nbsp; 👷 ${(o.responsableNombre||"—").split(" ")[0]}
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}55">${o.estado}</span>
+            <span style="font-size:11px;color:var(--text3)">📅 ${fechaFmt}</span>
+            ${o.importe?`<span style="font-size:11px;color:#10b981;font-weight:600">${(o.importe).toLocaleString("es-ES")} €</span>`:""}
+          </div>
         </div>
-      </div>`).join("")}
+        <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+          <button class="llamada-btn" onclick="event.stopPropagation();abrirLlamada('${o.id}')">📞 Registrar llamada</button>
+          <button onclick="event.stopPropagation();editarOferta('${o.id}')" style="background:var(--accent-light);color:var(--accent);border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">✏️ Editar</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  document.getElementById("vista-alertas").innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      <h3 style="color:#fb923c;margin:0">🔔 Centro de Alertas</h3>
+      <div style="display:flex;gap:8px">
+        <span style="background:#fef2f2;border:1px solid #fca5a5;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:var(--red)">🔴 Vencidos: ${venc.length}</span>
+        <span style="background:#fffbeb;border:1px solid #fcd34d;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:#92400e">🟡 Mañana: ${proxManana.length}</span>
+        <span style="background:#fff7ed;border:1px solid #fed7aa;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:#c2490b">⚠️ Inactivos: ${inact.length}</span>
+      </div>
+    </div>
+
+    ${venc.length?`
+    <div style="margin-bottom:22px">
+      <div style="color:var(--red);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;gap:7px">
+        <span style="width:8px;height:8px;border-radius:50%;background:var(--red);display:inline-block"></span>
+        Recordatorios vencidos — requieren atención inmediata (${venc.length})
+      </div>
+      ${venc.map(o=>tarjetaRecordatorio(o,"border-left-color:var(--red)!important")).join("")}
     </div>`:""}
-    ${inact.length?`<div>
-      <div style="color:#ef4444;font-size:13px;font-weight:700;margin-bottom:10px">⚠️ SIN ACTIVIDAD MÁS DE ${DIAS_ALERTA} DÍAS (${inact.length})</div>
+
+    ${proxManana.length?`
+    <div style="margin-bottom:22px">
+      <div style="color:#d97706;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;gap:7px">
+        <span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block"></span>
+        Preaviso — recordatorios para mañana (${proxManana.length})
+      </div>
+      ${proxManana.map(o=>tarjetaRecordatorio(o,"border-left-color:#f59e0b!important;background:#fffbeb")).join("")}
+    </div>`:""}
+
+    ${inact.length?`
+    <div style="margin-bottom:22px">
+      <div style="color:#c2490b;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;gap:7px">
+        <span style="width:8px;height:8px;border-radius:50%;background:#f97316;display:inline-block"></span>
+        Sin actividad más de ${DIAS_ALERTA} días (${inact.length})
+      </div>
       ${inact.map(o=>{
         const ultima=o.fechaUltimaActividad?.toDate?o.fechaUltimaActividad.toDate():o.creadoEn?.toDate?o.creadoEn.toDate():null;
         const dias=ultima?Math.floor((new Date()-ultima)/(864e5)):"?";
         return `<div class="alerta-item" onclick="verDetalle('${o.id}')">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <div><div style="color:#ef4444;font-weight:600">${o.empresa}</div><div style="color:var(--text3);font-size:12px">${o.provincia||""} · ${(o.responsableNombre||"").split(" ")[0]} · <span style="color:#f97316">${dias} días sin actividad</span></div></div>
-            <div style="text-align:right"><span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}55">${o.estado}</span>
-            <button class="llamada-btn" style="margin-top:4px;font-size:11px;padding:4px 10px;display:block" onclick="event.stopPropagation();abrirLlamada('${o.id}')">📞 Llamar</button></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+            <div style="flex:1">
+              <div style="color:#c2490b;font-weight:700;font-size:14px;margin-bottom:2px">${o.empresa}</div>
+              <div style="color:var(--text3);font-size:12px">📍 ${o.provincia||"—"} &nbsp;·&nbsp; 👷 ${(o.responsableNombre||"—").split(" ")[0]} &nbsp;·&nbsp; <span style="color:#f97316;font-weight:600">${dias} días sin actividad</span></div>
+              <div style="margin-top:4px"><span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}55">${o.estado}</span></div>
+            </div>
+            <button class="llamada-btn" onclick="event.stopPropagation();abrirLlamada('${o.id}')">📞 Llamar</button>
           </div>
         </div>`;
       }).join("")}
     </div>`:""}
-    ${venc.length===0&&inact.length===0?`<div style="text-align:center;padding:40px;color:#10b981;font-size:16px">✅ ¡Sin alertas pendientes! Todo al día.</div>`:""}`;
+
+    ${venc.length===0&&proxManana.length===0&&inact.length===0?`
+    <div style="text-align:center;padding:60px 20px">
+      <div style="font-size:48px;margin-bottom:12px">✅</div>
+      <div style="color:#10b981;font-size:18px;font-weight:700">¡Sin alertas pendientes!</div>
+      <div style="color:var(--text3);font-size:13px;margin-top:6px">Todo el seguimiento está al día.</div>
+    </div>`:""}`;
 }
 
 // ===== HISTORIAL =====
@@ -1659,7 +1797,8 @@ function verDetalle(id){
   const hoy=new Date().toISOString().split("T")[0];
   const vence=o.fechaRecordatorio&&o.fechaRecordatorio<=hoy;
   const col=CE[o.estado]||"#64748b";
-  const puedeEditar=currentProfile.rol==="admin"||o.responsableUid===currentUser.uid||o.responsableNombre===currentProfile.nombre;
+  const puedeEditar=true; // Todos los usuarios pueden editar cualquier oferta
+  const puedeEliminar=currentProfile.rol==="admin"; // Solo admin elimina
   document.getElementById("det-body").innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
       <div><div style="color:var(--accent);font-size:13px;font-weight:600">${o.numeroOferta}</div><h2 style="color:var(--text);font-size:20px;margin:3px 0 0">${o.empresa}</h2></div>
@@ -1676,7 +1815,8 @@ function verDetalle(id){
     <div style="display:flex;gap:8px;margin-top:20px;justify-content:flex-end;flex-wrap:wrap">
       <button class="btn-cancel" onclick="document.getElementById('modal-det').style.display='none'">Cerrar</button>
       <button style="background:var(--green-bg);color:var(--green);border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer" onclick="document.getElementById('modal-det').style.display='none';abrirLlamada('${o.id}')">📞 Registrar llamada</button>
-      ${puedeEditar?`<button class="btn-save" onclick="document.getElementById('modal-det').style.display='none';editarOferta('${o.id}')">✏️ Editar</button>`:""}
+      <button class="btn-save" onclick="document.getElementById('modal-det').style.display='none';editarOferta('${o.id}')">✏️ Editar</button>
+      ${puedeEliminar?`<button style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer" onclick="document.getElementById('modal-det').style.display='none';eliminarOferta('${o.id}')">🗑 Eliminar</button>`:""}
     </div>`;
   document.getElementById("modal-det").style.display="flex";
 }
@@ -1715,17 +1855,20 @@ function editarOferta(id){abrirModal(ofertas.find(o=>o.id===id));}
 function cerrarModal(){document.getElementById("modal").style.display="none";archivosTemp=[];editandoId=null;}
 async function adjuntar(e){
   const files=Array.from(e.target.files);
+  e.target.value=""; // Limpiar input para permitir seleccionar los mismos archivos otra vez
   if(!files.length)return;
   if(!getClientId()){
     toast("⚙️ Primero configura OneDrive en el panel Admin → OneDrive","#f59e0b");
     if(currentProfile&&currentProfile.rol==="admin"){ setVista("admin"); }
     return;
   }
-  toast("\u23f3 Conectando con OneDrive...","var(--accent)");
+  const statusEl=document.getElementById("arch-upload-status");
+  if(statusEl)statusEl.textContent=`⏳ Conectando con OneDrive...`;
   let token;
   try{
     token=await getMsalToken();
   }catch(err){
+    if(statusEl)statusEl.textContent="";
     if(err.message==="CLIENT_ID_NOT_SET"){
       toast("⚙️ Configura el Client ID de OneDrive en Admin → OneDrive","#f59e0b");
     } else {
@@ -1733,36 +1876,54 @@ async function adjuntar(e){
     }
     return;
   }
-  let ok=0;
-  for(const f of files){
+  let ok=0,errores=0;
+  for(let i=0;i<files.length;i++){
+    const f=files[i];
+    if(statusEl)statusEl.textContent=`⏳ Subiendo ${i+1} de ${files.length}: ${f.name}`;
     try{
-      toast("\u23f3 Subiendo "+f.name+" a OneDrive...","var(--accent)");
       const ext=f.name.split(".").pop().toLowerCase();
-      const icono=ext==="pdf"?"\uD83D\uDCD5":ext==="doc"||ext==="docx"?"\uD83D\uDCD8":ext==="xls"||ext==="xlsx"?"\uD83D\uDCD7":"\uD83D\uDCC4";
+      const icono=ext==="pdf"?"📕":ext==="doc"||ext==="docx"?"📘":ext==="xls"||ext==="xlsx"?"📗":ext==="png"||ext==="jpg"||ext==="jpeg"?"🖼️":"📄";
       const {url}=await subirArchivoOneDrive(f,token);
       archivosTemp.push({name:f.name,size:f.size,fecha:new Date().toLocaleDateString("es-ES"),url,icono,origen:"onedrive"});
       ok++;
-    }catch(err){toast("\u274C Error subiendo "+f.name+": "+err.message,"#ef4444");}
+    }catch(err){
+      errores++;
+      toast(`❌ Error subiendo ${f.name}: ${err.message}`,"#ef4444");
+    }
+    renderArchivos();
   }
-  renderArchivos();
-  if(ok>0)toast("\u2705 "+ok+" archivo(s) subidos a OneDrive correctamente","#10b981");
+  if(statusEl){
+    if(errores===0) statusEl.textContent=`✅ ${ok} archivo${ok!==1?"s":""} subido${ok!==1?"s":""} correctamente`;
+    else statusEl.textContent=`✅ ${ok} subido${ok!==1?"s":""} · ⚠️ ${errores} con error`;
+    setTimeout(()=>{if(statusEl)statusEl.textContent="";},4000);
+  }
+  if(ok>0) toast(`✅ ${ok} archivo${ok!==1?"s":""} subido${ok!==1?"s":""} a OneDrive`,"#10b981");
 }
 function eliminarArchivo(i){
   archivosTemp.splice(i,1);
   renderArchivos();
 }
 function renderArchivos(){
-  document.getElementById("arch-lista").innerHTML=archivosTemp.map((f,i)=>`
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px;display:flex;align-items:center;gap:7px;font-size:12px;flex-wrap:wrap">
-      <span>${f.icono||"\uD83D\uDCC4"}</span>
-      ${f.url
-        ?`<a href="${f.url}" target="_blank" style="color:var(--accent);text-decoration:none;font-weight:600">${f.name}</a>`
-        :`<span style="color:var(--text2)">${f.name}</span>`}
-      <span style="background:var(--accent-light);color:var(--accent);border-radius:4px;padding:1px 5px;font-size:9px;font-weight:700">OneDrive</span>
-      <span style="color:var(--text3);font-size:10px">${f.fecha||""}</span>
-      ${f.url?`<a href="${f.url}" target="_blank" style="background:var(--border2);color:var(--accent);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;text-decoration:none">\uD83D\uDCC2 Abrir</a>`:""}
-      <button onclick="eliminarArchivo(${i})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:13px;padding:0;margin-left:auto">\u2715</button>
-    </div>`).join("");
+  const lista=document.getElementById("arch-lista");
+  if(!lista)return;
+  if(!archivosTemp.length){
+    lista.innerHTML="";
+    return;
+  }
+  lista.innerHTML=archivosTemp.map((f,i)=>{
+    const kb=f.size?Math.round(f.size/1024)+"KB":"";
+    return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 12px;display:flex;align-items:center;gap:8px;font-size:12px">
+      <span style="font-size:16px">${f.icono||"📄"}</span>
+      <div style="flex:1;min-width:0">
+        ${f.url
+          ?`<a href="${f.url}" target="_blank" style="color:var(--accent);text-decoration:none;font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.name}">${f.name}</a>`
+          :`<span style="color:var(--text2);font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</span>`}
+        <span style="color:var(--text3);font-size:10px">${kb?kb+" · ":""}${f.fecha||""} · <span style="color:var(--accent);font-weight:600">OneDrive</span></span>
+      </div>
+      ${f.url?`<a href="${f.url}" target="_blank" style="background:var(--accent-light);color:var(--accent);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">🔗 Abrir</a>`:""}
+      <button onclick="eliminarArchivo(${i})" title="Eliminar archivo" style="background:var(--red-bg);border:1px solid #fca5a5;color:var(--red);cursor:pointer;font-size:12px;padding:3px 8px;border-radius:6px;font-weight:700;white-space:nowrap">✕</button>
+    </div>`;
+  }).join("");
 }
 function renderArchivosDetalle(archivos){
   if(!archivos||!archivos.length)return`<span style="color:var(--text3);font-size:12px">Sin documentos adjuntos</span>`;
