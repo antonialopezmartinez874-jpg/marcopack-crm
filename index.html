@@ -666,6 +666,11 @@ const firebaseConfig={apiKey:"AIzaSyB4kJsqEtQ0ypOIL4LyY9rhTBpcY_mxhnI",authDomai
 firebase.initializeApp(firebaseConfig);
 const auth=firebase.auth(),db=firebase.firestore();
 
+// ===== SEGURIDAD: No recordar sesión entre visitas =====
+// SESSION = la sesión solo dura mientras la pestaña está abierta.
+// Al cerrar el navegador o la pestaña, hay que volver a identificarse.
+auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+
 // ===== MICROSOFT ONEDRIVE CENTRAL (Graph API) =====
 // MODO: OneDrive central del administrador.
 // Solo el admin inicia sesion con Microsoft una vez.
@@ -876,6 +881,8 @@ async function doLogin(){
   const btn=document.getElementById("btn-login");
   btn.textContent="Verificando...";btn.disabled=true;
   try{
+    // Asegurar que la persistencia es solo de sesión antes de cada login
+    await auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
     await auth.signInWithEmailAndPassword(email,pass);
     // onAuthStateChanged se encarga de mostrar la app
   }catch(e){
@@ -2641,7 +2648,12 @@ function toast(msg,color="#10b981"){
 }
 
 // Arrancar en dashboard
-window.onload=()=>{ setTimeout(()=>{ if(document.getElementById("app").style.display!=="none")setVista("dashboard"); },500); };
+window.onload=()=>{
+  // Cerrar cualquier sesión residual al cargar la página
+  // Así siempre se pide usuario y contraseña
+  auth.signOut().catch(()=>{});
+  setTimeout(()=>{ if(document.getElementById("app").style.display!=="none")setVista("dashboard"); },500);
+};
 </script>
 </body>
 </html>
