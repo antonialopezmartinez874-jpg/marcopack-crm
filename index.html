@@ -402,15 +402,26 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 
   <div class="filters" id="filtros-barra">
     <input type="text" id="busqueda" placeholder="🔍 Buscar empresa, contacto, nº oferta..." oninput="renderVista()"/>
+    <!-- Filtro Provincias -->
     <div style="position:relative;display:inline-block" id="prov-dropdown-wrap">
-    <button onclick="toggleProvDropdown()" id="prov-btn" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px;cursor:pointer;min-width:160px;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:6px">
-      <span id="prov-btn-label">Todas las provincias</span><span style="color:var(--text3)">▾</span>
-    </button>
-    <div id="prov-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;z-index:500;min-width:220px;max-height:260px;overflow-y:auto;padding:6px;box-shadow:0 8px 30px rgba(0,0,0,.5)">
-      <input type="text" id="prov-search" placeholder="🔍 Buscar provincia..." oninput="filtrarProvDropdown()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;margin-bottom:5px"/>
-      <div id="prov-options"></div>
+      <button onclick="toggleProvDropdown()" id="prov-btn" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px;cursor:pointer;min-width:150px;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:6px">
+        <span id="prov-btn-label">Provincias</span><span style="color:var(--text3)">▾</span>
+      </button>
+      <div id="prov-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;z-index:500;min-width:220px;max-height:260px;overflow-y:auto;padding:6px;box-shadow:0 8px 30px rgba(0,0,0,.15)">
+        <input type="text" id="prov-search" placeholder="🔍 Buscar provincia..." oninput="filtrarProvDropdown()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;margin-bottom:5px"/>
+        <div id="prov-options"></div>
+      </div>
     </div>
-  </div>
+    <!-- Filtro Países -->
+    <div style="position:relative;display:inline-block" id="pais-dropdown-wrap">
+      <button onclick="togglePaisDropdown()" id="pais-btn" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px;cursor:pointer;min-width:150px;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:6px">
+        <span id="pais-btn-label">🌍 Todos los países</span><span style="color:var(--text3)">▾</span>
+      </button>
+      <div id="pais-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;z-index:500;min-width:220px;max-height:260px;overflow-y:auto;padding:6px;box-shadow:0 8px 30px rgba(0,0,0,.15)">
+        <input type="text" id="pais-search" placeholder="🔍 Buscar país..." oninput="filtrarPaisDropdown()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;margin-bottom:5px"/>
+        <div id="pais-options"></div>
+      </div>
+    </div>
     <select id="f-est" onchange="renderVista()"><option value="">Todos los estados</option></select>
     <select id="f-resp" onchange="renderVista()"><option value="">Todos los responsables</option></select>
     <button class="btn-clear" onclick="limpiarFiltros()">✕ Limpiar</button>
@@ -419,12 +430,18 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
   <!-- VISTAS -->
   <div id="vista-dashboard" style="display:none"></div>
   <div id="vista-tabla" style="display:none">
+    <div style="padding:8px 24px 0;display:flex;align-items:center;gap:8px" id="barra-seleccion" style="display:none">
+      <span id="seleccion-count" style="font-size:12px;color:var(--text3);font-weight:600"></span>
+      <button id="btn-borrar-sel" onclick="borrarSeleccionadas()" style="display:none;background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer">🗑 Eliminar seleccionadas</button>
+    </div>
     <div class="table-wrap">
       <table>
         <thead><tr>
+          <th style="width:36px"><input type="checkbox" id="check-all" onclick="toggleSeleccionTodos(this)" style="accent-color:var(--accent);cursor:pointer;width:15px;height:15px"/></th>
           <th onclick="sortBy('numeroOferta')">Nº Oferta</th>
           <th onclick="sortBy('empresa')">Empresa</th>
           <th onclick="sortBy('provincia')">Provincia</th>
+          <th onclick="sortBy('pais')">País</th>
           <th onclick="sortBy('tipoMaquina')">Tipo</th>
           <th onclick="sortBy('importe')">Importe</th>
           <th onclick="sortBy('estado')">Estado</th>
@@ -482,7 +499,11 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       </div>
       <div class="grid2">
         <div class="field"><label>Provincia</label><select id="f-prov-form"></select></div>
+        <div class="field"><label>🌍 País</label><select id="f-pais-form"><option value="">— Seleccionar país —</option></select></div>
+      </div>
+      <div class="grid2">
         <div class="field"><label>Tipo de Máquina</label><input type="text" id="f-tipo" placeholder="Ej: Etiquetadora, Llenadora..." list="tipos-lista"/><datalist id="tipos-lista"></datalist></div>
+        <div class="field"><label>Otros <span style="color:var(--text3);font-size:10px;font-weight:400">(campo libre)</span></label><input id="f-otros" placeholder="Escribe lo que necesites..."/></div>
       </div>
       <div class="field"><label>Descripción</label><textarea id="f-desc"></textarea></div>
       <div class="grid2">
@@ -517,11 +538,11 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 
 <!-- MODAL LLAMADA -->
 <div id="modal-llamada" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
-  <div class="modal" style="max-width:480px">
+  <div class="modal" style="max-width:500px">
     <button class="modal-close" onclick="document.getElementById('modal-llamada').style.display='none'">✕</button>
     <h2>📞 Registrar llamada</h2>
     <div style="display:grid;gap:12px">
-      <div class="field"><label>Resultado de la llamada</label>
+      <div class="field"><label>Resultado de la llamada *</label>
         <select id="ll-resultado">
           <option>Interesado, pide más info</option>
           <option>No contesta</option>
@@ -532,9 +553,14 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
           <option>Perdido definitivamente</option>
         </select>
       </div>
-      <div class="field"><label>Notas de la llamada</label><textarea id="ll-notas" placeholder="¿Qué te ha dicho el cliente?"></textarea></div>
+      <div class="field"><label>Actualizar estado de la oferta</label>
+        <select id="ll-estado">
+          <option value="">— Sin cambiar —</option>
+        </select>
+      </div>
+      <div class="field"><label>Notas de la llamada</label><textarea id="ll-notas" placeholder="¿Qué te ha dicho el cliente? Detalles importantes..."></textarea></div>
       <div class="field"><label>Próxima acción</label><input id="ll-accion" placeholder="Ej: Enviar catálogo, llamar en 2 semanas..."/></div>
-      <div class="field"><label>Nuevo recordatorio</label><input type="date" id="ll-recod"/></div>
+      <div class="field"><label>🔔 Nuevo recordatorio</label><input type="date" id="ll-recod"/></div>
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="document.getElementById('modal-llamada').style.display='none'">Cancelar</button>
@@ -697,6 +723,9 @@ function actualizarEstadoOneDrive(){
 
 // ===== CONSTANTES =====
 const PROVINCIAS=["Álava","Albacete","Alicante","Almería","Asturias","Ávila","Badajoz","Barcelona","Burgos","Cáceres","Cádiz","Cantabria","Castellón","Ciudad Real","Córdoba","Cuenca","Girona","Granada","Guadalajara","Guipúzcoa","Huelva","Huesca","Islas Baleares","Jaén","La Coruña","La Rioja","Las Palmas","León","Lleida","Lugo","Madrid","Málaga","Murcia","Navarra","Ourense","Palencia","Pontevedra","Salamanca","Santa Cruz de Tenerife","Segovia","Sevilla","Soria","Tarragona","Teruel","Toledo","Valencia","Valladolid","Vizcaya","Zamora","Zaragoza"];
+const PAISES=["Afganistán","Albania","Alemania","Andorra","Angola","Arabia Saudí","Argelia","Argentina","Armenia","Australia","Austria","Azerbaiyán","Bahréin","Bangladesh","Bélgica","Bielorrusia","Bolivia","Bosnia y Herzegovina","Brasil","Bulgaria","Camboya","Camerún","Canadá","Chile","China","Colombia","Corea del Sur","Corea del Norte","Costa Rica","Croacia","Cuba","Dinamarca","Ecuador","Egipto","El Salvador","Emiratos Árabes Unidos","Eslovaquia","Eslovenia","España","Estados Unidos","Estonia","Etiopía","Filipinas","Finlandia","Francia","Georgia","Ghana","Grecia","Guatemala","Honduras","Hungría","India","Indonesia","Irak","Irán","Irlanda","Islandia","Israel","Italia","Jamaica","Japón","Jordania","Kazajistán","Kenia","Kuwait","Letonia","Líbano","Libia","Lituania","Luxemburgo","Macedonia del Norte","Malasia","Marruecos","México","Moldavia","Mongolia","Montenegro","Mozambique","Myanmar","Nepal","Nicaragua","Nigeria","Noruega","Nueva Zelanda","Países Bajos","Pakistán","Panamá","Paraguay","Perú","Polonia","Portugal","Puerto Rico","Qatar","Reino Unido","República Checa","República Dominicana","Rumanía","Rusia","Serbia","Singapur","Siria","Sri Lanka","Sudáfrica","Suecia","Suiza","Tailandia","Tanzania","Túnez","Turquía","Ucrania","Uganda","Uruguay","Uzbekistán","Venezuela","Vietnam","Yemen","Zimbabue"];
+// Países seleccionados para filtro
+let paisesSeleccionados=new Set();
 const ESTADOS=["Pendiente","En seguimiento","Interesado","Negociación","Ganada","Perdida","Descartada"];
 const TIPOS=["Línea de llenado","Etiquetadora","Embotelladora","Taponadora","Envasadora","Mixta","Otra"];
 const CE={Pendiente:"#f59e0b","En seguimiento":"#3b82f6",Interesado:"#8b5cf6","Negociación":"#f97316",Ganada:"#10b981",Perdida:"#ef4444",Descartada:"#6b7280"};
@@ -813,10 +842,13 @@ function poblarSelects(){
   const fpf=document.getElementById("f-prov-form");
   const fef=document.getElementById("f-est-form"),fe=document.getElementById("f-est");
   const dl=document.getElementById("tipos-lista");
+  const fpais=document.getElementById("f-pais-form");
   PROVINCIAS.forEach(p=>{fpf.add(new Option(p,p));});
+  PAISES.forEach(p=>{fpais.add(new Option(p,p));});
   TIPOS.forEach(t=>{const op=document.createElement("option");op.value=t;dl.appendChild(op);});
   ESTADOS.forEach(e=>{fef.add(new Option(e,e));fe.add(new Option(e,e));});
   renderProvOpciones();
+  renderPaisOpciones();
 }
 function renderProvOpciones(filtro=""){
   const container=document.getElementById("prov-options");
@@ -883,7 +915,7 @@ function renderStats(){
   document.getElementById("stats-row").innerHTML=`
     <div class="stat-card clickable" onclick="setVista('tabla')"><div class="stat-val" style="color:var(--accent)">${ofertas.length}</div><div class="stat-lbl">Total Ofertas</div></div>
     <div class="stat-card clickable" onclick="setVista('tabla')"><div class="stat-val" style="color:#10b981">${gan}</div><div class="stat-lbl">Ganadas</div><div class="stat-trend" style="color:#10b981">Tasa: ${tasa}%</div></div>
-    <div class="stat-card"><div class="stat-val" style="color:#34d399">${total.toLocaleString("es-ES")} €</div><div class="stat-lbl">Importe Total</div></div>
+    <div class="stat-card clickable" onclick="setVista('estadistas')"><div class="stat-val" style="color:var(--purple)">${ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado)).length}</div><div class="stat-lbl">En pipeline</div></div>
     <div class="stat-card clickable" onclick="setVista('alertas')" style="${venc>0?'border-color:#f97316':''}"><div class="stat-val" style="color:#fb923c">${venc}</div><div class="stat-lbl">Recordatorios</div></div>
     <div class="stat-card clickable" onclick="setVista('alertas')" style="${alertas>0?'border-color:#ef4444':''}"><div class="stat-val" style="color:#ef4444">${alertas}</div><div class="stat-lbl">Alertas inactividad</div></div>
   `;
@@ -911,9 +943,10 @@ function getFiltradas(){
   const fe=document.getElementById("f-est").value;
   const fr=document.getElementById("f-resp").value;
   return ofertas.filter(o=>{
-    const m=!q||[o.empresa,o.contacto,o.numeroOferta,o.provincia,o.descripcion].some(v=>v?.toLowerCase().includes(q));
+    const m=!q||[o.empresa,o.contacto,o.numeroOferta,o.provincia,o.descripcion,o.pais].some(v=>v?.toLowerCase().includes(q));
     const provOk=provinciasSeleccionadas.size===0||provinciasSeleccionadas.has(o.provincia);
-    return m&&provOk&&(!fe||o.estado===fe)&&(!fr||o.responsableNombre===fr);
+    const paisOk=paisesSeleccionados.size===0||paisesSeleccionados.has(o.pais);
+    return m&&provOk&&paisOk&&(!fe||o.estado===fe)&&(!fr||o.responsableNombre===fr);
   }).sort((a,b)=>{
     const va=a[ordenCampo]??"",vb=b[ordenCampo]??"";
     if(ordenCampo==="numeroOferta"){
@@ -927,11 +960,93 @@ function limpiarFiltros(){
   document.getElementById("busqueda").value="";
   ["f-est","f-resp"].forEach(id=>document.getElementById(id).value="");
   provinciasSeleccionadas.clear();
+  paisesSeleccionados.clear();
   actualizarLabelProv();
+  actualizarLabelPais();
   renderProvOpciones();
+  renderPaisOpciones();
   renderVista();
 }
 function sortBy(c){ordenDir=ordenCampo===c&&ordenDir==="asc"?"desc":"asc";ordenCampo=c;renderVista();}
+
+// ===== SELECCIÓN MÚLTIPLE Y BORRADO =====
+let ofertasSeleccionadas=new Set();
+function actualizarSeleccion(){
+  ofertasSeleccionadas.clear();
+  document.querySelectorAll(".row-check:checked").forEach(ch=>ofertasSeleccionadas.add(ch.dataset.id));
+  const n=ofertasSeleccionadas.size;
+  const count=document.getElementById("seleccion-count");
+  const btn=document.getElementById("btn-borrar-sel");
+  if(count)count.textContent=n>0?`${n} oferta${n>1?"s":""} seleccionada${n>1?"s":""}`:""  ;
+  if(btn)btn.style.display=n>0?"inline-block":"none";
+  const checkAll=document.getElementById("check-all");
+  if(checkAll){
+    const total=document.querySelectorAll(".row-check").length;
+    checkAll.indeterminate=n>0&&n<total;
+    checkAll.checked=n>0&&n===total;
+  }
+}
+function toggleSeleccionTodos(cb){
+  document.querySelectorAll(".row-check").forEach(ch=>{ch.checked=cb.checked;});
+  actualizarSeleccion();
+}
+async function borrarSeleccionadas(){
+  const n=ofertasSeleccionadas.size;
+  if(!n)return;
+  if(!confirm(`¿Eliminar ${n} oferta${n>1?"s":""} seleccionada${n>1?"s":""}? Esta acción no se puede deshacer.`))return;
+  const ids=[...ofertasSeleccionadas];
+  const btn=document.getElementById("btn-borrar-sel");
+  btn.textContent="Eliminando...";btn.disabled=true;
+  for(const id of ids){
+    try{
+      const o=ofertas.find(x=>x.id===id);
+      await db.collection("historial").add({ofertaId:id,empresa:o?.empresa,numeroOferta:o?.numeroOferta,usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,accion:"eliminada",fecha:firebase.firestore.FieldValue.serverTimestamp()});
+      await db.collection("ofertas").doc(id).delete();
+    }catch(e){}
+  }
+  ofertasSeleccionadas.clear();
+  toast("🗑 "+n+" oferta"+(n>1?"s":"")+" eliminada"+(n>1?"s":"")+" correctamente","#f59e0b");
+}
+
+// ===== FILTRO PAÍSES =====
+function renderPaisOpciones(filtro=""){
+  const container=document.getElementById("pais-options");
+  if(!container)return;
+  const lista=filtro?PAISES.filter(p=>p.toLowerCase().includes(filtro.toLowerCase())):PAISES;
+  container.innerHTML=lista.map(p=>`
+    <label style="display:flex;align-items:center;gap:7px;padding:5px 6px;border-radius:6px;cursor:pointer;font-size:12px;color:var(--text);${paisesSeleccionados.has(p)?'background:var(--accent-light);':''}">
+      <input type="checkbox" value="${p}" ${paisesSeleccionados.has(p)?'checked':''} onchange="togglePais('${p}')" style="accent-color:var(--accent);cursor:pointer"/>
+      ${p}
+    </label>`).join('');
+}
+function filtrarPaisDropdown(){
+  renderPaisOpciones(document.getElementById("pais-search").value);
+}
+function togglePais(p){
+  if(paisesSeleccionados.has(p))paisesSeleccionados.delete(p);
+  else paisesSeleccionados.add(p);
+  renderPaisOpciones(document.getElementById("pais-search").value);
+  actualizarLabelPais();
+  renderVista();
+}
+function actualizarLabelPais(){
+  const lbl=document.getElementById("pais-btn-label");
+  if(!lbl)return;
+  if(paisesSeleccionados.size===0)lbl.textContent="🌍 Todos los países";
+  else if(paisesSeleccionados.size===1)lbl.textContent="🌍 "+[...paisesSeleccionados][0];
+  else lbl.textContent=`🌍 ${paisesSeleccionados.size} países`;
+}
+function togglePaisDropdown(){
+  const d=document.getElementById("pais-dropdown");
+  d.style.display=d.style.display==="none"?"block":"none";
+}
+document.addEventListener("click",function(e){
+  const wrap=document.getElementById("pais-dropdown-wrap");
+  if(wrap&&!wrap.contains(e.target)){
+    const d=document.getElementById("pais-dropdown");
+    if(d)d.style.display="none";
+  }
+});
 
 // ===== VISTAS =====
 function setVista(v){
@@ -1050,18 +1165,21 @@ function renderTabla(){
   const hoyCmp=new Date();
   const rows=getFiltradas();
   const tbody=document.getElementById("tbody");
-  if(!rows.length){tbody.innerHTML=`<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:40px">No se encontraron ofertas</td></tr>`;return;}
-  tbody.innerHTML=rows.map(o=>{
+  if(!rows.length){tbody.innerHTML=`<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:40px">No se encontraron ofertas</td></tr>`;return;}
+  tbody.innerHTML=rows.map((o,idx)=>{
     const col=CE[o.estado]||"#64748b";
     const vence=o.fechaRecordatorio&&o.fechaRecordatorio<=hoy;
     const ultima=o.fechaUltimaActividad?.toDate?o.fechaUltimaActividad.toDate():o.creadoEn?.toDate?o.creadoEn.toDate():null;
     const diasInact=ultima?Math.floor((hoyCmp-ultima)/(864e5)):null;
     const inactiva=diasInact!==null&&diasInact>=DIAS_ALERTA&&!["Ganada","Perdida","Descartada"].includes(o.estado);
     const puedeEditar=currentProfile.rol==="admin"||o.responsableUid===currentUser.uid;
-    return `<tr style="--ec:${inactiva?"#ef4444":col}" onclick="verDetalle('${o.id}')">
+    const filaColor=idx%2===0?"background:var(--surface)":"background:#f3f6fc";
+    return `<tr style="--ec:${inactiva?"#ef4444":col};${filaColor}" onclick="verDetalle('${o.id}')">
+      <td onclick="event.stopPropagation()" style="text-align:center"><input type="checkbox" class="row-check" data-id="${o.id}" onclick="actualizarSeleccion()" style="accent-color:var(--accent);cursor:pointer;width:15px;height:15px"/></td>
       <td style="color:var(--accent);font-weight:600">${o.numeroOferta||"—"}</td>
       <td><div style="color:var(--text);font-weight:600">${o.empresa}</div><div style="color:var(--text3);font-size:10px">${o.contacto||""}</div></td>
       <td style="color:var(--text2)">${o.provincia||"—"}</td>
+      <td style="color:var(--text2)">${o.pais||"—"}</td>
       <td style="color:var(--text2)">${o.tipoMaquina||"—"}</td>
       <td style="color:#34d399;font-weight:700">${(o.importe||0).toLocaleString("es-ES")} €</td>
       <td><span class="badge" style="background:${col}22;color:${col};border:1px solid ${col}55">${o.estado}</span></td>
@@ -1090,7 +1208,15 @@ function renderEstadisticas(){
   const topImp=Object.entries(impEstado).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
   const porMes={};datos.forEach(o=>{if(o.fechaOferta){const m=o.fechaOferta.substring(0,7);porMes[m]=(porMes[m]||0)+1;}});
   const meses=Object.entries(porMes).sort((a,b)=>a[0].localeCompare(b[0])).slice(-12);
+  // CAMBIO 8: Estadísticas por máquina
+  const porMaquina={};datos.forEach(o=>{if(o.tipoMaquina){const t=o.tipoMaquina.trim();porMaquina[t]=(porMaquina[t]||0)+1;}});
+  const topMaquinas=Object.entries(porMaquina).sort((a,b)=>b[1]-a[1]).slice(0,15);
+  const impMaquina={};datos.forEach(o=>{if(o.tipoMaquina){const t=o.tipoMaquina.trim();impMaquina[t]=(impMaquina[t]||0)+(o.importe||0);}});
+  const topImpMaquina=Object.entries(impMaquina).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,15);
+  const maxMaquina=topMaquinas.length?topMaquinas[0][1]:1;
+  const maxImpMaquina=topImpMaquina.length?topImpMaquina[0][1]:1;
   function barras(titulo,items,maxVal,colorFn){
+    if(!items.length)return`<div class="chart-card"><h3>${titulo}</h3><div style="color:var(--text3);font-size:13px">Sin datos suficientes</div></div>`;
     return `<div class="chart-card"><h3>${titulo}</h3>${items.map(([label,val],i)=>`
       <div class="bar-row"><div class="bar-label" title="${label}">${label}</div>
       <div class="bar-track"><div class="bar-fill" style="width:${maxVal?Math.round(val/maxVal*100):0}%;background:${colorFn(label,i)}">
@@ -1113,6 +1239,8 @@ function renderEstadisticas(){
     ${barras("📍 Top provincias",topProv,maxProv,(l,i)=>CG[i%CG.length])}
     ${barras("👷 Ofertas por comercial",topResp,maxResp,(l,i)=>CG[(i+3)%CG.length])}
     ${barras("💶 Importe por estado (€)",topImp.map(([k,v])=>[k,Math.round(v)]),maxImp,(l)=>CE[l]||"#64748b")}
+    ${barras("🏭 Nº de ofertas por tipo de máquina",topMaquinas,maxMaquina,(l,i)=>CG[(i+2)%CG.length])}
+    ${barras("💰 Importe total por tipo de máquina (€)",topImpMaquina.map(([k,v])=>[k,Math.round(v)]),maxImpMaquina,(l,i)=>CG[(i+5)%CG.length])}
   `;
 }
 
@@ -1274,15 +1402,29 @@ function abrirLlamada(ofertaId){
   document.getElementById("ll-notas").value="";
   document.getElementById("ll-accion").value="";
   document.getElementById("ll-recod").value="";
+  // Poblar select de estado con el estado actual marcado
+  const llEst=document.getElementById("ll-estado");
+  llEst.innerHTML='<option value="">— Sin cambiar —</option>';
+  ESTADOS.forEach(e=>{
+    const opt=new Option(e,e);
+    if(o&&o.estado===e)opt.style.fontWeight="700";
+    llEst.add(opt);
+  });
+  llEst.value="";
   document.getElementById("modal-llamada").style.display="flex";
 }
 
 async function guardarLlamada(){
-  const o=ofertas.find(x=>x.id===llamadaOfertaId);if(!o)return;
+  if(!llamadaOfertaId){toast("⚠️ Error: no hay oferta seleccionada","#f59e0b");return;}
+  const o=ofertas.find(x=>x.id===llamadaOfertaId);
+  if(!o){toast("⚠️ Oferta no encontrada","#f59e0b");return;}
   const resultado=document.getElementById("ll-resultado").value;
-  const notas=document.getElementById("ll-notas").value;
-  const accion=document.getElementById("ll-accion").value;
+  const notas=document.getElementById("ll-notas").value.trim();
+  const accion=document.getElementById("ll-accion").value.trim();
   const recod=document.getElementById("ll-recod").value;
+  const estadoNuevo=document.getElementById("ll-estado").value;
+  const btn=document.querySelector("#modal-llamada .btn-save");
+  btn.textContent="Guardando...";btn.disabled=true;
   const update={
     numLlamadas:(o.numLlamadas||0)+1,
     ultimaLlamada:new Date().toISOString().split("T")[0],
@@ -1290,17 +1432,26 @@ async function guardarLlamada(){
     fechaUltimaActividad:firebase.firestore.FieldValue.serverTimestamp()
   };
   if(recod)update.fechaRecordatorio=recod;
-  if(notas)update.notas=(o.notas?o.notas+"\n---\n":"")+`[${new Date().toLocaleDateString("es-ES")}] ${resultado}: ${notas}`;
-  await db.collection("ofertas").doc(llamadaOfertaId).update(update);
-  await db.collection("historial").add({
-    ofertaId:llamadaOfertaId,numeroOferta:o.numeroOferta,empresa:o.empresa,
-    usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,
-    accion:"llamada registrada",campoModificado:"resultado",valorNuevo:resultado,
-    fecha:firebase.firestore.FieldValue.serverTimestamp()
-  });
-  document.getElementById("modal-llamada").style.display="none";
-  toast("📞 Llamada registrada correctamente","#10b981");
-  if(vistaActual==="llamadas")renderLlamadas();
+  if(estadoNuevo&&estadoNuevo!==o.estado)update.estado=estadoNuevo;
+  if(accion)update.proximaAccion=accion;
+  const nota_nueva=`[${new Date().toLocaleDateString("es-ES")}] ${resultado}${notas?": "+notas:""}${accion?" → Próx: "+accion:""}`;
+  update.notas=(o.notas?o.notas+"\n---\n":"")+nota_nueva;
+  try{
+    await db.collection("ofertas").doc(llamadaOfertaId).update(update);
+    await db.collection("historial").add({
+      ofertaId:llamadaOfertaId,numeroOferta:o.numeroOferta,empresa:o.empresa,
+      usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,
+      accion:"llamada registrada",campoModificado:"resultado",valorNuevo:resultado,
+      fecha:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    document.getElementById("modal-llamada").style.display="none";
+    toast("📞 Llamada guardada correctamente","#10b981");
+    if(vistaActual==="llamadas")renderLlamadas();
+  }catch(e){
+    toast("❌ Error al guardar: "+e.message,"#ef4444");
+  }finally{
+    btn.textContent="Guardar llamada";btn.disabled=false;
+  }
 }
 
 // ===== COMPARATIVA COMERCIALES =====
@@ -1538,7 +1689,9 @@ function abrirModal(o){
   document.getElementById("f-movil").value=o?.telefonoMovil||"";
   document.getElementById("f-email").value=o?.email||"";
   document.getElementById("f-prov-form").value=o?.provincia||"Madrid";
+  document.getElementById("f-pais-form").value=o?.pais||"";
   document.getElementById("f-tipo").value=o?.tipoMaquina||"";
+  document.getElementById("f-otros").value=o?.otros||"";
   document.getElementById("f-desc").value=o?.descripcion||"";
   document.getElementById("f-importe").value=o?.importe||"";
   document.getElementById("f-est-form").value=o?.estado||"Pendiente";
@@ -1624,7 +1777,9 @@ async function guardarOferta(){
     contacto:document.getElementById("f-contacto").value,telefono:document.getElementById("f-tel").value,
     telefonoMovil:document.getElementById("f-movil").value,
     email:document.getElementById("f-email").value,provincia:document.getElementById("f-prov-form").value,
+    pais:document.getElementById("f-pais-form").value||"",
     tipoMaquina:document.getElementById("f-tipo").value,descripcion:document.getElementById("f-desc").value,
+    otros:document.getElementById("f-otros").value||"",
     importe:parseFloat(document.getElementById("f-importe").value)||0,estado:estadoNuevo,
     responsableNombre:document.getElementById("f-resp-form").value,responsableUid:currentUser.uid,
     fechaOferta:document.getElementById("f-fecha").value||null,
