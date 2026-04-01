@@ -1734,10 +1734,91 @@ async function guardarLlamada(){
     if(vistaActual==="llamadas")renderLlamadas();
   }catch(e){
     console.error("Error guardarLlamada:",e);
-    toast("❌ Error al guardar la llamada: "+e.message,"#ef4444");
+    // Detectar específicamente el error de permisos de Firestore
+    if(e.code==="permission-denied"||e.message.toLowerCase().includes("permission")||e.message.toLowerCase().includes("insufficient")){
+      mostrarErrorPermisos();
+    } else {
+      toast("❌ Error al guardar la llamada: "+e.message,"#ef4444");
+    }
   }finally{
     btn.textContent="Guardar llamada";btn.disabled=false;
   }
+}
+
+function mostrarErrorPermisos(){
+  // Crear modal de diagnóstico con las reglas correctas
+  const existente=document.getElementById("modal-permisos");
+  if(existente)existente.remove();
+  const reglas=`rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Cualquier usuario autenticado puede leer y escribir ofertas
+    match /ofertas/{ofertaId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // Cualquier usuario autenticado puede leer y escribir historial
+    match /historial/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // Solo el propio usuario o admin puede leer/escribir su perfil
+    match /usuarios/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && (request.auth.uid == userId
+                       || get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'admin');
+    }
+  }
+}`;
+  const div=document.createElement("div");
+  div.id="modal-permisos";
+  div.style.cssText="position:fixed;inset:0;background:rgba(20,30,60,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);padding:20px";
+  div.innerHTML=`
+    <div style="background:var(--surface);border:2px solid #fca5a5;border-radius:18px;width:100%;max-width:680px;max-height:90vh;overflow-y:auto;padding:28px;box-shadow:0 24px 60px rgba(0,0,0,.25)">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
+        <div>
+          <div style="color:#ef4444;font-size:18px;font-weight:800">🔒 Error de permisos en Firestore</div>
+          <div style="color:var(--text3);font-size:13px;margin-top:4px">Las reglas de seguridad de Firebase impiden guardar llamadas a usuarios que no son el responsable original. Sigue estos pasos para solucionarlo:</div>
+        </div>
+        <button onclick="document.getElementById('modal-permisos').remove()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text2);font-size:18px;cursor:pointer;border-radius:8px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:12px">✕</button>
+      </div>
+
+      <div style="display:grid;gap:10px;margin-bottom:18px">
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+          <div style="color:var(--accent);font-weight:700;font-size:13px;margin-bottom:6px">📋 Paso 1 — Ir a Firebase Console</div>
+          <div style="color:var(--text2);font-size:12px;line-height:1.8">
+            Ve a <a href="https://console.firebase.google.com" target="_blank" style="color:var(--accent);font-weight:700">console.firebase.google.com</a>
+            → Tu proyecto <b style="color:var(--text)">machinecrm-61b34</b>
+            → <b style="color:var(--text)">Firestore Database</b>
+            → pestaña <b style="color:var(--text)">Reglas</b>
+          </div>
+        </div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+          <div style="color:var(--accent);font-weight:700;font-size:13px;margin-bottom:8px">📝 Paso 2 — Pegar estas reglas y publicar</div>
+          <div style="position:relative">
+            <pre id="reglas-txt" style="background:#0f172a;color:#e2e8f0;border-radius:8px;padding:14px;font-size:11px;font-family:'DM Mono',monospace;overflow-x:auto;line-height:1.7;white-space:pre">${reglas}</pre>
+            <button onclick="navigator.clipboard.writeText(document.getElementById('reglas-txt').textContent);this.textContent='✅ Copiado!';setTimeout(()=>this.textContent='📋 Copiar',2000)"
+              style="position:absolute;top:8px;right:8px;background:var(--accent);color:white;border:none;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer">📋 Copiar</button>
+          </div>
+        </div>
+        <div style="background:var(--green-bg);border:1px solid #b7e4d1;border-radius:10px;padding:12px 14px">
+          <div style="color:var(--green);font-weight:700;font-size:12px">✅ Resultado — Después de aplicar las reglas:</div>
+          <div style="color:#065f46;font-size:12px;margin-top:4px;line-height:1.7">
+            • Cualquier usuario autenticado podrá registrar llamadas en cualquier oferta<br>
+            • Cualquier usuario podrá editar ofertas y ver el historial<br>
+            • Solo el admin podrá modificar perfiles de otros usuarios
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end">
+        <button onclick="document.getElementById('modal-permisos').remove()" style="background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;border:none;border-radius:8px;padding:10px 24px;font-size:13px;font-weight:700;cursor:pointer">Entendido</button>
+      </div>
+    </div>`;
+  document.body.appendChild(div);
 }
 
 // ===== COMPARATIVA COMERCIALES =====
@@ -1791,6 +1872,30 @@ function renderComparativa(){
     </div>`;
 }
 
+// ===== BORRAR RECORDATORIOS =====
+async function borrarRecordatorio(ofertaId, empresa){
+  if(!confirm(`¿Borrar el recordatorio de "${empresa}"? La oferta seguirá existiendo.`))return;
+  try{
+    await db.collection("ofertas").doc(ofertaId).update({fechaRecordatorio:firebase.firestore.FieldValue.delete()});
+    toast("✅ Recordatorio eliminado","#10b981");
+    renderAlertas();
+    renderStats();
+  }catch(e){toast("❌ Error: "+e.message,"#ef4444");}
+}
+
+async function borrarTodosRecordatorios(){
+  const hoy=new Date().toISOString().split("T")[0];
+  const vencidos=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado));
+  if(!vencidos.length){toast("ℹ️ No hay recordatorios vencidos","#3b82f6");return;}
+  if(!confirm(`¿Borrar los ${vencidos.length} recordatorios vencidos? Las ofertas seguirán existiendo.`))return;
+  const batch=db.batch();
+  vencidos.forEach(o=>batch.update(db.collection("ofertas").doc(o.id),{fechaRecordatorio:firebase.firestore.FieldValue.delete()}));
+  await batch.commit();
+  toast(`✅ ${vencidos.length} recordatorios eliminados`,"#10b981");
+  renderAlertas();
+  renderStats();
+}
+
 // ===== ALERTAS =====
 function renderAlertas(){
   const hoy=new Date().toISOString().split("T")[0];
@@ -1823,6 +1928,7 @@ function renderAlertas(){
         <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
           <button class="llamada-btn" onclick="event.stopPropagation();abrirLlamada('${o.id}')">📞 Registrar llamada</button>
           <button onclick="event.stopPropagation();editarOferta('${o.id}')" style="background:var(--accent-light);color:var(--accent);border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">✏️ Editar</button>
+          <button onclick="event.stopPropagation();borrarRecordatorio('${o.id}','${o.empresa}')" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">🗑 Borrar recordatorio</button>
         </div>
       </div>
     </div>`;
@@ -1831,10 +1937,11 @@ function renderAlertas(){
   document.getElementById("vista-alertas").innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
       <h3 style="color:#fb923c;margin:0">🔔 Centro de Alertas</h3>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <span style="background:#fef2f2;border:1px solid #fca5a5;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:var(--red)">🔴 Vencidos: ${venc.length}</span>
         <span style="background:#fffbeb;border:1px solid #fcd34d;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:#92400e">🟡 Mañana: ${proxManana.length}</span>
         <span style="background:#fff7ed;border:1px solid #fed7aa;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:#c2490b">⚠️ Inactivos: ${inact.length}</span>
+        ${venc.length>1?`<button onclick="borrarTodosRecordatorios()" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:20px;padding:4px 13px;font-size:12px;font-weight:700;cursor:pointer">🗑 Limpiar todos los vencidos</button>`:""}
       </div>
     </div>
 
@@ -1887,20 +1994,99 @@ function renderAlertas(){
 }
 
 // ===== HISTORIAL =====
+let histFiltro="todos";
 async function cargarHistorial(){
   document.getElementById("hist-body").innerHTML=`<div class="loading">Cargando historial...</div>`;
-  const snap=await db.collection("historial").orderBy("fecha","desc").limit(150).get();
+  const snap=await db.collection("historial").orderBy("fecha","desc").limit(300).get();
   if(snap.empty){document.getElementById("hist-body").innerHTML=`<div class="loading">Sin historial aún</div>`;return;}
-  document.getElementById("hist-body").innerHTML=snap.docs.map(d=>{
-    const h=d.data();
-    return `<div class="hist-item">
-      <div style="display:flex;justify-content:space-between">
-        <div style="color:var(--accent);font-weight:600">👤 ${h.usuarioNombre||"Sistema"} — <span style="color:#a78bfa">${h.accion}</span></div>
-        <div style="color:var(--text3);font-size:11px">${h.fecha?.toDate?h.fecha.toDate().toLocaleString("es-ES"):""}</div>
+
+  const docs=snap.docs.map(d=>({id:d.id,...d.data()}));
+  const llamadas=docs.filter(h=>h.accion==="llamada registrada");
+  const resto=docs.filter(h=>h.accion!=="llamada registrada");
+
+  // Cabecera con filtros y opciones de limpieza
+  const cabeceraHtml=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button onclick="histFiltro='todos';cargarHistorial()" style="background:${histFiltro==='todos'?'var(--accent)':'var(--surface2)'};color:${histFiltro==='todos'?'white':'var(--text2)'};border:1px solid ${histFiltro==='todos'?'var(--accent)':'var(--border)'};border-radius:20px;padding:5px 13px;font-size:12px;font-weight:700;cursor:pointer">Todos (${docs.length})</button>
+        <button onclick="histFiltro='llamadas';cargarHistorial()" style="background:${histFiltro==='llamadas'?'var(--green)':'var(--surface2)'};color:${histFiltro==='llamadas'?'white':'var(--text2)'};border:1px solid ${histFiltro==='llamadas'?'var(--green)':'var(--border)'};border-radius:20px;padding:5px 13px;font-size:12px;font-weight:700;cursor:pointer">📞 Llamadas (${llamadas.length})</button>
+        <button onclick="histFiltro='cambios';cargarHistorial()" style="background:${histFiltro==='cambios'?'var(--purple)':'var(--surface2)'};color:${histFiltro==='cambios'?'white':'var(--text2)'};border:1px solid ${histFiltro==='cambios'?'var(--purple)':'var(--border)'};border-radius:20px;padding:5px 13px;font-size:12px;font-weight:700;cursor:pointer">📝 Cambios (${resto.length})</button>
       </div>
-      <div style="color:var(--text2);font-size:12px;margin-top:3px">${h.empresa||""} ${h.numeroOferta?`(${h.numeroOferta})`:""} ${h.campoModificado?`· ${h.campoModificado}: <span style="color:#ef4444">${h.valorAnterior||"—"}</span> → <span style="color:#10b981">${h.valorNuevo||"—"}</span>`:""}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${llamadas.length>0?`<button onclick="borrarLlamadasAntiguas(30)" style="background:var(--orange-bg);color:var(--orange);border:1px solid #fbd0b0;border-radius:20px;padding:5px 13px;font-size:12px;font-weight:700;cursor:pointer">🗑 Llamadas +30 días</button>`:""}
+        ${llamadas.length>0?`<button onclick="borrarLlamadasAntiguas(90)" style="background:var(--orange-bg);color:var(--orange);border:1px solid #fbd0b0;border-radius:20px;padding:5px 13px;font-size:12px;font-weight:700;cursor:pointer">🗑 Llamadas +90 días</button>`:""}
+        ${docs.length>0?`<button onclick="borrarHistorialTodo()" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:20px;padding:5px 13px;font-size:12px;font-weight:700;cursor:pointer">🗑 Limpiar todo</button>`:""}
+      </div>
+    </div>`;
+
+  const filtrados=histFiltro==="llamadas"?llamadas:histFiltro==="cambios"?resto:docs;
+
+  const itemsHtml=filtrados.map(h=>{
+    const esLlamada=h.accion==="llamada registrada";
+    const fecha=h.fecha?.toDate?h.fecha.toDate().toLocaleString("es-ES"):"";
+    return `<div class="hist-item" style="${esLlamada?'border-left-color:var(--green)':''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1">
+          <div style="color:${esLlamada?'var(--green)':'var(--accent)'};font-weight:600;font-size:12px">
+            👤 ${h.usuarioNombre||"Sistema"} — <span style="color:${esLlamada?'#059669':'#a78bfa'}">${h.accion}</span>
+          </div>
+          <div style="color:var(--text2);font-size:12px;margin-top:3px">
+            ${h.empresa||""} ${h.numeroOferta?`(${h.numeroOferta})`:""} 
+            ${h.campoModificado?`· ${h.campoModificado}: <span style="color:#ef4444">${h.valorAnterior||"—"}</span> → <span style="color:#10b981">${h.valorNuevo||"—"}</span>`:""}
+          </div>
+          <div style="color:var(--text3);font-size:11px;margin-top:2px">${fecha}</div>
+        </div>
+        <button onclick="borrarRegistroHistorial('${h.id}')" title="Borrar este registro" 
+          style="background:transparent;border:1px solid #fca5a5;color:#ef4444;border-radius:6px;padding:3px 9px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;white-space:nowrap">✕ Borrar</button>
+      </div>
     </div>`;
   }).join("");
+
+  document.getElementById("hist-body").innerHTML=cabeceraHtml+(filtrados.length?itemsHtml:`<div class="loading">Sin registros en esta categoría</div>`);
+}
+
+async function borrarRegistroHistorial(id){
+  if(!confirm("¿Borrar este registro del historial?"))return;
+  try{
+    await db.collection("historial").doc(id).delete();
+    toast("🗑 Registro eliminado","#f59e0b");
+    cargarHistorial();
+  }catch(e){toast("❌ Error: "+e.message,"#ef4444");}
+}
+
+async function borrarLlamadasAntiguas(dias){
+  const limite=new Date();
+  limite.setDate(limite.getDate()-dias);
+  if(!confirm(`¿Borrar todos los registros de llamadas con más de ${dias} días? Esta acción no se puede deshacer.`))return;
+  const snap=await db.collection("historial")
+    .where("accion","==","llamada registrada")
+    .orderBy("fecha","asc")
+    .get();
+  const antiguos=snap.docs.filter(d=>{
+    const f=d.data().fecha?.toDate?.();
+    return f&&f<limite;
+  });
+  if(!antiguos.length){toast("ℹ️ No hay registros de llamadas con más de "+dias+" días","#3b82f6");return;}
+  const btn_txt=`🗑 Borrando ${antiguos.length} registros...`;
+  toast(btn_txt,"#f59e0b");
+  const batch=db.batch();
+  antiguos.forEach(d=>batch.delete(d.ref));
+  await batch.commit();
+  toast(`✅ ${antiguos.length} registros de llamadas eliminados`,"#10b981");
+  cargarHistorial();
+}
+
+async function borrarHistorialTodo(){
+  if(!confirm("⚠️ ¿Borrar TODO el historial de cambios y llamadas? Esta acción es irreversible."))return;
+  if(!confirm("Confirmación final — esto borrará todos los registros. ¿Seguro?"))return;
+  const snap=await db.collection("historial").limit(500).get();
+  if(snap.empty){toast("ℹ️ El historial ya está vacío","#3b82f6");return;}
+  toast(`🗑 Borrando ${snap.docs.length} registros...`,"#f59e0b");
+  const batch=db.batch();
+  snap.docs.forEach(d=>batch.delete(d.ref));
+  await batch.commit();
+  toast("✅ Historial limpiado completamente","#10b981");
+  cargarHistorial();
 }
 
 // ===== EXPORTAR =====
@@ -2213,7 +2399,13 @@ async function guardarOferta(){
       await db.collection("historial").add({ofertaId:ref.id,numeroOferta:datos.numeroOferta,empresa:datos.empresa,usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,accion:"creada",fecha:firebase.firestore.FieldValue.serverTimestamp()});
     }
     toast("✅ Oferta guardada","#10b981");cerrarModal();
-  }catch(e){toast("❌ Error: "+e.message,"#ef4444");}
+  }catch(e){
+    if(e.code==="permission-denied"||e.message.toLowerCase().includes("permission")||e.message.toLowerCase().includes("insufficient")){
+      mostrarErrorPermisos();
+    } else {
+      toast("❌ Error: "+e.message,"#ef4444");
+    }
+  }
 }
 async function eliminarOferta(id){
   if(!confirm("¿Eliminar esta oferta? No se puede deshacer."))return;
