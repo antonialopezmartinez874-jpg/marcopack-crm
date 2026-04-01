@@ -1172,9 +1172,10 @@ function renderTabla(){
     const ultima=o.fechaUltimaActividad?.toDate?o.fechaUltimaActividad.toDate():o.creadoEn?.toDate?o.creadoEn.toDate():null;
     const diasInact=ultima?Math.floor((hoyCmp-ultima)/(864e5)):null;
     const inactiva=diasInact!==null&&diasInact>=DIAS_ALERTA&&!["Ganada","Perdida","Descartada"].includes(o.estado);
-    const puedeEditar=currentProfile.rol==="admin"||o.responsableUid===currentUser.uid;
-    const filaColor=idx%2===0?"background:var(--surface)":"background:#f3f6fc";
-    return `<tr style="--ec:${inactiva?"#ef4444":col};${filaColor}" onclick="verDetalle('${o.id}')">
+    const puedeEditar=currentProfile.rol==="admin"||o.responsableUid===currentUser.uid||o.responsableNombre===currentProfile.nombre;
+    const filaColor=idx%2===0?"background:#ffffff":"background:#dde8f8";
+    const filaBorde=idx%2!==0?"border-top:1px solid #b8cfe8;border-bottom:1px solid #b8cfe8;":"";
+    return `<tr style="--ec:${inactiva?"#ef4444":col};${filaColor};${filaBorde}" onclick="verDetalle('${o.id}')">
       <td onclick="event.stopPropagation()" style="text-align:center"><input type="checkbox" class="row-check" data-id="${o.id}" onclick="actualizarSeleccion()" style="accent-color:var(--accent);cursor:pointer;width:15px;height:15px"/></td>
       <td style="color:var(--accent);font-weight:600">${o.numeroOferta||"—"}</td>
       <td><div style="color:var(--text);font-weight:600">${o.empresa}</div><div style="color:var(--text3);font-size:10px">${o.contacto||""}</div></td>
@@ -1416,8 +1417,9 @@ function abrirLlamada(ofertaId){
 
 async function guardarLlamada(){
   if(!llamadaOfertaId){toast("⚠️ Error: no hay oferta seleccionada","#f59e0b");return;}
+  if(!currentUser||!currentProfile){toast("⚠️ Sesión no iniciada. Por favor recarga la página.","#f59e0b");return;}
   const o=ofertas.find(x=>x.id===llamadaOfertaId);
-  if(!o){toast("⚠️ Oferta no encontrada","#f59e0b");return;}
+  if(!o){toast("⚠️ Oferta no encontrada en el listado","#f59e0b");return;}
   const resultado=document.getElementById("ll-resultado").value;
   const notas=document.getElementById("ll-notas").value.trim();
   const accion=document.getElementById("ll-accion").value.trim();
@@ -1439,16 +1441,23 @@ async function guardarLlamada(){
   try{
     await db.collection("ofertas").doc(llamadaOfertaId).update(update);
     await db.collection("historial").add({
-      ofertaId:llamadaOfertaId,numeroOferta:o.numeroOferta,empresa:o.empresa,
-      usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,
-      accion:"llamada registrada",campoModificado:"resultado",valorNuevo:resultado,
+      ofertaId:llamadaOfertaId,
+      numeroOferta:o.numeroOferta||"",
+      empresa:o.empresa||"",
+      usuarioUid:currentUser.uid,
+      usuarioNombre:currentProfile.nombre||currentUser.email||"Usuario",
+      accion:"llamada registrada",
+      campoModificado:"resultado",
+      valorNuevo:resultado,
       fecha:firebase.firestore.FieldValue.serverTimestamp()
     });
     document.getElementById("modal-llamada").style.display="none";
+    llamadaOfertaId=null;
     toast("📞 Llamada guardada correctamente","#10b981");
     if(vistaActual==="llamadas")renderLlamadas();
   }catch(e){
-    toast("❌ Error al guardar: "+e.message,"#ef4444");
+    console.error("Error guardarLlamada:",e);
+    toast("❌ Error al guardar la llamada: "+e.message,"#ef4444");
   }finally{
     btn.textContent="Guardar llamada";btn.disabled=false;
   }
@@ -1650,7 +1659,7 @@ function verDetalle(id){
   const hoy=new Date().toISOString().split("T")[0];
   const vence=o.fechaRecordatorio&&o.fechaRecordatorio<=hoy;
   const col=CE[o.estado]||"#64748b";
-  const puedeEditar=currentProfile.rol==="admin"||o.responsableUid===currentUser.uid;
+  const puedeEditar=currentProfile.rol==="admin"||o.responsableUid===currentUser.uid||o.responsableNombre===currentProfile.nombre;
   document.getElementById("det-body").innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
       <div><div style="color:var(--accent);font-size:13px;font-weight:600">${o.numeroOferta}</div><h2 style="color:var(--text);font-size:20px;margin:3px 0 0">${o.empresa}</h2></div>
@@ -1772,27 +1781,60 @@ async function guardarOferta(){
   const empresa=document.getElementById("f-empresa").value.trim();
   if(!empresa){toast("⚠️ El nombre de empresa es obligatorio","#f59e0b");return;}
   const estadoNuevo=document.getElementById("f-est-form").value;
+  // Construir objeto de datos con todos los campos del formulario
   const datos={
-    numeroOferta:document.getElementById("f-num").value,empresa,
-    contacto:document.getElementById("f-contacto").value,telefono:document.getElementById("f-tel").value,
-    telefonoMovil:document.getElementById("f-movil").value,
-    email:document.getElementById("f-email").value,provincia:document.getElementById("f-prov-form").value,
+    numeroOferta:document.getElementById("f-num").value.trim()||generarNumero(),
+    empresa,
+    contacto:document.getElementById("f-contacto").value.trim(),
+    telefono:document.getElementById("f-tel").value.trim(),
+    telefonoMovil:document.getElementById("f-movil").value.trim(),
+    email:document.getElementById("f-email").value.trim(),
+    provincia:document.getElementById("f-prov-form").value,
     pais:document.getElementById("f-pais-form").value||"",
-    tipoMaquina:document.getElementById("f-tipo").value,descripcion:document.getElementById("f-desc").value,
-    otros:document.getElementById("f-otros").value||"",
-    importe:parseFloat(document.getElementById("f-importe").value)||0,estado:estadoNuevo,
-    responsableNombre:document.getElementById("f-resp-form").value,responsableUid:currentUser.uid,
+    tipoMaquina:document.getElementById("f-tipo").value.trim(),
+    descripcion:document.getElementById("f-desc").value.trim(),
+    otros:document.getElementById("f-otros").value.trim()||"",
+    importe:parseFloat(document.getElementById("f-importe").value)||0,
+    estado:estadoNuevo,
+    responsableNombre:document.getElementById("f-resp-form").value,
+    responsableUid:currentUser.uid,
     fechaOferta:document.getElementById("f-fecha").value||null,
     fechaRecordatorio:document.getElementById("f-recod").value||null,
-    notas:document.getElementById("f-notas").value,referencia:document.getElementById("f-referencia").value,archivos:archivosTemp,
+    referencia:document.getElementById("f-referencia").value.trim(),
+    archivos:archivosTemp,
     actualizadoEn:firebase.firestore.FieldValue.serverTimestamp(),
     fechaUltimaActividad:firebase.firestore.FieldValue.serverTimestamp()
   };
+  // Gestión especial de notas: si estamos editando, preservar el historial de llamadas
+  const notasFormulario=document.getElementById("f-notas").value;
+  if(editandoId){
+    const ofertaVieja=ofertas.find(o=>o.id===editandoId);
+    const notasViejas=ofertaVieja?.notas||"";
+    // Si las notas viejas contienen historial de llamadas (separadas por ---) y
+    // las notas del formulario difieren, fusionar: notas manuales + historial de llamadas
+    if(notasViejas.includes("---")){
+      // Separar la parte manual (antes del primer ---) del historial de llamadas
+      const partes=notasViejas.split("\n---\n");
+      const historialLlamadas=partes.slice(1).join("\n---\n");
+      // La parte manual la reemplazamos con lo que el usuario escribió en el campo
+      datos.notas=notasFormulario+(historialLlamadas?"\n---\n"+historialLlamadas:"");
+    } else {
+      datos.notas=notasFormulario;
+    }
+  } else {
+    datos.notas=notasFormulario;
+  }
   try{
     if(editandoId){
       await db.collection("ofertas").doc(editandoId).update(datos);
       const vieja=ofertas.find(o=>o.id===editandoId);
-      const cambios=[["empresa","empresa"],["estado","estado"],["importe","importe"],["responsableNombre","responsable"],["fechaRecordatorio","recordatorio"]];
+      const cambios=[
+        ["empresa","empresa"],["estado","estado"],["importe","importe"],
+        ["responsableNombre","responsable"],["fechaRecordatorio","recordatorio"],
+        ["telefono","teléfono"],["telefonoMovil","móvil"],["email","email"],
+        ["contacto","contacto"],["provincia","provincia"],["tipoMaquina","tipo máquina"],
+        ["descripcion","descripción"],["otros","otros"],["referencia","referencia"]
+      ];
       for(const [campo,label] of cambios){
         if(String(vieja[campo]||"")!==String(datos[campo]||"")){
           await db.collection("historial").add({ofertaId:editandoId,numeroOferta:datos.numeroOferta,empresa:datos.empresa,usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,accion:"editada",campoModificado:label,valorAnterior:String(vieja[campo]||""),valorNuevo:String(datos[campo]||""),fecha:firebase.firestore.FieldValue.serverTimestamp()});
