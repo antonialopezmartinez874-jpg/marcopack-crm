@@ -255,6 +255,8 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
   align-items:center;flex-wrap:wrap;gap:8px;box-shadow:var(--shadow-sm)}
 .llamada-btn{background:linear-gradient(135deg,#0a7c5c,#0d9966);color:white;border:none;
   border-radius:var(--radius-sm);padding:8px 15px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+.ll-urgente{border-left:4px solid var(--orange)!important}
+.ll-sinllamar{border-left:4px solid #ef4444!important}
 
 /* ===== ALERTAS ===== */
 .alerta-item{background:var(--surface);border:1px solid #fbd0b0;border-left:4px solid var(--orange);
@@ -294,6 +296,19 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
   border-radius:var(--radius);font-size:13px;font-weight:600;z-index:9999;
   opacity:0;transition:opacity .3s;pointer-events:none;max-width:90vw;
   box-shadow:0 8px 30px rgba(0,0,0,.15)}
+
+/* ===== AUTOCOMPLETE EMPRESA ===== */
+.ac-wrap{position:relative}
+.ac-dropdown{position:absolute;top:calc(100% + 3px);left:0;right:0;background:var(--surface);
+  border:1.5px solid var(--accent);border-radius:var(--radius-sm);z-index:2000;
+  max-height:220px;overflow-y:auto;box-shadow:var(--shadow-lg);display:none}
+.ac-dropdown.open{display:block}
+.ac-item{padding:9px 13px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s}
+.ac-item:last-child{border-bottom:none}
+.ac-item:hover,.ac-item.selected{background:var(--accent-light)}
+.ac-item .ac-name{color:var(--text);font-size:13px;font-weight:600}
+.ac-item .ac-sub{color:var(--text3);font-size:11px;margin-top:2px}
+.ac-item .ac-sub b{color:var(--accent)}
 
 /* ===== PRIMER ACCESO ===== */
 #setup-screen{min-height:100vh;display:none;align-items:center;justify-content:center;
@@ -497,7 +512,12 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
         <div class="field"><label>Fecha Oferta</label><input type="date" id="f-fecha"/></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>Empresa *</label><input id="f-empresa"/></div>
+        <div class="field"><label>Empresa *</label>
+          <div class="ac-wrap">
+            <input id="f-empresa" autocomplete="off" oninput="acBuscar(this.value)" onkeydown="acKeyDown(event)" onfocus="acBuscar(this.value)"/>
+            <div id="ac-dropdown" class="ac-dropdown"></div>
+          </div>
+        </div>
         <div class="field"><label>Contacto</label><input id="f-contacto"/></div>
       </div>
       <div class="grid2">
@@ -556,9 +576,23 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 
 <!-- MODAL LLAMADA -->
 <div id="modal-llamada" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
-  <div class="modal" style="max-width:500px">
+  <div class="modal" style="max-width:520px">
     <button class="modal-close" onclick="document.getElementById('modal-llamada').style.display='none'">✕</button>
     <h2>📞 Registrar llamada</h2>
+    <!-- Ficha de contexto -->
+    <div id="ll-contexto" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 15px;margin-bottom:14px;display:none">
+      <div style="color:var(--text3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Contexto de la oferta</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <div><div style="color:var(--text3);font-size:10px">📞 Teléfono</div><div id="ll-ctx-tel" style="color:var(--text);font-size:13px;font-weight:600">—</div></div>
+        <div><div style="color:var(--text3);font-size:10px">Estado actual</div><div id="ll-ctx-estado" style="font-size:12px;font-weight:600">—</div></div>
+        <div><div style="color:var(--text3);font-size:10px">Llamadas previas</div><div id="ll-ctx-llamadas" style="color:var(--accent);font-size:13px;font-weight:700">—</div></div>
+        <div><div style="color:var(--text3);font-size:10px">Última llamada</div><div id="ll-ctx-ultima" style="color:var(--text2);font-size:12px">—</div></div>
+      </div>
+      <div id="ll-ctx-accion-wrap" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+        <div style="color:var(--text3);font-size:10px">Próxima acción pendiente</div>
+        <div id="ll-ctx-accion" style="color:var(--orange);font-size:12px;font-weight:600;margin-top:2px">—</div>
+      </div>
+    </div>
     <div style="display:grid;gap:12px">
       <div class="field"><label>Resultado de la llamada *</label>
         <select id="ll-resultado">
@@ -908,10 +942,99 @@ document.addEventListener("click",function(e){
   }
 });
 
+// ===== AUTOCOMPLETE EMPRESA =====
+let acIndice={};   // { nombreNormalizado: {empresa, datos ultima oferta} }
+let acSelIdx=-1;
+
+function acNormalizar(s){ return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim(); }
+
+function acReconstruirIndice(){
+  acIndice={};
+  // Recorrer todas las ofertas; para cada empresa quedarse con la más reciente
+  // (las ofertas llegan ya ordenadas desc por fecha desde Firebase)
+  ofertas.forEach(o=>{
+    if(!o.empresa) return;
+    const key=acNormalizar(o.empresa);
+    if(!acIndice[key]){
+      acIndice[key]={
+        empresa:o.empresa,
+        contacto:o.contacto||"",
+        telefono:o.telefono||"",
+        telefonoMovil:o.telefonoMovil||"",
+        email:o.email||"",
+        provincia:o.provincia||"",
+        pais:o.pais||"",
+        tipoMaquina:o.tipoMaquina||""
+      };
+    }
+  });
+}
+
+function acBuscar(q){
+  acSelIdx=-1;
+  const dd=document.getElementById("ac-dropdown");
+  if(!dd) return;
+  const qn=acNormalizar(q);
+  if(!qn){ dd.classList.remove("open"); return; }
+  const matches=Object.values(acIndice)
+    .filter(e=>acNormalizar(e.empresa).includes(qn))
+    .slice(0,8);
+  if(!matches.length){ dd.classList.remove("open"); return; }
+  dd.innerHTML=matches.map((e,i)=>`
+    <div class="ac-item" data-idx="${i}" onmousedown="acSeleccionar(${i})" onmouseover="acHover(${i})">
+      <div class="ac-name">${e.empresa}</div>
+      <div class="ac-sub">${e.contacto?`<b>${e.contacto}</b> · `:""}${e.telefono||e.telefonoMovil||""} ${e.provincia?`· ${e.provincia}`:""}</div>
+    </div>`).join("");
+  dd._matches=matches;
+  dd.classList.add("open");
+}
+
+function acHover(i){
+  acSelIdx=i;
+  document.querySelectorAll("#ac-dropdown .ac-item").forEach((el,j)=>el.classList.toggle("selected",j===i));
+}
+
+function acKeyDown(e){
+  const dd=document.getElementById("ac-dropdown");
+  if(!dd||!dd.classList.contains("open")) return;
+  const items=dd.querySelectorAll(".ac-item");
+  if(e.key==="ArrowDown"){e.preventDefault();acSelIdx=Math.min(acSelIdx+1,items.length-1);items.forEach((el,j)=>el.classList.toggle("selected",j===acSelIdx));}
+  else if(e.key==="ArrowUp"){e.preventDefault();acSelIdx=Math.max(acSelIdx-1,0);items.forEach((el,j)=>el.classList.toggle("selected",j===acSelIdx));}
+  else if(e.key==="Enter"&&acSelIdx>=0){e.preventDefault();acSeleccionar(acSelIdx);}
+  else if(e.key==="Escape"){dd.classList.remove("open");}
+}
+
+function acSeleccionar(i){
+  const dd=document.getElementById("ac-dropdown");
+  if(!dd||!dd._matches) return;
+  const e=dd._matches[i];
+  document.getElementById("f-empresa").value=e.empresa;
+  // Rellenar solo los campos que estén vacíos
+  const set=(id,val)=>{ const el=document.getElementById(id); if(el&&!el.value.trim()&&val) el.value=val; };
+  set("f-contacto",e.contacto);
+  set("f-tel",e.telefono);
+  set("f-movil",e.telefonoMovil);
+  set("f-email",e.email);
+  if(!document.getElementById("f-prov-form").value||document.getElementById("f-prov-form").value==="Madrid") document.getElementById("f-prov-form").value=e.provincia||"Madrid";
+  const fpais=document.getElementById("f-pais-form"); if(fpais&&!fpais.value&&e.pais) fpais.value=e.pais;
+  set("f-tipo",e.tipoMaquina);
+  dd.classList.remove("open");
+}
+
+// Cerrar dropdown al hacer clic fuera
+document.addEventListener("click",function(e){
+  const wrap=document.querySelector(".ac-wrap");
+  if(wrap&&!wrap.contains(e.target)){
+    const dd=document.getElementById("ac-dropdown");
+    if(dd) dd.classList.remove("open");
+  }
+});
+
 // ===== TIEMPO REAL =====
 function escucharOfertas(){
   db.collection("ofertas").orderBy("fechaOferta","desc").onSnapshot(snap=>{
     ofertas=snap.docs.map(d=>({id:d.id,...d.data()}));
+    acReconstruirIndice();
     const fr=document.getElementById("f-resp"),frm=document.getElementById("f-resp-form");
     const nombres=[...new Set(ofertas.map(o=>o.responsableNombre).filter(Boolean))];
     fr.innerHTML='<option value="">Todos los responsables</option>';
@@ -1440,34 +1563,93 @@ async function renderIA(){
 }
 
 // ===== LLAMADAS =====
+let llBusqueda="";
 function renderLlamadas(){
-  const recientes=ofertas.filter(o=>o.numLlamadas>0).sort((a,b)=>(b.numLlamadas||0)-(a.numLlamadas||0)).slice(0,20);
-  const sinLlamar=ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado)&&!(o.numLlamadas>0)).slice(0,10);
+  const hoy=new Date().toISOString().split("T")[0];
+  const activas=ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado));
+
+  // Filtro de búsqueda
+  const q=llBusqueda.toLowerCase();
+  const filtradas=q ? activas.filter(o=>[o.empresa,o.contacto,o.responsableNombre].some(v=>v?.toLowerCase().includes(q))) : activas;
+
+  // Panel izquierdo: pendientes de primera llamada, urgentes primero
+  const sinLlamar=filtradas.filter(o=>!(o.numLlamadas>0)).sort((a,b)=>{
+    const aVenc=a.fechaRecordatorio&&a.fechaRecordatorio<=hoy?1:0;
+    const bVenc=b.fechaRecordatorio&&b.fechaRecordatorio<=hoy?1:0;
+    return bVenc-aVenc;
+  });
+
+  // Panel derecho: con historial, ordenadas por más tiempo sin contacto
+  const conLlamadas=filtradas.filter(o=>o.numLlamadas>0).sort((a,b)=>{
+    const fa=a.ultimaLlamada||a.fechaOferta||"";
+    const fb=b.ultimaLlamada||b.fechaOferta||"";
+    return fa<fb?-1:fa>fb?1:0; // las que llevan más tiempo sin contacto primero
+  });
+
   document.getElementById("vista-llamadas").innerHTML=`
-    <h3 style="color:var(--accent);margin-bottom:14px">📞 Seguimiento de llamadas</h3>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-      <div>
-        <div style="color:var(--text3);font-size:12px;font-weight:700;margin-bottom:10px">CON MÁS LLAMADAS</div>
-        ${recientes.length?recientes.map(o=>`<div class="llamada-item">
-          <div>
-            <div style="color:var(--text);font-size:13px;font-weight:600">${o.empresa}</div>
-            <div style="color:var(--text3);font-size:11px">${o.contacto||"—"} · ${(o.responsableNombre||"").split(" ")[0]}</div>
-            <div style="color:var(--accent);font-size:11px;margin-top:3px">📞 ${o.numLlamadas||0} llamada${(o.numLlamadas||0)!==1?"s":""} ${o.ultimaLlamada?`· Última: ${new Date(o.ultimaLlamada).toLocaleDateString("es-ES")}`:""}</div>
-            ${o.ultimoResultado?`<div style="color:var(--text2);font-size:11px;margin-top:2px">💬 ${o.ultimoResultado}</div>`:""}
-          </div>
-          <button class="llamada-btn" onclick="abrirLlamada('${o.id}')">+ Llamada</button>
-        </div>`).join(""):`<div style="color:var(--text3);font-size:13px">Aún no hay llamadas registradas</div>`}
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <h3 style="color:var(--accent)">📞 Seguimiento de llamadas</h3>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="text" placeholder="🔍 Buscar empresa, contacto o responsable..."
+          value="${llBusqueda}"
+          oninput="llBusqueda=this.value;renderLlamadas()"
+          style="background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text);font-size:12px;min-width:260px;font-family:inherit"/>
+        ${llBusqueda?`<button onclick="llBusqueda='';renderLlamadas()" style="background:transparent;border:1px solid #fca5a5;color:var(--red);border-radius:7px;padding:6px 11px;font-size:12px;cursor:pointer">✕</button>`:""}
       </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <!-- Panel izquierdo: Sin llamadas -->
       <div>
-        <div style="color:#ef4444;font-size:12px;font-weight:700;margin-bottom:10px">⚠️ SIN LLAMADAS REGISTRADAS</div>
-        ${sinLlamar.map(o=>`<div class="llamada-item">
-          <div>
-            <div style="color:var(--text);font-size:13px;font-weight:600">${o.empresa}</div>
-            <div style="color:var(--text3);font-size:11px">${o.provincia||""} · ${(o.responsableNombre||"").split(" ")[0]}</div>
-            <span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}55;margin-top:4px">${o.estado}</span>
-          </div>
-          <button class="llamada-btn" onclick="abrirLlamada('${o.id}')">📞 Llamar</button>
-        </div>`).join("")}
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="color:#ef4444;font-size:12px;font-weight:700">⚠️ PENDIENTES DE PRIMERA LLAMADA</div>
+          <span style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700">${sinLlamar.length}</span>
+        </div>
+        ${sinLlamar.length ? sinLlamar.map(o=>{
+          const urgente=o.fechaRecordatorio&&o.fechaRecordatorio<=hoy;
+          const tel=o.telefonoMovil||o.telefono||"";
+          return `<div class="llamada-item ${urgente?"ll-urgente":"ll-sinllamar"}">
+            <div style="flex:1;min-width:0">
+              <div style="color:var(--text);font-size:13px;font-weight:700;cursor:pointer" onclick="verDetalle('${o.id}')">${o.empresa}</div>
+              <div style="color:var(--text3);font-size:11px;margin-top:2px">${o.contacto||"—"} ${tel?`· <b style="color:var(--text2)">${tel}</b>`:""}</div>
+              <div style="display:flex;gap:6px;align-items:center;margin-top:5px;flex-wrap:wrap">
+                <span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}55">${o.estado}</span>
+                <span style="color:var(--text3);font-size:10px">👷 ${(o.responsableNombre||"—").split(" ")[0]}</span>
+                ${urgente?`<span style="color:var(--orange);font-size:10px;font-weight:700">🔔 Recordatorio vencido</span>`:""}
+              </div>
+            </div>
+            <button class="llamada-btn" onclick="abrirLlamada('${o.id}')">📞 Llamar</button>
+          </div>`;
+        }).join("") : `<div style="color:var(--text3);font-size:13px;text-align:center;padding:30px 10px">✅ Todas las ofertas activas tienen al menos una llamada</div>`}
+      </div>
+
+      <!-- Panel derecho: Con historial -->
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="color:var(--accent);font-size:12px;font-weight:700">📋 CON HISTORIAL · MÁS TIEMPO SIN CONTACTO</div>
+          <span style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700">${conLlamadas.length}</span>
+        </div>
+        ${conLlamadas.length ? conLlamadas.map(o=>{
+          const tel=o.telefonoMovil||o.telefono||"";
+          const diasSinContacto=o.ultimaLlamada?Math.floor((new Date()-new Date(o.ultimaLlamada))/(1000*60*60*24)):null;
+          const urgente=o.fechaRecordatorio&&o.fechaRecordatorio<=hoy;
+          return `<div class="llamada-item ${urgente?"ll-urgente":""}">
+            <div style="flex:1;min-width:0">
+              <div style="color:var(--text);font-size:13px;font-weight:700;cursor:pointer" onclick="verDetalle('${o.id}')">${o.empresa}</div>
+              <div style="color:var(--text3);font-size:11px;margin-top:2px">${o.contacto||"—"} ${tel?`· <b style="color:var(--text2)">${tel}</b>`:""}</div>
+              <div style="color:var(--accent);font-size:11px;margin-top:3px">
+                📞 ${o.numLlamadas||0} llamada${(o.numLlamadas||0)!==1?"s":""}
+                ${diasSinContacto!==null?`· <span style="color:${diasSinContacto>30?"var(--red)":diasSinContacto>14?"var(--orange)":"var(--text2)"};font-weight:600">${diasSinContacto}d sin contacto</span>`:""}
+              </div>
+              ${o.ultimoResultado?`<div style="color:var(--text2);font-size:11px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">💬 ${o.ultimoResultado}</div>`:""}
+              <div style="display:flex;gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap">
+                <span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}55">${o.estado}</span>
+                <span style="color:var(--text3);font-size:10px">👷 ${(o.responsableNombre||"—").split(" ")[0]}</span>
+                ${urgente?`<span style="color:var(--orange);font-size:10px;font-weight:700">🔔 Recordatorio vencido</span>`:""}
+              </div>
+            </div>
+            <button class="llamada-btn" onclick="abrirLlamada('${o.id}')">+ Llamada</button>
+          </div>`;
+        }).join("") : `<div style="color:var(--text3);font-size:13px;text-align:center;padding:30px 10px">Aún no hay llamadas registradas</div>`}
       </div>
     </div>`;
 }
@@ -1478,7 +1660,7 @@ function abrirLlamada(ofertaId){
   document.querySelector("#modal-llamada h2").textContent=`📞 Llamada — ${o?.empresa||""}`;
   document.getElementById("ll-resultado").selectedIndex=0;
   document.getElementById("ll-notas").value="";
-  document.getElementById("ll-accion").value="";
+  document.getElementById("ll-accion").value=o?.proximaAccion||""; // pre-rellenar con acción pendiente
   document.getElementById("ll-recod").value="";
   // Poblar select de estado con el estado actual marcado
   const llEst=document.getElementById("ll-estado");
@@ -1489,6 +1671,24 @@ function abrirLlamada(ofertaId){
     llEst.add(opt);
   });
   llEst.value="";
+  // Rellenar ficha de contexto
+  if(o){
+    const ctx=document.getElementById("ll-contexto");
+    if(ctx) ctx.style.display="block";
+    const tel=o.telefonoMovil||o.telefono||"—";
+    const elTel=document.getElementById("ll-ctx-tel"); if(elTel) elTel.textContent=tel;
+    const elEst=document.getElementById("ll-ctx-estado");
+    if(elEst){ elEst.textContent=o.estado||"—"; elEst.style.color=CE[o.estado]||"var(--text)"; }
+    const elLl=document.getElementById("ll-ctx-llamadas"); if(elLl) elLl.textContent=(o.numLlamadas||0)+" llamada"+(o.numLlamadas!==1?"s":"");
+    const elUlt=document.getElementById("ll-ctx-ultima");
+    if(elUlt) elUlt.textContent=o.ultimaLlamada?new Date(o.ultimaLlamada).toLocaleDateString("es-ES"):"Sin llamadas previas";
+    const accionWrap=document.getElementById("ll-ctx-accion-wrap");
+    const elAcc=document.getElementById("ll-ctx-accion");
+    if(o.proximaAccion&&accionWrap&&elAcc){ accionWrap.style.display="block"; elAcc.textContent=o.proximaAccion; }
+    else if(accionWrap){ accionWrap.style.display="none"; }
+  } else {
+    const ctx=document.getElementById("ll-contexto"); if(ctx) ctx.style.display="none";
+  }
   document.getElementById("modal-llamada").style.display="flex";
 }
 
@@ -1852,7 +2052,12 @@ function abrirModal(o){
   document.getElementById("modal").style.display="flex";
 }
 function editarOferta(id){abrirModal(ofertas.find(o=>o.id===id));}
-function cerrarModal(){document.getElementById("modal").style.display="none";archivosTemp=[];editandoId=null;}
+function cerrarModal(){
+  document.getElementById("modal").style.display="none";
+  archivosTemp=[];editandoId=null;
+  const dd=document.getElementById("ac-dropdown");
+  if(dd) dd.classList.remove("open");
+}
 async function adjuntar(e){
   const files=Array.from(e.target.files);
   e.target.value=""; // Limpiar input para permitir seleccionar los mismos archivos otra vez
