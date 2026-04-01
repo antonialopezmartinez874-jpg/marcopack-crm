@@ -393,6 +393,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
     <div class="header-right">
       <div id="rem-alert" class="alert-badge" style="display:none" onclick="setVista('alertas')"></div>
       <div class="user-badge">👤 <span id="uname"></span> · <span class="rol-badge" id="urol"></span></div>
+      <button class="btn-sm" onclick="abrirMiCuenta()" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border)" title="Mi cuenta y configuración">⚙️ Mi cuenta</button>
       <label class="btn-sm btn-import" title="Importar Excel"><input type="file" accept=".xlsx,.xls,.csv" onchange="importarExcel(event)" style="display:none"/>📥 Importar</label>
       <button class="btn-sm btn-excel" onclick="exportarExcel()">📤 Excel</button>
       <button class="btn-sm btn-add" onclick="abrirModal()">+ Nueva Oferta</button>
@@ -645,6 +646,15 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       <button class="btn-cancel" onclick="document.getElementById('modal-user').style.display='none'">Cancelar</button>
       <button class="btn-save" onclick="crearUsuario()">Crear usuario</button>
     </div>
+  </div>
+</div>
+
+<!-- MODAL MI CUENTA -->
+<div id="modal-micuenta" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" onclick="document.getElementById('modal-micuenta').style.display='none'">✕</button>
+    <h2>⚙️ Mi cuenta</h2>
+    <div id="micuenta-body"></div>
   </div>
 </div>
 
@@ -2413,6 +2423,125 @@ async function eliminarOferta(id){
   await db.collection("historial").add({ofertaId:id,empresa:o?.empresa,numeroOferta:o?.numeroOferta,usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,accion:"eliminada",fecha:firebase.firestore.FieldValue.serverTimestamp()});
   await db.collection("ofertas").doc(id).delete();
   toast("🗑 Oferta eliminada","#f59e0b");
+}
+
+// ===== MI CUENTA =====
+async function abrirMiCuenta(){
+  document.getElementById("modal-micuenta").style.display="flex";
+  const body=document.getElementById("micuenta-body");
+  body.innerHTML=`<div class="loading">Cargando...</div>`;
+
+  // Comprobar si hay algún admin en el sistema
+  const snap=await db.collection("usuarios").get();
+  const todos=snap.docs.map(d=>({id:d.id,...d.data()}));
+  const admins=todos.filter(u=>u.rol==="admin");
+  const hayAdmin=admins.length>0;
+  const yoSoyAdmin=currentProfile.rol==="admin";
+
+  body.innerHTML=`
+    <div style="display:grid;gap:14px">
+
+      <!-- Info de la cuenta -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px">
+        <div style="color:var(--text3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Tu cuenta</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div><div style="color:var(--text3);font-size:10px">Nombre</div><div style="color:var(--text);font-size:14px;font-weight:700">${currentProfile.nombre||"—"}</div></div>
+          <div><div style="color:var(--text3);font-size:10px">Email</div><div style="color:var(--text);font-size:13px">${currentUser.email||"—"}</div></div>
+          <div><div style="color:var(--text3);font-size:10px">Rol actual</div>
+            <span class="badge" style="background:${yoSoyAdmin?'var(--purple-bg)':'var(--accent-light)'};color:${yoSoyAdmin?'var(--purple)':'var(--accent)'};border:1px solid ${yoSoyAdmin?'#c4b5fd':'#b8d0f5'};margin-top:3px">
+              ${yoSoyAdmin?'👑 Administrador':'👤 '+currentProfile.rol}
+            </span>
+          </div>
+          <div><div style="color:var(--text3);font-size:10px">Usuarios en sistema</div><div style="color:var(--text);font-size:14px;font-weight:700">${todos.length}</div></div>
+        </div>
+      </div>
+
+      <!-- Admins actuales -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px">
+        <div style="color:var(--text3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Administradores del sistema</div>
+        ${admins.length ? admins.map(a=>`
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:16px">👑</span>
+            <div>
+              <div style="color:var(--text);font-size:13px;font-weight:600">${a.nombre}</div>
+              <div style="color:var(--text3);font-size:11px">${a.email}</div>
+            </div>
+            ${a.id===currentUser.uid?`<span style="margin-left:auto;background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:10px;padding:2px 8px;font-size:10px;font-weight:700">Tú</span>`:""}
+          </div>`).join("") :
+          `<div style="color:var(--text3);font-size:13px">⚠️ No hay ningún administrador en el sistema</div>`
+        }
+      </div>
+
+      <!-- Botón autopromocón -->
+      ${!yoSoyAdmin ? `
+      <div style="background:${!hayAdmin?'linear-gradient(135deg,#f0f6ff,#f7f9ff)':'var(--surface2)'};border:${!hayAdmin?'2px solid var(--accent)':'1px solid var(--border)'};border-radius:12px;padding:16px">
+        ${!hayAdmin ? `
+          <div style="color:var(--accent);font-weight:700;font-size:13px;margin-bottom:6px">🎯 No hay ningún admin — puedes reclamar el rol</div>
+          <div style="color:var(--text3);font-size:12px;margin-bottom:12px;line-height:1.6">No existe ningún administrador en el sistema. Puedes convertirte en admin ahora mismo para acceder a toda la configuración.</div>
+          <button onclick="reclamarAdmin()" class="btn-save" style="width:100%">👑 Convertirme en Administrador</button>
+        ` : `
+          <div style="color:var(--text2);font-weight:700;font-size:13px;margin-bottom:6px">¿Necesitas acceso de administrador?</div>
+          <div style="color:var(--text3);font-size:12px;margin-bottom:12px;line-height:1.6">Contacta con <b style="color:var(--text)">${admins[0]?.nombre||"el administrador"}</b> (${admins[0]?.email||""}) para que cambie tu rol desde el panel Admin.</div>
+          <div style="background:var(--yellow-bg);border:1px solid #fcd34d;border-radius:8px;padding:10px 12px">
+            <div style="color:var(--yellow);font-size:12px;font-weight:700">🔑 Solución alternativa rápida</div>
+            <div style="color:#78350f;font-size:11px;margin-top:4px;line-height:1.6">
+              El admin puede entrar al CRM y desde <b>👑 Admin → tabla de usuarios</b> cambiar tu rol a Administrador en segundos.
+            </div>
+          </div>
+        `}
+      </div>` : `
+      <div style="background:var(--green-bg);border:1px solid #b7e4d1;border-radius:12px;padding:14px">
+        <div style="color:var(--green);font-weight:700;font-size:13px">✅ Tienes acceso completo de administrador</div>
+        <div style="color:#065f46;font-size:12px;margin-top:4px">Puedes gestionar usuarios, roles y configuración de OneDrive desde la pestaña 👑 Admin.</div>
+      </div>`}
+
+      <!-- Cambiar contraseña -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px">
+        <div style="color:var(--text3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Cambiar contraseña</div>
+        <div style="display:grid;gap:8px">
+          <div class="field" style="margin:0"><label>Nueva contraseña</label><input type="password" id="mc-pass1" placeholder="Mínimo 6 caracteres"/></div>
+          <div class="field" style="margin:0"><label>Repetir contraseña</label><input type="password" id="mc-pass2" placeholder="Repite la contraseña"/></div>
+        </div>
+        <button onclick="cambiarPassword()" style="margin-top:10px;background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:8px;padding:8px 18px;font-size:12px;font-weight:700;cursor:pointer;width:100%">🔑 Actualizar contraseña</button>
+      </div>
+
+    </div>`;
+}
+
+async function reclamarAdmin(){
+  // Doble comprobación: que realmente no haya ningún admin
+  const snap=await db.collection("usuarios").where("rol","==","admin").get();
+  if(!snap.empty){
+    toast("⚠️ Ya existe un administrador. Pídele que cambie tu rol.","#f59e0b");
+    return;
+  }
+  if(!confirm("¿Convertirte en Administrador del sistema?"))return;
+  await db.collection("usuarios").doc(currentUser.uid).update({rol:"admin"});
+  currentProfile.rol="admin";
+  document.getElementById("urol").textContent="admin";
+  document.getElementById("nav-admin").style.display="block";
+  toast("👑 ¡Ya eres Administrador! Recarga si no ves todos los cambios.","#10b981");
+  abrirMiCuenta(); // refrescar el modal
+}
+
+async function cambiarPassword(){
+  const p1=document.getElementById("mc-pass1").value;
+  const p2=document.getElementById("mc-pass2").value;
+  if(!p1||!p2){toast("⚠️ Rellena ambos campos","#f59e0b");return;}
+  if(p1!==p2){toast("⚠️ Las contraseñas no coinciden","#f59e0b");return;}
+  if(p1.length<6){toast("⚠️ Mínimo 6 caracteres","#f59e0b");return;}
+  try{
+    await currentUser.updatePassword(p1);
+    toast("✅ Contraseña actualizada correctamente","#10b981");
+    document.getElementById("mc-pass1").value="";
+    document.getElementById("mc-pass2").value="";
+  }catch(e){
+    if(e.code==="auth/requires-recent-login"){
+      toast("⚠️ Por seguridad, cierra sesión, vuelve a entrar y repite el cambio.","#f59e0b");
+    } else {
+      toast("❌ Error: "+e.message,"#ef4444");
+    }
+  }
 }
 
 // ===== ADMIN =====
