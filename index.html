@@ -651,9 +651,15 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 
 <!-- MODAL MI CUENTA -->
 <div id="modal-micuenta" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
-  <div class="modal" style="max-width:480px">
+  <div class="modal" style="max-width:780px">
     <button class="modal-close" onclick="document.getElementById('modal-micuenta').style.display='none'">✕</button>
-    <h2>⚙️ Mi cuenta</h2>
+    <h2>⚙️ Panel de control</h2>
+    <!-- Pestañas -->
+    <div style="display:flex;gap:4px;margin-bottom:18px;border-bottom:2px solid var(--border);padding-bottom:0">
+      <button id="tab-perfil" onclick="mcTab('perfil')" style="background:transparent;border:none;border-bottom:3px solid var(--accent);color:var(--accent);font-size:13px;font-weight:700;padding:8px 18px;cursor:pointer;margin-bottom:-2px;font-family:inherit">👤 Mi perfil</button>
+      <button id="tab-usuarios" onclick="mcTab('usuarios')" style="background:transparent;border:none;border-bottom:3px solid transparent;color:var(--text3);font-size:13px;font-weight:600;padding:8px 18px;cursor:pointer;margin-bottom:-2px;font-family:inherit">👥 Usuarios</button>
+      <button id="tab-onedrive" onclick="mcTab('onedrive')" style="background:transparent;border:none;border-bottom:3px solid transparent;color:var(--text3);font-size:13px;font-weight:600;padding:8px 18px;cursor:pointer;margin-bottom:-2px;font-family:inherit">☁️ OneDrive</button>
+    </div>
     <div id="micuenta-body"></div>
   </div>
 </div>
@@ -2432,138 +2438,285 @@ async function eliminarOferta(id){
   toast("🗑 Oferta eliminada","#f59e0b");
 }
 
-// ===== MI CUENTA =====
+// ===== MI CUENTA — PANEL DE CONTROL =====
 async function abrirMiCuenta(){
   document.getElementById("modal-micuenta").style.display="flex";
-  const body=document.getElementById("micuenta-body");
-  body.innerHTML=`<div class="loading">Cargando...</div>`;
+  mcTab("perfil");
+}
 
+function mcTab(tab){
+  ["perfil","usuarios","onedrive"].forEach(t=>{
+    const btn=document.getElementById("tab-"+t);
+    if(!btn)return;
+    const activo=t===tab;
+    btn.style.borderBottom=activo?"3px solid var(--accent)":"3px solid transparent";
+    btn.style.color=activo?"var(--accent)":"var(--text3)";
+    btn.style.fontWeight=activo?"700":"600";
+  });
+  if((tab==="usuarios"||tab==="onedrive")&&currentProfile.rol!=="admin"){
+    toast("⚠️ Solo administradores pueden acceder a esta sección","#f59e0b");
+    return;
+  }
+  if(tab==="perfil") mcRenderPerfil();
+  else if(tab==="usuarios") mcRenderUsuarios();
+  else if(tab==="onedrive") mcRenderOneDrive();
+}
+
+async function mcRenderPerfil(){
+  const body=document.getElementById("micuenta-body");
+  body.innerHTML='<div class="loading">Cargando...</div>';
   try{
     const snap=await db.collection("usuarios").get();
     const todos=snap.docs.map(d=>({id:d.id,...d.data()}));
     const admins=todos.filter(u=>u.rol==="admin");
     const yoSoyAdmin=currentProfile.rol==="admin";
+    const miDoc=snap.docs.find(d=>d.id===currentUser.uid);
+    const miNombre=miDoc?.data()?.nombre||currentProfile.nombre||"";
+
+    const misOfertas=ofertas.filter(o=>o.responsableUid===currentUser.uid||o.responsableNombre===miNombre);
+    const ganadas=misOfertas.filter(o=>o.estado==="Ganada").length;
+    const activas=misOfertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado)).length;
+    const llamadas=misOfertas.reduce((s,o)=>s+(o.numLlamadas||0),0);
+    const importe=misOfertas.filter(o=>o.estado==="Ganada").reduce((s,o)=>s+(o.importe||0),0);
 
     body.innerHTML=`
-      <div style="display:grid;gap:14px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="display:grid;gap:14px;align-content:start">
 
-        <!-- Info de la cuenta -->
+        <!-- Tarjeta identidad -->
+        <div style="background:linear-gradient(135deg,var(--accent),#5b21b6);border-radius:14px;padding:20px;color:white">
+          <div style="width:52px;height:52px;background:rgba(255,255,255,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:12px">${yoSoyAdmin?"👑":"👤"}</div>
+          <div style="font-size:18px;font-weight:800;margin-bottom:3px">${miNombre||currentUser.email.split("@")[0]}</div>
+          <div style="font-size:12px;opacity:.8">${currentUser.email}</div>
+          <div style="margin-top:10px;background:rgba(255,255,255,.2);border-radius:20px;padding:4px 14px;display:inline-block;font-size:12px;font-weight:700">${yoSoyAdmin?"👑 Administrador":"👤 "+currentProfile.rol}</div>
+        </div>
+
+        <!-- Editar nombre -->
         <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px">
-          <div style="color:var(--text3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Tu cuenta</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-            <div><div style="color:var(--text3);font-size:10px">Nombre</div><div style="color:var(--text);font-size:14px;font-weight:700">${currentProfile.nombre||"—"}</div></div>
-            <div><div style="color:var(--text3);font-size:10px">Email</div><div style="color:var(--text);font-size:13px">${currentUser.email||"—"}</div></div>
-            <div><div style="color:var(--text3);font-size:10px">Rol actual</div>
-              <span class="badge" style="background:${yoSoyAdmin?'var(--purple-bg)':'var(--accent-light)'};color:${yoSoyAdmin?'var(--purple)':'var(--accent)'};border:1px solid ${yoSoyAdmin?'#c4b5fd':'#b8d0f5'};margin-top:3px;display:inline-block">
-                ${yoSoyAdmin?'👑 Administrador':'👤 '+currentProfile.rol}
-              </span>
-            </div>
-            <div><div style="color:var(--text3);font-size:10px">Usuarios en sistema</div><div style="color:var(--text);font-size:14px;font-weight:700">${todos.length}</div></div>
-          </div>
+          <div style="color:var(--text3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Editar nombre visible</div>
+          <div class="field" style="margin:0 0 10px"><label>Nombre</label><input id="mc-nombre" value="${miNombre}" placeholder="Tu nombre completo"/></div>
+          <button onclick="guardarNombre()" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:8px;padding:8px 18px;font-size:12px;font-weight:700;cursor:pointer;width:100%">💾 Guardar nombre</button>
         </div>
-
-        <!-- Sección admin -->
-        ${yoSoyAdmin ? `
-        <div style="background:var(--green-bg);border:1px solid #b7e4d1;border-radius:12px;padding:14px">
-          <div style="color:var(--green);font-weight:700;font-size:13px">✅ Tienes acceso completo de administrador</div>
-          <div style="color:#065f46;font-size:12px;margin-top:4px">Puedes gestionar usuarios, roles y OneDrive desde la pestaña 👑 Admin.</div>
-        </div>
-        ` : `
-        <div style="background:linear-gradient(135deg,#f0f6ff,#f7f9ff);border:2px solid var(--accent);border-radius:12px;padding:16px">
-          <div style="color:var(--accent);font-weight:700;font-size:14px;margin-bottom:6px">👑 Convertirte en Administrador</div>
-          <div style="color:var(--text3);font-size:12px;margin-bottom:14px;line-height:1.6">
-            Como administrador podrás gestionar usuarios, cambiar roles, configurar OneDrive y acceder a toda la configuración del sistema.
-            ${admins.length>0?`<br><br>Administradores actuales: <b style="color:var(--text)">${admins.map(a=>a.nombre).join(", ")}</b>`:"<br><br><b style='color:var(--red)'>⚠️ No hay ningún administrador en el sistema.</b>"}
-          </div>
-          <button onclick="reclamarAdmin()" class="btn-save" style="width:100%;padding:12px;font-size:14px">
-            👑 Convertirme en Administrador
-          </button>
-        </div>
-        `}
 
         <!-- Cambiar contraseña -->
         <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px">
           <div style="color:var(--text3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Cambiar contraseña</div>
-          <div style="display:grid;gap:8px">
+          <div style="display:grid;gap:8px;margin-bottom:10px">
             <div class="field" style="margin:0"><label>Nueva contraseña</label><input type="password" id="mc-pass1" placeholder="Mínimo 6 caracteres"/></div>
             <div class="field" style="margin:0"><label>Repetir contraseña</label><input type="password" id="mc-pass2" placeholder="Repite la contraseña"/></div>
           </div>
-          <button onclick="cambiarPassword()" style="margin-top:10px;background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:8px;padding:8px 18px;font-size:12px;font-weight:700;cursor:pointer;width:100%">🔑 Actualizar contraseña</button>
+          <button onclick="cambiarPassword()" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:8px;padding:8px 18px;font-size:12px;font-weight:700;cursor:pointer;width:100%">🔑 Actualizar contraseña</button>
         </div>
 
-      </div>`;
-  }catch(e){
-    body.innerHTML=`<div style="color:var(--red);padding:20px;text-align:center">❌ Error al cargar: ${e.message}</div>`;
-  }
-}
-
-async function reclamarAdmin(){
-  if(!confirm("¿Convertirte en Administrador del sistema? Tendrás acceso completo a toda la configuración."))return;
-  const btn=document.querySelector("#micuenta-body .btn-save");
-  if(btn){btn.textContent="Guardando...";btn.disabled=true;}
-  try{
-    // Escribir directamente en Firestore el rol admin
-    await db.collection("usuarios").doc(currentUser.uid).set(
-      {rol:"admin"},
-      {merge:true}  // merge:true para no sobreescribir el resto de campos
-    );
-    // Actualizar estado local inmediatamente
-    currentProfile.rol="admin";
-    document.getElementById("urol").textContent="admin";
-    document.getElementById("nav-admin").style.display="block";
-    document.getElementById("modal-micuenta").style.display="none";
-    toast("👑 ¡Ya eres Administrador! La pestaña Admin ya está visible.","#10b981");
-  }catch(e){
-    if(btn){btn.textContent="👑 Convertirme en Administrador";btn.disabled=false;}
-    if(e.code==="permission-denied"||e.message.toLowerCase().includes("permission")){
-      // Si las reglas de Firestore bloquean la escritura en usuarios, dar instrucción alternativa
-      mostrarErrorPermisoAdmin();
-    } else {
-      toast("❌ Error: "+e.message,"#ef4444");
-    }
-  }
-}
-
-function mostrarErrorPermisoAdmin(){
-  const div=document.createElement("div");
-  div.style.cssText="position:fixed;inset:0;background:rgba(20,30,60,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);padding:20px";
-  div.innerHTML=`
-    <div style="background:var(--surface);border:2px solid #fca5a5;border-radius:18px;width:100%;max-width:560px;padding:28px;box-shadow:0 24px 60px rgba(0,0,0,.25)">
-      <div style="color:#ef4444;font-size:17px;font-weight:800;margin-bottom:10px">🔒 Las reglas de Firestore bloquean este cambio</div>
-      <div style="color:var(--text2);font-size:13px;line-height:1.7;margin-bottom:16px">
-        Para solucionarlo en 1 minuto, ve a <b>Firebase Console → Firestore → Reglas</b> y asegúrate de que la sección <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">usuarios</code> permite escritura a cualquier usuario autenticado:
+        <!-- Cerrar sesión -->
+        <button onclick="doLogout()" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:10px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;width:100%;font-family:inherit">🚪 Cerrar sesión</button>
       </div>
-      <pre style="background:#0f172a;color:#e2e8f0;border-radius:8px;padding:14px;font-size:11px;font-family:'DM Mono',monospace;line-height:1.7;overflow-x:auto">match /usuarios/{userId} {
-  allow read, write: if request.auth != null;
-}</pre>
-      <div style="color:var(--text3);font-size:12px;margin-top:12px;margin-bottom:16px">
-        Si ya tienes las reglas correctas del paso anterior, simplemente ve a 
-        <a href="https://console.firebase.google.com" target="_blank" style="color:var(--accent);font-weight:700">console.firebase.google.com</a>
-        → tu proyecto → Firestore → colección <b>usuarios</b> → tu documento → campo <b>rol</b> → editar → escribe <b>admin</b> → Actualizar.
+
+      <div style="display:grid;gap:14px;align-content:start">
+
+        <!-- Estadísticas personales -->
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px">
+          <div style="color:var(--text3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px">Tu actividad en el CRM</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div style="background:var(--surface);border-radius:8px;padding:12px;text-align:center"><div style="color:var(--accent);font-size:22px;font-weight:800">${misOfertas.length}</div><div style="color:var(--text3);font-size:11px;margin-top:2px">Mis ofertas</div></div>
+            <div style="background:var(--surface);border-radius:8px;padding:12px;text-align:center"><div style="color:#10b981;font-size:22px;font-weight:800">${ganadas}</div><div style="color:var(--text3);font-size:11px;margin-top:2px">Ganadas</div></div>
+            <div style="background:var(--surface);border-radius:8px;padding:12px;text-align:center"><div style="color:var(--purple);font-size:22px;font-weight:800">${activas}</div><div style="color:var(--text3);font-size:11px;margin-top:2px">Activas</div></div>
+            <div style="background:var(--surface);border-radius:8px;padding:12px;text-align:center"><div style="color:#f59e0b;font-size:22px;font-weight:800">${llamadas}</div><div style="color:var(--text3);font-size:11px;margin-top:2px">Llamadas</div></div>
+            <div style="background:var(--surface);border-radius:8px;padding:12px;text-align:center;grid-column:span 2"><div style="color:#34d399;font-size:20px;font-weight:800">${importe.toLocaleString("es-ES")} €</div><div style="color:var(--text3);font-size:11px;margin-top:2px">Importe ganado</div></div>
+          </div>
+        </div>
+
+        <!-- Panel admin o convertirse -->
+        ${yoSoyAdmin?`
+        <div style="background:var(--green-bg);border:1px solid #b7e4d1;border-radius:12px;padding:16px">
+          <div style="color:var(--green);font-weight:700;font-size:13px;margin-bottom:10px">✅ Administrador del sistema (${todos.length} usuarios)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <button onclick="mcTab('usuarios')" style="background:var(--accent);color:white;border:none;border-radius:8px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">👥 Gestionar usuarios</button>
+            <button onclick="mcTab('onedrive')" style="background:var(--purple-bg);color:var(--purple);border:1px solid #c4b5fd;border-radius:8px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">☁️ OneDrive</button>
+          </div>
+        </div>`:`
+        <div style="background:linear-gradient(135deg,#f0f6ff,#f7f9ff);border:2px solid var(--accent);border-radius:12px;padding:16px">
+          <div style="color:var(--accent);font-weight:700;font-size:14px;margin-bottom:6px">👑 Convertirte en Administrador</div>
+          <div style="color:var(--text3);font-size:12px;margin-bottom:14px;line-height:1.6">
+            Gestiona usuarios, cambia roles y configura OneDrive.
+            ${admins.length>0?`<br>Admin actual: <b style="color:var(--text)">${admins.map(a=>a.nombre||a.email).join(", ")}</b>`:`<br><b style="color:var(--red)">⚠️ No hay ningún administrador.</b>`}
+          </div>
+          <button onclick="reclamarAdmin()" class="btn-save" style="width:100%;padding:12px;font-size:14px">👑 Convertirme en Administrador</button>
+        </div>`}
+
       </div>
-      <button onclick="this.closest('div[style]').remove()" class="btn-save" style="width:100%">Entendido</button>
     </div>`;
-  document.body.appendChild(div);
+  }catch(e){
+    document.getElementById("micuenta-body").innerHTML=`<div style="color:var(--red);padding:20px;text-align:center">❌ Error: ${e.message}</div>`;
+  }
 }
 
-async function cambiarPassword(){
-  const p1=document.getElementById("mc-pass1").value;
-  const p2=document.getElementById("mc-pass2").value;
-  if(!p1||!p2){toast("⚠️ Rellena ambos campos","#f59e0b");return;}
-  if(p1!==p2){toast("⚠️ Las contraseñas no coinciden","#f59e0b");return;}
-  if(p1.length<6){toast("⚠️ Mínimo 6 caracteres","#f59e0b");return;}
+async function mcRenderUsuarios(){
+  if(currentProfile.rol!=="admin"){toast("⚠️ Solo administradores","#f59e0b");return;}
+  const body=document.getElementById("micuenta-body");
+  body.innerHTML='<div class="loading">Cargando usuarios...</div>';
+  const snap=await db.collection("usuarios").get();
+  const usuarios=snap.docs.map(d=>({id:d.id,...d.data()}));
+  body.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div style="color:var(--text2);font-size:13px"><b style="color:var(--text)">${usuarios.length}</b> usuarios registrados</div>
+      <button onclick="mcAbrirCrearUsuario()" class="btn-save" style="padding:8px 20px">➕ Nuevo usuario</button>
+    </div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+      <div style="display:grid;grid-template-columns:1fr 1fr 120px 110px;padding:10px 16px;background:var(--surface2);border-bottom:2px solid var(--border)">
+        <div style="color:var(--text3);font-size:11px;font-weight:700;text-transform:uppercase">Usuario</div>
+        <div style="color:var(--text3);font-size:11px;font-weight:700;text-transform:uppercase">Email</div>
+        <div style="color:var(--text3);font-size:11px;font-weight:700;text-transform:uppercase;text-align:center">Rol</div>
+        <div style="color:var(--text3);font-size:11px;font-weight:700;text-transform:uppercase;text-align:center">Acción</div>
+      </div>
+      ${usuarios.map(u=>{
+        const esMio=u.id===currentUser.uid;
+        const nOfertas=ofertas.filter(o=>o.responsableUid===u.id||o.responsableNombre===u.nombre).length;
+        return `<div style="display:grid;grid-template-columns:1fr 1fr 120px 110px;padding:12px 16px;border-bottom:1px solid var(--border);align-items:center;background:${esMio?"var(--accent-light)":"var(--surface)"}">
+          <div>
+            <div style="color:var(--text);font-weight:600;font-size:13px">${u.nombre||"—"} ${esMio?'<span style="background:var(--accent);color:white;border-radius:10px;padding:1px 7px;font-size:9px;font-weight:700">TÚ</span>':''}</div>
+            <div style="color:var(--text3);font-size:11px;margin-top:2px">${nOfertas} oferta${nOfertas!==1?"s":""}</div>
+          </div>
+          <div style="color:var(--text2);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px">${u.email||"—"}</div>
+          <div style="text-align:center">
+            ${esMio
+              ?`<span class="badge" style="background:var(--purple-bg);color:var(--purple);border:1px solid #c4b5fd">${u.rol}</span>`
+              :`<select onchange="mcCambiarRol('${u.id}',this.value)" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px;width:100%;cursor:pointer">
+                  ${["comercial","admin","lectura"].map(r=>`<option value="${r}"${u.rol===r?" selected":""}>${r}</option>`).join("")}
+                </select>`
+            }
+          </div>
+          <div style="text-align:center">
+            ${!esMio
+              ?`<button onclick="mcEliminarUsuario('${u.id}','${(u.nombre||u.email).replace(/'/g,"")}' )" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">🗑 Eliminar</button>`
+              :`<span style="color:var(--text3);font-size:11px">—</span>`}
+          </div>
+        </div>`;
+      }).join("")}
+    </div>
+    <div id="mc-nuevo-usuario" style="display:none;background:var(--surface2);border:2px solid var(--accent);border-radius:12px;padding:18px;margin-top:14px">
+      <div style="color:var(--accent);font-weight:700;font-size:14px;margin-bottom:14px">➕ Crear nuevo usuario</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div class="field" style="margin:0"><label>Nombre completo</label><input id="mc-nu-nombre" placeholder="Nombre Apellido"/></div>
+        <div class="field" style="margin:0"><label>Email</label><input type="email" id="mc-nu-email" placeholder="usuario@empresa.com"/></div>
+        <div class="field" style="margin:0"><label>Contraseña temporal</label><input type="password" id="mc-nu-pass" placeholder="Mínimo 6 caracteres"/></div>
+        <div class="field" style="margin:0"><label>Rol</label>
+          <select id="mc-nu-rol">
+            <option value="comercial">Comercial</option>
+            <option value="admin">Administrador</option>
+            <option value="lectura">Solo lectura</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button onclick="document.getElementById('mc-nuevo-usuario').style.display='none'" class="btn-cancel">Cancelar</button>
+        <button onclick="mcCrearUsuario()" class="btn-save">Crear usuario</button>
+      </div>
+    </div>`;
+}
+
+function mcAbrirCrearUsuario(){
+  const el=document.getElementById("mc-nuevo-usuario");
+  if(el){el.style.display="block";el.scrollIntoView({behavior:"smooth"});}
+}
+
+async function mcCambiarRol(uid,rol){
   try{
-    await currentUser.updatePassword(p1);
-    toast("✅ Contraseña actualizada correctamente","#10b981");
-    document.getElementById("mc-pass1").value="";
-    document.getElementById("mc-pass2").value="";
-  }catch(e){
-    if(e.code==="auth/requires-recent-login"){
-      toast("⚠️ Por seguridad, cierra sesión, vuelve a entrar y repite el cambio.","#f59e0b");
-    } else {
-      toast("❌ Error: "+e.message,"#ef4444");
-    }
-  }
+    await db.collection("usuarios").doc(uid).update({rol});
+    toast("✅ Rol actualizado a "+rol,"#10b981");
+    mcRenderUsuarios();
+  }catch(e){toast("❌ Error: "+e.message,"#ef4444");}
+}
+
+async function mcEliminarUsuario(uid,nombre){
+  if(!confirm(`¿Eliminar al usuario "${nombre}"? No se puede deshacer.`))return;
+  try{
+    await db.collection("usuarios").doc(uid).delete();
+    toast("🗑 Usuario eliminado","#f59e0b");
+    mcRenderUsuarios();
+  }catch(e){toast("❌ Error: "+e.message,"#ef4444");}
+}
+
+async function mcCrearUsuario(){
+  const nombre=document.getElementById("mc-nu-nombre").value.trim();
+  const email=document.getElementById("mc-nu-email").value.trim();
+  const pass=document.getElementById("mc-nu-pass").value;
+  const rol=document.getElementById("mc-nu-rol").value;
+  if(!nombre||!email||!pass){toast("⚠️ Completa todos los campos","#f59e0b");return;}
+  if(pass.length<6){toast("⚠️ Contraseña mínimo 6 caracteres","#f59e0b");return;}
+  try{
+    const secondary=firebase.initializeApp(firebaseConfig,"sec_"+Date.now());
+    const secAuth=secondary.auth();
+    const cred=await secAuth.createUserWithEmailAndPassword(email,pass);
+    await db.collection("usuarios").doc(cred.user.uid).set({nombre,email,rol,creadoEn:firebase.firestore.FieldValue.serverTimestamp()});
+    await secAuth.signOut();await secondary.delete();
+    toast("✅ Usuario creado correctamente","#10b981");
+    mcRenderUsuarios();
+  }catch(e){toast("❌ Error: "+e.message,"#ef4444");}
+}
+
+function mcRenderOneDrive(){
+  if(currentProfile.rol!=="admin"){toast("⚠️ Solo administradores","#f59e0b");return;}
+  const body=document.getElementById("micuenta-body");
+  body.innerHTML=`
+    <div style="display:grid;gap:14px">
+      <div style="background:linear-gradient(135deg,#f0f6ff,#f7f9ff);border:1.5px solid #b8d0f5;border-radius:12px;padding:18px">
+        <div style="color:var(--accent);font-size:15px;font-weight:800;margin-bottom:6px">☁️ Configuración OneDrive Central</div>
+        <div style="color:var(--text3);font-size:12px;margin-bottom:16px;line-height:1.6">
+          Los archivos adjuntos se guardan en la carpeta <b style="color:var(--text)">CRM_Marcopack</b> del OneDrive del administrador.<br>
+          Registra la app en <a href="https://portal.azure.com" target="_blank" style="color:var(--accent);font-weight:700">portal.azure.com</a> y pega aquí el Client ID.
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+          <input id="od-client-id-input2" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            style="flex:1;min-width:240px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;font-family:monospace"
+            value="${getClientId()}"/>
+          <button onclick="mcGuardarClientId()" class="btn-save" style="white-space:nowrap">💾 Guardar</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div style="font-size:12px;color:var(--text3)">Estado: <span id="od-status-badge2"></span></div>
+          <button onclick="testOneDriveLogin();setTimeout(mcActualizarEstadoOD,2500)" style="background:var(--accent-light);color:var(--accent);border:1px solid var(--border);border-radius:7px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer">🔗 Conectar / Probar login</button>
+          <button onclick="desconectarOneDrive();mcActualizarEstadoOD()" style="background:transparent;color:#ef4444;border:1px solid #ef444455;border-radius:7px;padding:6px 14px;font-size:12px;cursor:pointer">⏏️ Desconectar</button>
+        </div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px">
+        <div style="color:var(--purple);font-size:12px;font-weight:700;margin-bottom:10px">📋 Guía rápida — portal.azure.com</div>
+        <div style="color:var(--text3);font-size:12px;line-height:2.2">
+          <b style="color:var(--text)">1.</b> <b style="color:var(--text2)">Registros de aplicaciones</b> → <b style="color:var(--text2)">Nuevo registro</b><br>
+          <b style="color:var(--text)">2.</b> Nombre: <b style="color:var(--text2)">MachineCRM</b> | Tipo: <b style="color:var(--text2)">Cuentas en cualquier directorio + cuentas Microsoft personales</b><br>
+          <b style="color:var(--text)">3.</b> URI: tipo <b style="color:var(--text2)">SPA</b> → <code style="color:var(--accent);background:var(--surface);padding:1px 6px;border-radius:4px">${window.location.origin||"http://localhost"}</code><br>
+          <b style="color:var(--text)">4.</b> Copia el <b style="color:var(--text2)">ID de aplicación (cliente)</b> y pégalo arriba<br>
+          <b style="color:var(--text)">5.</b> Permisos API: <b style="color:var(--text2)">Files.ReadWrite</b> y <b style="color:var(--text2)">User.Read</b>
+        </div>
+      </div>
+    </div>`;
+  mcActualizarEstadoOD();
+}
+
+function mcGuardarClientId(){
+  const val=document.getElementById("od-client-id-input2").value.trim();
+  if(!val||val.length<30){toast("⚠️ Client ID no válido","#f59e0b");return;}
+  setClientId(val);toast("✅ Client ID guardado","#10b981");
+  mcActualizarEstadoOD();
+}
+
+function mcActualizarEstadoOD(){
+  const el=document.getElementById("od-status-badge2");
+  if(!el)return;
+  const clientId=getClientId();
+  if(!clientId){el.innerHTML='<span style="color:#ef4444">⚠️ Sin configurar</span>';return;}
+  const nombre=getMsalAccountName();
+  el.innerHTML=nombre?`<span style="color:#10b981">✅ Conectado: ${nombre}</span>`:`<span style="color:#f59e0b">🔗 Client ID guardado — pendiente de login</span>`;
+}
+
+async function guardarNombre(){
+  const nombre=document.getElementById("mc-nombre").value.trim();
+  if(!nombre){toast("⚠️ El nombre no puede estar vacío","#f59e0b");return;}
+  try{
+    await db.collection("usuarios").doc(currentUser.uid).set({nombre},{merge:true});
+    currentProfile.nombre=nombre;
+    document.getElementById("uname").textContent=nombre;
+    toast("✅ Nombre actualizado","#10b981");
+  }catch(e){toast("❌ Error: "+e.message,"#ef4444");}
 }
 
 // ===== ADMIN =====
