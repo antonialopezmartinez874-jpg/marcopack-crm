@@ -524,7 +524,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       <div id="stats-builder"></div>
     </div>
 
-    <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">ERRFIX_20260408_LOGINOK</b></div>
+    <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">LOGINFIX2_20260408</b></div>
   </div>
 </div></div>
   <div id="vista-mapa" style="display:none;padding:16px 20px 24px"><h3 style="color:var(--accent);margin-bottom:16px">🗺️ Mapa de ofertas por provincia</h3><div id="mapa-container"></div></div>
@@ -884,7 +884,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 // ===== FIREBASE =====
 const firebaseConfig={apiKey:"AIzaSyB4kJsqEtQ0ypOIL4LyY9rhTBpcY_mxhnI",authDomain:"machinecrm-61b34.firebaseapp.com",projectId:"machinecrm-61b34",storageBucket:"machinecrm-61b34.firebasestorage.app",messagingSenderId:"686919580495",appId:"1:686919580495:web:019fa5682054bb089a633a"};
 firebase.initializeApp(firebaseConfig);
-console.log('[Marcopack CRM] Build ERRFIX_20260408_LOGINOK');
+console.log('[Marcopack CRM] Build LOGINFIX2_20260408');
 const auth=firebase.auth(),db=firebase.firestore();
 
 // ===== SEGURIDAD: No recordar sesión entre visitas =====
@@ -1189,33 +1189,56 @@ async function crearAdminInicial(){
 }
 
 async function doLogin(){
-  const email=document.getElementById("login-email").value.trim();
-  const pass=document.getElementById("login-pass").value;
-  if(!email||!pass){showErr("Completa email y contraseña");return;}
+  const emailEl=document.getElementById("login-email");
+  const passEl=document.getElementById("login-pass");
   const btn=document.getElementById("btn-login");
-  btn.textContent="Verificando...";btn.disabled=true;
+  if(!emailEl||!passEl||!btn) return;
+  const email=emailEl.value.trim();
+  const pass=passEl.value;
+  if(!email||!pass){showErr("Completa email y contraseña");return;}
+
+  btn.textContent="⏳ Conectando con Firebase...";btn.disabled=true;
+  showInfo("Paso 1: Conectando con el servidor...");
+
   try{
-    // Asegurar que la persistencia es solo de sesión antes de cada login
-    await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
+    showInfo("Paso 2: Verificando credenciales...");
     await auth.signInWithEmailAndPassword(email,pass);
+    showInfo("Paso 3: Credenciales correctas. Cargando aplicación...");
     // onAuthStateChanged se encarga de mostrar la app
   }catch(e){
     btn.textContent="Entrar al CRM";btn.disabled=false;
-    if(e.code==="auth/user-not-found"||e.code==="auth/wrong-password"||e.code==="auth/invalid-credential"){
+    const code=e.code||"";
+    if(code==="auth/user-not-found"||code==="auth/wrong-password"||code==="auth/invalid-credential"){
       showErr("Email o contraseña incorrectos.");
-    } else if(e.code==="auth/invalid-email"){
+    } else if(code==="auth/invalid-email"){
       showErr("El formato del email no es válido.");
-    } else if(e.code==="auth/too-many-requests"){
-      showErr("Cuenta bloqueada temporalmente por demasiados intentos. Inténtalo más tarde.");
+    } else if(code==="auth/too-many-requests"){
+      showErr("Demasiados intentos fallidos. Espera unos minutos o restablece tu contraseña.");
+    } else if(code==="auth/network-request-failed"){
+      showErr("Sin conexión a Internet. Comprueba tu red e inténtalo de nuevo.");
     } else {
-      showErr("Error de acceso: "+e.message);
+      showErr("Error: "+(e.message||code||"Error desconocido")+"\nCódigo: "+code);
     }
   }
 }
+function showInfo(msg){
+  const el=document.getElementById("login-error");
+  if(!el) return;
+  el.style.background="#e3eeff";
+  el.style.borderColor="#b8d0f5";
+  el.style.color="#1565c0";
+  el.textContent=msg;
+  el.style.display="block";
+}
 function showErr(msg){
   const el=document.getElementById("login-error");
-  el.textContent=msg;el.style.display="block";
-  setTimeout(()=>el.style.display="none",6000);
+  if(!el) return;
+  el.style.background="";
+  el.style.borderColor="";
+  el.style.color="";
+  el.textContent=msg;
+  el.style.display="block";
+  setTimeout(()=>{if(el.textContent===msg)el.style.display="none";},10000);
 }
 function doLogout(){auth.signOut();}
 
@@ -1826,12 +1849,10 @@ function renderEstadisticas(){
   statsTab(which);
 }
 function statsDownloadCSV(headers, rows){
-  const esc=(x)=>{const s=String(x??''); return /[",
-]/.test(s)?('"'+s.replace(/"/g,'""')+'"'):s;};
+  const esc=(x)=>{const s=String(x??''); return /[",\n\r]/.test(s)?('"'+s.replace(/"/g,'""')+'"'):s;};
   const lines=[headers.map(esc).join(',')];
   rows.forEach(r=>lines.push(headers.map(h=>esc(r[h])).join(',')));
-  const blob=new Blob([lines.join('
-')],{type:'text/csv;charset=utf-8;'});
+  const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download=`Marcopack_stats_${new Date().toISOString().split('T')[0]}.csv`;
