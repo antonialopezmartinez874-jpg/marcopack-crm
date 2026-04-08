@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Marcopack CRM</title>
+  <!-- Leaflet (mapa profesional) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -233,6 +237,33 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 .bar-val{color:white;font-size:10px;font-weight:700;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.3)}
 
 /* ===== MAPA ===== */
+
+/* ===== MAPA (LEAFLET) ===== */
+#leaflet-map{height:540px; border-radius:12px; overflow:hidden; border:1px solid var(--border); box-shadow:var(--shadow-sm)}
+.map-legend{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 12px; box-shadow:var(--shadow); font-size:12px; color:var(--text2)}
+.map-legend .row{display:flex; align-items:center; gap:8px; margin:4px 0}
+.map-legend .sw{width:14px; height:14px; border-radius:4px; display:inline-block; border:1px solid rgba(0,0,0,.08)}
+.map-kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; margin:12px 0 14px}
+.map-kpi{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px 16px; box-shadow:var(--shadow-sm)}
+.map-kpi .val{font-size:22px; font-weight:800; letter-spacing:-.4px}
+.map-kpi .lbl{color:var(--text3); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; margin-top:3px}
+
+/* ===== IA (MEJORADA) ===== */
+.ia-tabs{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px}
+.ia-tab{background:var(--surface2); border:1px solid var(--border); color:var(--text2); border-radius:10px; padding:7px 12px; font-size:12px; font-weight:800; cursor:pointer}
+.ia-tab.active{background:var(--purple-bg); color:var(--purple); border-color:#c4b5fd}
+.ia-row{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:12px 0; border-bottom:1px solid var(--border)}
+.ia-row:last-child{border-bottom:none}
+.ia-pill{display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:800; border:1px solid var(--border)}
+.ia-small{color:var(--text3); font-size:11px; line-height:1.5}
+.ia-actions{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end}
+.ia-btn{border:none; border-radius:8px; padding:7px 10px; font-size:11px; font-weight:900; cursor:pointer}
+.ia-btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2)); color:white}
+.ia-btn.ghost{background:var(--surface2); border:1px solid var(--border); color:var(--text2)}
+.ia-btn.warn{background:var(--orange-bg); border:1px solid #fbd0b0; color:var(--orange)}
+.ia-btn.danger{background:var(--red-bg); border:1px solid #fca5a5; color:var(--red)}
+.ia-explain{margin-top:6px; display:flex; gap:6px; flex-wrap:wrap}
+
 .mapa-wrap{position:relative;max-width:700px;margin:0 auto}
 .mapa-wrap svg{width:100%;height:auto}
 .prov-circle{cursor:pointer;transition:r .2s}
@@ -871,7 +902,79 @@ const CE={Pendiente:"#f59e0b","En seguimiento":"#3b82f6",Interesado:"#8b5cf6","N
 const CG=["#38bdf8","#10b981","#f59e0b","#8b5cf6","#f97316","#ef4444","#06b6d4","#84cc16","#ec4899","#6366f1"];
 // Coordenadas aproximadas de capitales de provincia (lat,lng simplificadas en porcentaje SVG)
 const PROV_POS={"Madrid":[42.5,47],"Barcelona":[79,28],"Valencia":[68,52],"Sevilla":[25,67],"M\u00e1laga":[35,75],"Zaragoza":[62,32],"Murcia":[65,60],"Alicante":[70,57],"La Coru\u00f1a":[10,20],"Bilbao":[52,22],"Granada":[42,70],"C\u00f3rdoba":[33,62],"Valladolid":[38,37],"Palencia":[38,32],"Burgos":[45,28],"Le\u00f3n":[28,28],"Salamanca":[30,43],"\u00c1vila":[35,43],"Segovia":[40,40],"Toledo":[40,52],"C\u00e1ceres":[22,53],"Badajoz":[18,60],"Huelva":[18,68],"C\u00e1diz":[22,76],"Ja\u00e9n":[42,63],"Almer\u00eda":[50,72],"Cuenca":[52,50],"Albacete":[57,57],"Ciudad Real":[40,58],"Guadalajara":[48,43],"Lugo":[18,22],"Ourense":[20,28],"Pontevedra":[14,27],"Zamora":[28,34],"Lleida":[68,28],"Girona":[82,22],"Tarragona":[73,38],"Huesca":[62,26],"Teruel":[58,45],"Navarra":[57,22],"La Rioja":[52,27],"Islas Baleares":[82,53],"Las Palmas":[8,88],"Santa Cruz de Tenerife":[5,88],"Asturias":[28,20],"Cantabria":[38,20],"Vizcaya":[50,20],"Guip\u00fazcoa":[55,20],"\u00c1lava":[52,24],"Castell\u00f3n":[70,46],"Soria":[50,33]};
+// Coordenadas (lat,lng) aproximadas de capitales de provincia (para mapa Leaflet)
+const PROV_LATLNG={
+  "Álava":[42.8467,-2.6716],
+  "Albacete":[38.9942,-1.8564],
+  "Alicante":[38.3452,-0.4810],
+  "Almería":[36.8340,-2.4637],
+  "Asturias":[43.3619,-5.8494],
+  "Ávila":[40.6565,-4.6812],
+  "Badajoz":[38.8786,-6.9703],
+  "Barcelona":[41.3874,2.1686],
+  "Burgos":[42.3439,-3.6969],
+  "Cáceres":[39.4753,-6.3722],
+  "Cádiz":[36.5271,-6.2886],
+  "Cantabria":[43.4623,-3.8099],
+  "Castellón":[39.9864,-0.0513],
+  "Ciudad Real":[38.9848,-3.9270],
+  "Córdoba":[37.8882,-4.7794],
+  "Cuenca":[40.0704,-2.1374],
+  "Girona":[41.9794,2.8214],
+  "Granada":[37.1773,-3.5986],
+  "Guadalajara":[40.6333,-3.1667],
+  "Guipúzcoa":[43.3183,-1.9812],
+  "Huelva":[37.2614,-6.9447],
+  "Huesca":[42.1362,-0.4087],
+  "Islas Baleares":[39.5696,2.6502],
+  "Jaén":[37.7796,-3.7849],
+  "La Coruña":[43.3623,-8.4115],
+  "La Rioja":[42.4627,-2.4449],
+  "Las Palmas":[28.1235,-15.4363],
+  "León":[42.5987,-5.5671],
+  "Lleida":[41.6176,0.6200],
+  "Lugo":[43.0121,-7.5559],
+  "Madrid":[40.4168,-3.7038],
+  "Málaga":[36.7213,-4.4214],
+  "Murcia":[37.9922,-1.1307],
+  "Navarra":[42.8125,-1.6458],
+  "Ourense":[42.3364,-7.8641],
+  "Palencia":[42.0096,-4.5288],
+  "Pontevedra":[42.4310,-8.6444],
+  "Salamanca":[40.9701,-5.6635],
+  "Santa Cruz de Tenerife":[28.4636,-16.2518],
+  "Segovia":[40.9429,-4.1088],
+  "Sevilla":[37.3891,-5.9845],
+  "Soria":[41.7636,-2.4649],
+  "Tarragona":[41.1189,1.2445],
+  "Teruel":[40.3434,-1.1065],
+  "Toledo":[39.8628,-4.0273],
+  "Valencia":[39.4699,-0.3763],
+  "Valladolid":[41.6523,-4.7245],
+  "Vizcaya":[43.2630,-2.9350],
+  "Zamora":[41.5035,-5.7446],
+  "Zaragoza":[41.6488,-0.8891]
+};
+
 const DIAS_ALERTA=60; // días sin actividad para generar alerta
+
+// ===== IA / COPILOT (CONFIG) =====
+const IA_MODE_KEY = 'crm_ia_mode'; // 'model' | 'copilot' | 'off'
+const COPILOT_EMBED_URL_KEY = 'crm_copilot_embed_url';
+function getIaMode(){ return localStorage.getItem(IA_MODE_KEY) || 'model'; }
+function setIaMode(m){ localStorage.setItem(IA_MODE_KEY,m); applyIAVisibility(); }
+function getCopilotEmbedUrl(){ return (localStorage.getItem(COPILOT_EMBED_URL_KEY) || '').trim(); }
+function setCopilotEmbedUrl(url){
+  const v=(url||'').trim();
+  if(v) localStorage.setItem(COPILOT_EMBED_URL_KEY,v); else localStorage.removeItem(COPILOT_EMBED_URL_KEY);
+}
+function applyIAVisibility(){
+  const mode=getIaMode();
+  const btn=document.getElementById('nav-ia');
+  if(btn) btn.style.display = (mode==='off') ? 'none' : '';
+  // si está en IA y se ha desactivado, volver al dashboard
+  if(mode==='off' && vistaActual==='ia') setVista('dashboard');
+}
 
 // ===== ESTADO =====
 let currentUser=null,currentProfile=null;
@@ -1538,45 +1641,124 @@ function renderEstadisticas(){
 }
 
 // ===== MAPA =====
+
 function renderMapa(){
+  // Mapa profesional con Leaflet (OpenStreetMap)
+  const cont=document.getElementById('mapa-container');
+  if(!cont) return;
+
+  // Agregaciones
   const porProv={};
-  ofertas.forEach(o=>{if(o.provincia)porProv[o.provincia]=(porProv[o.provincia]||0)+1;});
-  const max=Math.max(...Object.values(porProv),1);
-  let circulos="";
-  Object.entries(PROV_POS).forEach(([prov,[x,y]])=>{
-    const n=porProv[prov]||0;
-    if(n===0)return;
-    const r=6+Math.sqrt(n/max)*20;
-    const col=n>10?"#ef4444":n>5?"#f97316":n>2?"#f59e0b":"#38bdf8";
-    circulos+=`<circle class="prov-circle" cx="${x}%" cy="${y}%" r="${r}" fill="${col}" fill-opacity="0.7" stroke="${col}" stroke-width="1.5"
-      onmouseenter="showMapaTip(event,'${prov}',${n})" onmouseleave="hideMapaTip()" onclick="filtrarProv('${prov}')"/>
-      <text x="${x}%" y="${y}%" text-anchor="middle" dominant-baseline="middle" font-size="9" font-weight="700" fill="white" pointer-events="none">${n}</text>`;
+  const impProv={};
+  const cerradas=["Ganada","Perdida","Descartada"];
+  ofertas.forEach(o=>{
+    if(o.provincia){
+      porProv[o.provincia]=(porProv[o.provincia]||0)+1;
+      impProv[o.provincia]=(impProv[o.provincia]||0)+(o.importe||0);
+    }
   });
-  document.getElementById("mapa-container").innerHTML=`
-    <div style="color:var(--text3);font-size:12px;margin-bottom:12px">Haz clic en una provincia para filtrar · Tamaño = número de ofertas</div>
-    <div class="mapa-wrap">
-      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="background:var(--surface);border:1px solid var(--border);border-radius:12px">
-        <rect width="100" height="100" fill="#f0f4fa"/>
-        <!-- España simplificada -->
-        <ellipse cx="42" cy="50" rx="30" ry="28" fill="#131c2e" stroke="#1e3a5f" stroke-width="0.5"/>
-        ${circulos}
-      </svg>
-      <div class="mapa-tooltip" id="mapa-tip"></div>
+
+  const totalOfertas=ofertas.length;
+  const totalImporte=ofertas.reduce((s,o)=>s+(o.importe||0),0);
+  const topProv=Object.entries(porProv).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  cont.innerHTML=`
+    <div class="map-kpis">
+      <div class="map-kpi"><div class="val" style="color:var(--accent)">${totalOfertas}</div><div class="lbl">Ofertas totales</div></div>
+      <div class="map-kpi"><div class="val" style="color:#34d399">${Math.round(totalImporte).toLocaleString('es-ES')} €</div><div class="lbl">Importe total</div></div>
+      <div class="map-kpi"><div class="val" style="color:var(--purple)">${Object.keys(porProv).length}</div><div class="lbl">Provincias con actividad</div></div>
+      <div class="map-kpi"><div class="val" style="color:#fb923c">${topProv.length?topProv[0][0]:"—"}</div><div class="lbl">Provincia #1</div></div>
     </div>
-    <div style="margin-top:16px">
-      <h3 style="color:var(--accent);font-size:13px;margin-bottom:10px">📋 Detalle por provincia</h3>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px">
-        ${Object.entries(porProv).sort((a,b)=>b[1]-a[1]).map(([prov,n])=>{
-          const imp=ofertas.filter(o=>o.provincia===prov).reduce((s,o)=>s+(o.importe||0),0);
-          return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px;cursor:pointer" onclick="filtrarProv('${prov}')">
-            <div style="color:var(--text);font-size:12px;font-weight:600">${prov}</div>
-            <div style="color:var(--accent);font-size:11px">${n} oferta${n!==1?"s":""}</div>
-            <div style="color:#34d399;font-size:11px">${imp.toLocaleString("es-ES")} €</div>
-          </div>`;
-        }).join("")}
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <div style="color:var(--text3);font-size:12px">🗺️ Zoom/arrastre, tooltip con cifras y clic para filtrar en <b>Ofertas</b>.</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn-sm" style="background:var(--surface2);border:1px solid var(--border);color:var(--text2)" onclick="renderMapa()">⟳ Refrescar</button>
+        <button class="btn-sm" style="background:var(--accent-light);border:1px solid #b8d0f5;color:var(--accent)" onclick="(function(){provinciasSeleccionadas.clear();actualizarLabelProv();renderProvOpciones('');toast('✅ Filtro de provincias limpiado','#10b981');})()">🧹 Limpiar filtro</button>
       </div>
-    </div>`;
+    </div>
+    <div id="leaflet-map"></div>
+    <div style="margin-top:14px">
+      <h3 style="color:var(--accent);font-size:13px;margin-bottom:10px">📋 Detalle por provincia</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">
+        ${Object.entries(porProv).sort((a,b)=>b[1]-a[1]).map(([prov,n])=>{
+          const imp=impProv[prov]||0;
+          return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;cursor:pointer" onclick="filtrarProv('${prov.replace(/'/g,'')}')">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+              <div style="color:var(--text);font-size:13px;font-weight:800">${prov}</div>
+              <span class="badge" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5">${n} oferta${n!==1?'s':''}</span>
+            </div>
+            <div style="color:#34d399;font-size:12px;font-weight:800;margin-top:6px">${Math.round(imp).toLocaleString('es-ES')} €</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+
+  // Crear mapa Leaflet
+  if(!window.L){
+    // Leaflet no cargado (bloqueo CDN) — fallback visual
+    const el=document.getElementById('leaflet-map');
+    if(el) el.innerHTML='<div style="padding:24px;color:var(--text3);text-align:center">⚠️ No se pudo cargar Leaflet (CDN bloqueado). Revisa conexión o permite unpkg.com.</div>';
+    return;
+  }
+
+  // destruir mapa previo si existe
+  if(window.__leafletMap){ try{ window.__leafletMap.remove(); }catch(_){} window.__leafletMap=null; }
+
+  const map=L.map('leaflet-map',{
+    zoomControl:true,
+    attributionControl:true
+  }).setView([40.3,-3.7],6);
+  window.__leafletMap=map;
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    maxZoom:18,
+    attribution:'&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  // Color por cuantiles simples
+  const vals=Object.values(porProv);
+  const max=Math.max(...vals,1);
+  const q1=max*0.25, q2=max*0.5, q3=max*0.75;
+  const color=(n)=> n>q3?'#ef4444':n>q2?'#f97316':n>q1?'#f59e0b':'#38bdf8';
+
+  // Legend
+  const legend=L.control({position:'bottomright'});
+  legend.onAdd=function(){
+    const div=L.DomUtil.create('div','map-legend');
+    div.innerHTML=`<div style="font-weight:900;color:var(--text);margin-bottom:6px">Leyenda</div>
+      <div class="row"><span class="sw" style="background:#38bdf8"></span> 1 - ${Math.max(1,Math.floor(q1))}</div>
+      <div class="row"><span class="sw" style="background:#f59e0b"></span> ${Math.max(1,Math.floor(q1)+1)} - ${Math.max(2,Math.floor(q2))}</div>
+      <div class="row"><span class="sw" style="background:#f97316"></span> ${Math.max(2,Math.floor(q2)+1)} - ${Math.max(3,Math.floor(q3))}</div>
+      <div class="row"><span class="sw" style="background:#ef4444"></span> > ${Math.max(3,Math.floor(q3))}</div>`;
+    return div;
+  };
+  legend.addTo(map);
+
+  // Markers por provincia (capital)
+  Object.entries(porProv).forEach(([prov,n])=>{
+    const ll=PROV_LATLNG[prov];
+    if(!ll) return;
+    const imp=impProv[prov]||0;
+    const r=6+Math.sqrt(n/max)*18;
+    const c=color(n);
+    const m=L.circleMarker(ll,{
+      radius:r,
+      color:c,
+      weight:2,
+      fillColor:c,
+      fillOpacity:0.55
+    }).addTo(map);
+
+    const tip=`<div style="font-weight:900;color:#1a2236;margin-bottom:4px">${prov}</div>
+      <div style="color:#4a5880;font-size:12px">📦 ${n} oferta${n!==1?'s':''}</div>
+      <div style="color:#0a7c5c;font-size:12px;font-weight:800;margin-top:2px">${Math.round(imp).toLocaleString('es-ES')} €</div>
+      <div style="color:#8494b8;font-size:11px;margin-top:6px">Clic para filtrar</div>`;
+    m.bindTooltip(tip,{direction:'top',opacity:1,sticky:true});
+    m.on('click',()=>filtrarProv(prov));
+  });
 }
+
 function showMapaTip(e,prov,n){
   const t=document.getElementById("mapa-tip");
   const imp=ofertas.filter(o=>o.provincia===prov).reduce((s,o)=>s+(o.importe||0),0);
@@ -1585,8 +1767,11 @@ function showMapaTip(e,prov,n){
 }
 function hideMapaTip(){document.getElementById("mapa-tip").style.display="none";}
 function filtrarProv(prov){
-  document.getElementById("f-prov").value=prov;
-  setVista("tabla");
+  // Aplica filtro por provincia y salta a la tabla
+  provinciasSeleccionadas = new Set([prov]);
+  actualizarLabelProv();
+  renderProvOpciones(document.getElementById('prov-search')?document.getElementById('prov-search').value:'');
+  setVista('tabla');
 }
 
 // ===== IA PREVISIÓN =====
@@ -2932,6 +3117,23 @@ function mcRenderOneDrive(){
   </div>
   <div id="od-shared-status2" style="margin-top:10px;color:var(--text3);font-size:12px"></div>
  </div>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin:12px 0">
+  <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">🤖 Copilot / IA (Previsión)</div>
+  <div style="color:var(--text3);font-size:12px;line-height:1.6;margin-bottom:10px">
+    Puedes: <b>1)</b> usar el <b>modelo estadístico</b> (sin servicios externos), o <b>2)</b> embeber un agente de <b>Copilot Studio</b> pegando su URL de Web/Custom Website.
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+    <select id="ia-mode-select" onchange="setIaMode(this.value);toast('✅ Modo IA: '+this.value,'#10b981')" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:12px;cursor:pointer">
+          <option value="model" ${getIaMode()==='model'?'selected':''}>model (previsión local)</option>
+          <option value="copilot" ${getIaMode()==='copilot'?'selected':''}>copilot (embed)</option>
+          <option value="off" ${getIaMode()==='off'?'selected':''}>off (ocultar pestaña)</option>
+        </select>
+        <input id="copilot-embed-url" placeholder="https://copilotstudio.microsoft.com/.../webchat?..." style="flex:1;min-width:320px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:12px" value="${getCopilotEmbedUrl()}">
+    <button onclick="setCopilotEmbedUrl(document.getElementById('copilot-embed-url').value);toast('✅ URL guardada','#10b981');" style="background:var(--accent);color:white;border:none;border-radius:8px;padding:9px 14px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">💾 Guardar</button>
+    <button onclick="setCopilotEmbedUrl('');document.getElementById('copilot-embed-url').value='';toast('🧹 URL eliminada','#f59e0b');" style="background:transparent;color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">Quitar</button>
+  </div>
+  <div style="color:var(--text3);font-size:11px">Nota: la pestaña IA se muestra/oculta según el modo. Si eliges <b>copilot</b> y no hay URL, hace fallback al modelo.</div>
+</div>
 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <div style="font-size:12px;color:var(--text3)">Estado: <span id="od-status-badge2"></span></div>
           <button onclick="testOneDriveLogin();setTimeout(mcActualizarEstadoOD,2500)" style="background:var(--accent-light);color:var(--accent);border:1px solid var(--border);border-radius:7px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer">🔗 Conectar / Probar login</button>
