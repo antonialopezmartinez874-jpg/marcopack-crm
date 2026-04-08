@@ -6,23 +6,22 @@
 <title>Marcopack CRM</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js">
-
-// ===== RESCATE: si hay un error JS, mostrarlo y no quedarse en blanco =====
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script>
+// ===== RESCATE: muestra errores JS en pantalla en lugar de quedarse en blanco =====
 window.addEventListener('error', (ev)=>{
   try{
-    const msg = (ev && ev.message) ? ev.message : 'Error desconocido';
-    const el = document.getElementById('login-error');
-    if(el){ el.textContent = '❌ Error de carga: ' + msg + ' (Build LOGIN_FIX_20260408_074010)'; el.style.display='block'; }
+    const msg=(ev&&ev.message)?ev.message:'Error desconocido';
+    const el=document.getElementById('login-error');
+    if(el){el.textContent='❌ Error de carga: '+msg;el.style.display='block';}
     const app=document.getElementById('app');
     const login=document.getElementById('login-screen');
     const setup=document.getElementById('setup-screen');
-    if(app) app.style.display='none';
-    if(setup) setup.style.display='none';
-    if(login) login.style.display='flex';
-  }catch(_){ }
+    if(app)app.style.display='none';
+    if(setup)setup.style.display='none';
+    if(login)login.style.display='flex';
+  }catch(_){}
 });
-
 </script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -2197,15 +2196,30 @@ function renderLlamadas(){
 
       <!-- Panel derecho: Con historial -->
       <div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-          <div style="color:var(--accent);font-size:12px;font-weight:700">📋 CON HISTORIAL · MÁS TIEMPO SIN CONTACTO</div>
-          <span style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700">${conLlamadas.length}</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="checkbox" id="ll-check-all" title="Seleccionar todos"
+              style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent)"
+              onclick="llToggleAllHist(event)"/>
+            <div style="color:var(--accent);font-size:12px;font-weight:700">📋 CON HISTORIAL · MÁS TIEMPO SIN CONTACTO</div>
+            <span style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700">${conLlamadas.length}</span>
+          </div>
+          <button id="ll-btn-borrar-sel" onclick="llBorrarHistorialSeleccion()"
+            style="display:none;align-items:center;gap:5px;background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer">
+            🗑 Borrar historial (<span id="ll-sel-count"></span>)
+          </button>
         </div>
+        <div style="color:var(--text3);font-size:11px;margin-bottom:8px">ℹ️ Borrar historial elimina los contadores de llamadas, no la oferta.</div>
         ${conLlamadas.length ? conLlamadas.map(o=>{
           const tel=o.telefonoMovil||o.telefono||"";
           const diasSinContacto=o.ultimaLlamada?Math.floor((new Date()-new Date(o.ultimaLlamada))/(1000*60*60*24)):null;
           const urgente=o.fechaRecordatorio&&o.fechaRecordatorio<=hoy;
-          return `<div class="llamada-item ${urgente?"ll-urgente":""}">
+          const seleccionado=llHistSel.has(o.id);
+          return `<div class="llamada-item ${urgente?"ll-urgente":""}" style="${seleccionado?"outline:2px solid var(--accent);outline-offset:-2px":""}">
+            <input type="checkbox" class="ll-hist-check" data-id="${o.id}"
+              ${seleccionado?"checked":""}
+              onclick="llToggleHist(event,'${o.id}')"
+              style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent);flex-shrink:0;margin-right:2px"/>
             <div style="flex:1;min-width:0">
               <div style="color:var(--text);font-size:13px;font-weight:700;cursor:pointer" onclick="verDetalle('${o.id}')">${o.empresa}</div>
               <div style="color:var(--text3);font-size:11px;margin-top:2px">${o.contacto||"—"} ${tel?`· <b style="color:var(--text2)">${tel}</b>`:""}</div>
@@ -2220,10 +2234,10 @@ function renderLlamadas(){
                 ${urgente?`<span style="color:var(--orange);font-size:10px;font-weight:700">🔔 Recordatorio vencido</span>`:""}
               </div>
             </div>
-            <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
- <button class="llamada-btn" onclick="abrirLlamada('${o.id}')">+ Llamada</button>
- <button onclick="event.stopPropagation();llBorrarHistorialOferta('${o.id}','${(o.empresa||'').replace(/'/g,'')}')" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:900;cursor:pointer">🗑 Borrar historial</button>
-</div>
+            <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+              <button class="llamada-btn" onclick="abrirLlamada('${o.id}')">+ Llamada</button>
+              <button onclick="event.stopPropagation();llBorrarHistorialOferta('${o.id}','${(o.empresa||'').replace(/'/g,'')}')" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">🗑 Borrar</button>
+            </div>
           </div>`;
         }).join("") : `<div style="color:var(--text3);font-size:13px;text-align:center;padding:30px 10px">Aún no hay llamadas registradas</div>`}
       </div>
@@ -2561,7 +2575,14 @@ function renderAlertas(){
         <span style="background:#fef2f2;border:1px solid #fca5a5;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:var(--red)">🔴 Vencidos: ${venc.length}</span>
         <span style="background:#fffbeb;border:1px solid #fcd34d;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:#92400e">🟡 Mañana: ${proxManana.length}</span>
         <span style="background:#fff7ed;border:1px solid #fed7aa;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:#c2490b">⚠️ Inactivos: ${inact.length}</span>
-        ${venc.length>1?`<button onclick="borrarTodosRecordatorios()" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:20px;padding:4px 13px;font-size:12px;font-weight:700;cursor:pointer">🗑 Limpiar todos los vencidos</button>`:""}
+        ${(venc.length+proxManana.length)>0?`<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:var(--text2);font-weight:600">
+          <input type="checkbox" id="rec-check-all" onclick="recToggleAll(event)" style="width:14px;height:14px;accent-color:var(--accent);cursor:pointer"/> Seleccionar todos
+        </label>`:""}
+        <button id="rec-btn-borrar-sel" onclick="borrarRecordatoriosSeleccionados()"
+          style="display:none;background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:20px;padding:4px 13px;font-size:12px;font-weight:700;cursor:pointer">
+          🗑 Borrar seleccionados (<span id="rec-sel-count"></span>)
+        </button>
+        ${venc.length>0?`<button onclick="borrarTodosRecordatorios()" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:20px;padding:4px 13px;font-size:12px;font-weight:700;cursor:pointer">🗑 Limpiar todos los vencidos</button>`:""}
       </div>
     </div>
 
@@ -3244,13 +3265,7 @@ async function mcResetPassword(email){
 
 function mcAbrirCrearUsuario(){
   const el=document.getElementById('mc-nuevo-usuario');
-  if(el){el.style.display='block';el.scrollIntoView({behavior:'smooth'});} 
-}
-
-
-function mcAbrirCrearUsuario(){
-  const el=document.getElementById("mc-nuevo-usuario");
-  if(el){el.style.display="block";el.scrollIntoView({behavior:"smooth"});}
+  if(el){el.style.display='block';el.scrollIntoView({behavior:'smooth'});}
 }
 
 async function mcCambiarRol(uid,rol){
@@ -3407,23 +3422,69 @@ async function guardarNombre(){
 
 // ===== ADMIN =====
 async function cargarAdmin(){
-  if(currentProfile.rol!=="admin")return;
-  const snap=await db.collection("usuarios").get();
-  const usuarios=snap.docs.map(d=>({id:d.id,...d.data()}));
-  document.getElementById("admin-body").innerHTML=`
-    <div class="admin-card"><h3>👥 Usuarios del sistema</h3>
-      ${usuarios.map(u=>`<div class="user-row">
-        <div><div style="color:var(--text);font-weight:600">${u.nombre}</div><div style="color:var(--text3);font-size:12px">${u.email}</div></div>
-        <div style="display:flex;align-items:center;gap:6px">
-          <span class="badge" style="background:var(--purple-bg);color:var(--purple);border:1px solid #c4b5fd">${u.rol}</span>
-          ${u.id!==currentUser.uid?`<select onchange="cambiarRol('${u.id}',this.value)" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:3px 7px;color:var(--text);font-size:12px">
-            ${["comercial","admin","lectura"].map(r=>`<option value="${r}"${u.rol===r?" selected":""}>${r}</option>`).join("")}
-          </select>`:""}
+  if(!currentProfile||currentProfile.rol!=="admin")return;
+  const body=document.getElementById("admin-body");
+  if(!body)return;
+  body.innerHTML='<div class="loading">Cargando usuarios...</div>';
+  let usuarios=[];
+  try{
+    const snap=await db.collection("usuarios").get();
+    usuarios=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){
+    body.innerHTML=`<div style="background:var(--red-bg);border:1.5px solid #fca5a5;border-radius:12px;padding:18px;color:var(--red)">
+      <div style="font-weight:900;font-size:14px;margin-bottom:8px">🔒 Error al cargar usuarios</div>
+      <div style="font-size:12px;line-height:1.7;color:#7f1d1d">${e.code||''} — ${e.message||''}</div>
+      <div style="font-size:12px;color:#7f1d1d;margin-top:8px">Revisa las reglas de Firestore para la colección <b>usuarios</b> y asegúrate de que el admin tiene permiso de lectura.</div>
+      <button onclick="cargarAdmin()" class="btn-save" style="margin-top:12px">🔄 Reintentar</button>
+    </div>`;
+    return;
+  }
+  // Orden: yo primero → admins → resto por nombre
+  usuarios.sort((a,b)=>{
+    if(a.id===currentUser.uid) return -1;
+    if(b.id===currentUser.uid) return 1;
+    const aA=a.rol==="admin", bA=b.rol==="admin";
+    if(aA&&!bA) return -1; if(!aA&&bA) return 1;
+    return (a.nombre||a.email||"").localeCompare(b.nombre||b.email||"","es");
+  });
+  const fmt=(ts)=>{try{const d=ts?.toDate?ts.toDate():null;return d?d.toLocaleDateString("es-ES"):"—";}catch(_){return "—";}};
+  body.innerHTML=`
+    <div class="admin-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0">👥 Usuarios del sistema (${usuarios.length})</h3>
+        <button class="btn-save" onclick="document.getElementById('modal-user').style.display='flex'" style="padding:7px 16px;font-size:12px">➕ Nuevo usuario</button>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+        <div style="display:grid;grid-template-columns:1.2fr 1.4fr 100px 130px 160px;padding:9px 14px;background:var(--surface2);border-bottom:2px solid var(--border)">
+          <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase">Usuario</div>
+          <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase">Email</div>
+          <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase;text-align:center">Alta</div>
+          <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase;text-align:center">Rol</div>
+          <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase;text-align:center">Acciones</div>
         </div>
-      </div>`).join("")}
-    </div>
-    <div class="admin-card"><h3>➕ Añadir nuevo usuario</h3>
-      <button class="btn-save" onclick="document.getElementById('modal-user').style.display='flex'">Crear usuario</button>
+        ${usuarios.map(u=>{
+          const esMio=u.id===currentUser.uid;
+          const nOfertas=ofertas.filter(o=>o.responsableUid===u.id||o.responsableNombre===u.nombre).length;
+          return `<div style="display:grid;grid-template-columns:1.2fr 1.4fr 100px 130px 160px;padding:11px 14px;border-bottom:1px solid var(--border);align-items:center;background:${esMio?"var(--accent-light)":"var(--surface)"}">
+            <div>
+              <div style="color:var(--text);font-weight:700;font-size:13px">${u.nombre||"—"} ${esMio?'<span style="background:var(--accent);color:white;border-radius:10px;padding:1px 7px;font-size:9px;font-weight:900">TÚ</span>':""}</div>
+              <div style="color:var(--text3);font-size:11px;margin-top:1px">${nOfertas} oferta${nOfertas!==1?"s":""}</div>
+            </div>
+            <div style="color:var(--text2);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:6px">${u.email||"—"}</div>
+            <div style="text-align:center;color:var(--text2);font-size:12px">${fmt(u.creadoEn)}</div>
+            <div style="text-align:center">${esMio
+              ?`<span class="badge" style="background:var(--purple-bg);color:var(--purple);border:1px solid #c4b5fd">${u.rol||"—"}</span>`
+              :`<select onchange="cambiarRol('${u.id}',this.value)" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:3px 7px;color:var(--text);font-size:12px;width:100%">
+                ${["comercial","admin","lectura"].map(r=>`<option value="${r}"${u.rol===r?" selected":""}>${r}</option>`).join("")}
+              </select>`}
+            </div>
+            <div style="display:flex;justify-content:center;gap:5px;flex-wrap:wrap">
+              <button onclick="adm_resetPass('${(u.email||"").replace(/'/g,"\\'")}','${u.id}')" title="Resetear contraseña" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:6px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer">🔑</button>
+              ${!esMio?`<button onclick="adm_eliminarUsuario('${u.id}','${(u.nombre||u.email||"").replace(/'/g,"\\'")}',${nOfertas})" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:6px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer">🗑</button>`:""}
+            </div>
+          </div>`;
+        }).join("")}
+      </div>
     </div>
     <div class="admin-card" style="border-color:#b8d0f5;background:linear-gradient(135deg,#f0f6ff,#f7f9ff)">
       <h3 style="color:var(--accent)">☁️ Configuración OneDrive Central</h3>
@@ -3442,27 +3503,35 @@ async function cargarAdmin(){
         <button onclick="testOneDriveLogin()" style="background:var(--accent-light);color:var(--accent);border:1px solid var(--border);border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer">🔗 Conectar / Probar login</button>
         <button onclick="desconectarOneDrive()" style="background:transparent;color:#ef4444;border:1px solid #ef444455;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer">⏏️ Desconectar</button>
       </div>
-      <div style="margin-top:14px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px">
-        <div style="color:var(--purple);font-size:12px;font-weight:700;margin-bottom:8px">📋 Guía rápida — portal.azure.com</div>
-        <div style="color:var(--text3);font-size:11px;line-height:2">
-          1. Busca <b style="color:var(--text2)">Registros de aplicaciones</b> → <b style="color:var(--text2)">Nuevo registro</b><br>
-          2. Nombre: <b style="color:var(--text2)">MachineCRM</b> | Tipo de cuenta: <b style="color:var(--text2)">Cuentas en cualquier directorio + cuentas Microsoft personales</b><br>
-          3. URI de redireccionamiento: tipo <b style="color:var(--text2)">SPA</b> → valor: <code style="color:var(--accent);background:var(--surface);padding:1px 5px;border-radius:4px">${window.location.origin||"http://localhost"}</code><br>
-          4. Tras crear, copia el <b style="color:var(--text2)">ID de aplicación (cliente)</b> y pégalo arriba<br>
-          5. En <b style="color:var(--text2)">Permisos de API</b> añade: <b style="color:var(--text2)">Files.ReadWrite</b> y <b style="color:var(--text2)">User.Read</b> (Microsoft Graph, Delegados)
-        </div>
-      </div>
     </div>`;
   actualizarEstadoOneDrive();
 }
+async function adm_resetPass(email, uid){
+  if(!email){toast("⚠️ Email no válido","#f59e0b");return;}
+  if(!confirm(`¿Enviar email de restablecimiento de contraseña a ${email}?`))return;
+  try{ await auth.sendPasswordResetEmail(email); toast("✅ Email de reseteo enviado a "+email,"#10b981"); }
+  catch(e){ toast("❌ Error: "+e.message,"#ef4444"); }
+}
+async function adm_eliminarUsuario(uid,nombre,nOfertas){
+  const aviso=nOfertas>0?`
+⚠️ Este usuario tiene ${nOfertas} oferta(s) asignada(s). Quedarán sin responsable.`:"";
+  if(!confirm(`¿Eliminar al usuario "${nombre}"? Esta acción no se puede deshacer.${aviso}`))return;
+  try{
+    await db.collection("usuarios").doc(uid).delete();
+    toast("🗑 Usuario eliminado","#f59e0b");
+    cargarAdmin();
+  }catch(e){ toast("❌ Error: "+e.message,"#ef4444"); }
+}
 async function cambiarRol(uid,rol){await db.collection("usuarios").doc(uid).update({rol});toast("✅ Rol actualizado","#10b981");cargarAdmin();}
 async function crearUsuario(){
-  const nombre=document.getElementById("nu-nombre").value.trim();
-  const email=document.getElementById("nu-email").value.trim();
-  const pass=document.getElementById("nu-pass").value;
-  const rol=document.getElementById("nu-rol").value;
+  const nombre=document.getElementById("nu-nombre")?.value.trim()||"";
+  const email=document.getElementById("nu-email")?.value.trim()||"";
+  const pass=document.getElementById("nu-pass")?.value||"";
+  const rol=document.getElementById("nu-rol")?.value||"comercial";
   if(!nombre||!email||!pass){toast("⚠️ Completa todos los campos","#f59e0b");return;}
   if(pass.length<6){toast("⚠️ Contraseña mínimo 6 caracteres","#f59e0b");return;}
+  const btn=document.querySelector("#modal-user .btn-save");
+  if(btn){btn.disabled=true;btn.textContent="Creando...";}
   try{
     const secondary=firebase.initializeApp(firebaseConfig,"sec_"+Date.now());
     const secAuth=secondary.auth();
@@ -3470,8 +3539,17 @@ async function crearUsuario(){
     await db.collection("usuarios").doc(cred.user.uid).set({nombre,email,rol,creadoEn:firebase.firestore.FieldValue.serverTimestamp()});
     await secAuth.signOut();await secondary.delete();
     document.getElementById("modal-user").style.display="none";
-    toast("✅ Usuario creado correctamente","#10b981");cargarAdmin();
-  }catch(e){toast("❌ Error: "+e.message,"#ef4444");}
+    ["nu-nombre","nu-email","nu-pass"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
+    toast("✅ Usuario creado correctamente","#10b981");
+    cargarAdmin();
+  }catch(e){
+    if(e.code==="auth/email-already-in-use") toast("⚠️ Ya existe un usuario con ese email","#f59e0b");
+    else if(e.code==="auth/invalid-email") toast("⚠️ El formato del email no es válido","#f59e0b");
+    else if(e.code==="auth/weak-password") toast("⚠️ Contraseña demasiado débil (mínimo 6 caracteres)","#f59e0b");
+    else toast("❌ Error: "+e.message,"#ef4444");
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent="Crear usuario";}
+  }
 }
 
 function guardarClientId(){
@@ -3501,8 +3579,7 @@ function toast(msg,color="#10b981"){
   setTimeout(()=>el.style.opacity="0",3500);
 }
 
-// Arranque seguro (GitHub) — Build LOGIN_FIX_20260408_074010
-window.onload=()=>{};
+// Arranque: verificar sesión activa
 </script>
 </body>
 </html>
