@@ -7,7 +7,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -425,7 +424,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
   <div class="stats" id="stats-row"></div>
 
   <!-- BANNER PREAVISO RECORDATORIOS (se muestra/oculta dinámicamente) -->
-  <div id="banner-recordatorios" style="display:none;margin:8px 24px 0;background:linear-gradient(135deg,#fff7ed,#fffbeb);border:1.5px solid #fed7aa;border-radius:var(--radius);padding:12px 18px;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 2px 8px rgba(249,115,22,.12)">
+  <div id="banner-recordatorios" style="display:none;margin:8px 24px 0;background:linear-gradient(135deg,#fff7ed,#fffbeb);border:1.5px solid #fed7aa;border-radius:var(--radius);padding:12px 18px;display:none;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 2px 8px rgba(249,115,22,.12)">
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:22px">⏰</span>
       <div>
@@ -524,7 +523,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       <div id="stats-builder"></div>
     </div>
 
-    <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">LOGINFIX2_20260408</b></div>
+    <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">v2.0_STABLE_20260408</b></div>
   </div>
 </div></div>
   <div id="vista-mapa" style="display:none;padding:16px 20px 24px"><h3 style="color:var(--accent);margin-bottom:16px">🗺️ Mapa de ofertas por provincia</h3><div id="mapa-container"></div></div>
@@ -884,7 +883,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 // ===== FIREBASE =====
 const firebaseConfig={apiKey:"AIzaSyB4kJsqEtQ0ypOIL4LyY9rhTBpcY_mxhnI",authDomain:"machinecrm-61b34.firebaseapp.com",projectId:"machinecrm-61b34",storageBucket:"machinecrm-61b34.firebasestorage.app",messagingSenderId:"686919580495",appId:"1:686919580495:web:019fa5682054bb089a633a"};
 firebase.initializeApp(firebaseConfig);
-console.log('[Marcopack CRM] Build LOGINFIX2_20260408');
+console.log('[Marcopack CRM] Build v2.0_STABLE_20260408');
 const auth=firebase.auth(),db=firebase.firestore();
 
 // ===== SEGURIDAD: No recordar sesión entre visitas =====
@@ -1097,9 +1096,6 @@ auth.onAuthStateChanged(async user=>{
       const login=document.getElementById("login-screen");
       const setup=document.getElementById("setup-screen");
       const app=document.getElementById("app");
-      // Limpiar cualquier mensaje de error de login previo
-      const loginErr=document.getElementById('login-error');
-      if(loginErr){loginErr.style.display='none';loginErr.textContent='';}
       if(login) login.style.display="none";
       if(setup) setup.style.display="none";
       if(app) app.style.display="block";
@@ -1130,7 +1126,7 @@ auth.onAuthStateChanged(async user=>{
   }catch(e){
     console.error('Error en inicialización de sesión:', e);
     const el=document.getElementById('login-error');
-    if(el){ el.textContent='❌ Error inicializando: '+(e.message||e)+' (Build: ERRFIX_20260408_LOGINOK)'; el.style.display='block'; }
+    if(el){ el.textContent='❌ Error inicializando: '+(e.message||e)+' (Build: LOGIN_FIX_20260408_074010)'; el.style.display='block'; }
     const app=document.getElementById("app");
     const setup=document.getElementById("setup-screen");
     const login=document.getElementById("login-screen");
@@ -1189,56 +1185,33 @@ async function crearAdminInicial(){
 }
 
 async function doLogin(){
-  const emailEl=document.getElementById("login-email");
-  const passEl=document.getElementById("login-pass");
-  const btn=document.getElementById("btn-login");
-  if(!emailEl||!passEl||!btn) return;
-  const email=emailEl.value.trim();
-  const pass=passEl.value;
+  const email=document.getElementById("login-email").value.trim();
+  const pass=document.getElementById("login-pass").value;
   if(!email||!pass){showErr("Completa email y contraseña");return;}
-
-  btn.textContent="⏳ Conectando con Firebase...";btn.disabled=true;
-  showInfo("Paso 1: Conectando con el servidor...");
-
+  const btn=document.getElementById("btn-login");
+  btn.textContent="Verificando...";btn.disabled=true;
   try{
-    showInfo("Paso 2: Verificando credenciales...");
+    // Asegurar que la persistencia es solo de sesión antes de cada login
+    await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
     await auth.signInWithEmailAndPassword(email,pass);
-    showInfo("Paso 3: Credenciales correctas. Cargando aplicación...");
     // onAuthStateChanged se encarga de mostrar la app
   }catch(e){
     btn.textContent="Entrar al CRM";btn.disabled=false;
-    const code=e.code||"";
-    if(code==="auth/user-not-found"||code==="auth/wrong-password"||code==="auth/invalid-credential"){
+    if(e.code==="auth/user-not-found"||e.code==="auth/wrong-password"||e.code==="auth/invalid-credential"){
       showErr("Email o contraseña incorrectos.");
-    } else if(code==="auth/invalid-email"){
+    } else if(e.code==="auth/invalid-email"){
       showErr("El formato del email no es válido.");
-    } else if(code==="auth/too-many-requests"){
-      showErr("Demasiados intentos fallidos. Espera unos minutos o restablece tu contraseña.");
-    } else if(code==="auth/network-request-failed"){
-      showErr("Sin conexión a Internet. Comprueba tu red e inténtalo de nuevo.");
+    } else if(e.code==="auth/too-many-requests"){
+      showErr("Cuenta bloqueada temporalmente por demasiados intentos. Inténtalo más tarde.");
     } else {
-      showErr("Error: "+(e.message||code||"Error desconocido")+"\nCódigo: "+code);
+      showErr("Error de acceso: "+e.message);
     }
   }
 }
-function showInfo(msg){
-  const el=document.getElementById("login-error");
-  if(!el) return;
-  el.style.background="#e3eeff";
-  el.style.borderColor="#b8d0f5";
-  el.style.color="#1565c0";
-  el.textContent=msg;
-  el.style.display="block";
-}
 function showErr(msg){
   const el=document.getElementById("login-error");
-  if(!el) return;
-  el.style.background="";
-  el.style.borderColor="";
-  el.style.color="";
-  el.textContent=msg;
-  el.style.display="block";
-  setTimeout(()=>{if(el.textContent===msg)el.style.display="none";},10000);
+  el.textContent=msg;el.style.display="block";
+  setTimeout(()=>el.style.display="none",6000);
 }
 function doLogout(){auth.signOut();}
 
@@ -1849,14 +1822,20 @@ function renderEstadisticas(){
   statsTab(which);
 }
 function statsDownloadCSV(headers, rows){
-  const esc=(x)=>{const s=String(x??''); return /[",\n\r]/.test(s)?('"'+s.replace(/"/g,'""')+'"'):s;};
+  const esc=(x)=>{
+    const s=String(x??'');
+    if(s.indexOf('"')!==-1||s.indexOf(',')!==-1||s.indexOf('\n')!==-1||s.indexOf('\r')!==-1){
+      return '"'+s.replace(/"/g,'""')+'"';
+    }
+    return s;
+  };
   const lines=[headers.map(esc).join(',')];
   rows.forEach(r=>lines.push(headers.map(h=>esc(r[h])).join(',')));
   const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download=`Marcopack_stats_${new Date().toISOString().split('T')[0]}.csv`;
-  document.body.appendChild(a); a.click(); a.remove();
+  a.download='Marcopack_stats_'+new Date().toISOString().split('T')[0]+'.csv';
+  document.body.appendChild(a);a.click();a.remove();
 }
 function renderEstadisticasCustom(){
   const wrap=document.getElementById('stats-builder');
