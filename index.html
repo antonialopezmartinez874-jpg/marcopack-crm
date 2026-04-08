@@ -544,12 +544,29 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       <div class="field"><label>Descripción</label><textarea id="f-desc"></textarea></div>
       <div class="grid2">
         <div class="field"><label>Importe (€)</label><input type="number" id="f-importe"/></div>
-        <div class="field"><label>Estado</label><select id="f-est-form"></select></div>
+        <div class="field"><label>Estado</label><select id="f-est-form" onchange="toggleMotivoUI()"></select></div>
       </div>
       <div class="grid2">
         <div class="field"><label>Responsable</label><select id="f-resp-form"></select></div>
         <div class="field"><label>🔔 Recordatorio</label><input type="date" id="f-recod"/></div>
       </div>
+ <div class="grid2">
+  <div class="field"><label>➡️ Próxima acción</label><input id="f-next" placeholder="Ej: enviar catálogo, pedir confirmación..."/></div>
+  <div class="field"><label>📅 Fecha próxima acción</label><input type="date" id="f-nextdate"/></div>
+ </div>
+ <div class="grid2">
+  <div class="field"><label>❌ Motivo de pérdida (si aplica)</label><select id="f-motivo">
+    <option value="">— Seleccionar —</option>
+    <option>Precio</option>
+    <option>Competencia</option>
+    <option>Sin presupuesto</option>
+    <option>Plazos / Timing</option>
+    <option>No encaja técnicamente</option>
+    <option>No interesado</option>
+    <option>Otro</option>
+  </select></div>
+  <div class="field"><label>🏁 Competidor (opcional)</label><input id="f-competidor" placeholder="Ej: Marca X, Proveedor Y..."/></div>
+ </div>
       <div class="field"><label>Notas Internas</label><textarea id="f-notas" style="min-height:75px"></textarea></div>
       <div class="field">
         <label>📎 Adjuntar documentos <span style="color:var(--text3);font-size:10px;font-weight:400">(Word, PDF, Excel · puedes seleccionar varios a la vez)</span></label>
@@ -691,6 +708,48 @@ const OD_CONFIG_KEY   = "crm_msal_client_id";
 function getClientId(){ return localStorage.getItem(OD_CONFIG_KEY)||""; }
 function setClientId(id){ localStorage.setItem(OD_CONFIG_KEY, id.trim()); msalInstance=null; msalToken=null; }
 
+
+function getSharedFolderLink(){ return localStorage.getItem(OD_SHARED_LINK_KEY) || ""; }
+function setSharedFolderLink(link){
+  const v=(link||"").trim();
+  if(v) localStorage.setItem(OD_SHARED_LINK_KEY, v);
+  else localStorage.removeItem(OD_SHARED_LINK_KEY);
+  localStorage.removeItem(OD_SHARED_CACHE_KEY);
+}
+function encodeSharingUrlToShareId(url){
+  const b64 = btoa(unescape(encodeURIComponent(url)));
+  return 'u!' + b64.replace(/=+$/,'').replace(/\+/g,'-').replace(/\//g,'_');
+}
+async function resolveSharedFolder(token){
+  const link=getSharedFolderLink();
+  if(!link) throw new Error('SHARED_FOLDER_NOT_SET');
+  const cached = localStorage.getItem(OD_SHARED_CACHE_KEY);
+  if(cached){
+    try{ const obj=JSON.parse(cached); if(obj && obj.driveId && obj.itemId) return obj; }catch(_){ }
+  }
+  const shareId = encodeSharingUrlToShareId(link);
+  const res = await fetch(`https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem`,{
+    headers:{Authorization:'Bearer '+token,'Content-Type':'application/json',Prefer:'redeemSharingLink'}
+  });
+  if(!res.ok) throw new Error('No se pudo resolver la carpeta compartida: '+res.status);
+  const di = await res.json();
+  const driveId = di && di.parentReference && di.parentReference.driveId;
+  const itemId  = di && di.id;
+  if(!driveId || !itemId) throw new Error('Respuesta de carpeta compartida incompleta');
+  const out={driveId,itemId,name:di.name||'Carpeta compartida'};
+  localStorage.setItem(OD_SHARED_CACHE_KEY, JSON.stringify(out));
+  return out;
+}
+async function uploadToSharedFolder(file, token, shared){
+  const safeName=file.name.replace(/[\/\\?%\*:|"<>]/g,'_');
+  const endpoint = `https://graph.microsoft.com/v1.0/drives/${shared.driveId}/items/${shared.itemId}:/${Date.now()}_${safeName}:/content`;
+  const up = await fetch(endpoint,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/octet-stream'},body:file});
+  if(!up.ok) throw new Error('Error subiendo a carpeta compartida: '+up.status);
+  const data = await up.json();
+  const url = (data && data.webUrl) ? data.webUrl : '';
+  return {url, driveItemId:data && data.id, origen:'onedrive_shared'};
+}
+
 let msalInstance = null;
 let msalToken    = null;
 
@@ -748,25 +807,21 @@ async function oneDriveEnsureFolder(token){
 }
 
 async function subirArchivoOneDrive(file, token){
+  const sharedLink=getSharedFolderLink();
+  if(sharedLink){
+    const shared=await resolveSharedFolder(token);
+    return await uploadToSharedFolder(file, token, shared);
+  }
   await oneDriveEnsureFolder(token);
-  const safeName=file.name.replace(/[\/\\?%*:|"<>]/g,"_");
+  const safeName=file.name.replace(/[\/\?%\*:|"<>]/g,'_');
   const endpoint=`https://graph.microsoft.com/v1.0/me/drive/root:/${ONEDRIVE_FOLDER}/${Date.now()}_${safeName}:/content`;
-  const res=await fetch(endpoint,{
-    method:"PUT",
-    headers:{Authorization:"Bearer "+token,"Content-Type":"application/octet-stream"},
-    body:file
-  });
-  if(!res.ok) throw new Error("Error subiendo a OneDrive: "+res.status);
+  const res=await fetch(endpoint,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/octet-stream'},body:file});
+  if(!res.ok) throw new Error('Error subiendo a OneDrive: '+res.status);
   const data=await res.json();
-  const shareRes=await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${data.id}/createLink`,{
-    method:"POST",
-    headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},
-    body:JSON.stringify({type:"view",scope:"anonymous"})
-  });
-  const shareData=await shareRes.json();
-  const url=shareData?.link?.webUrl || data.webUrl;
-  return {url, driveItemId: data.id};
+  const url=(data && data.webUrl)?data.webUrl:'';
+  return {url, driveItemId:data && data.id, origen:'onedrive_personal'};
 }
+
 
 async function desconectarOneDrive(){
   if(msalInstance){
@@ -800,6 +855,17 @@ const PAISES=["Afganistán","Albania","Alemania","Andorra","Angola","Arabia Saud
 // Países seleccionados para filtro
 let paisesSeleccionados=new Set();
 const ESTADOS=["Pendiente","En seguimiento","Interesado","Negociación","Ganada","Perdida","Descartada"];
+
+function toggleMotivoUI(){
+  const est=document.getElementById('f-est-form');
+  const motivo=document.getElementById('f-motivo')?.closest('.field');
+  const comp=document.getElementById('f-competidor')?.closest('.field');
+  if(!est||!motivo||!comp) return;
+  const show=['Perdida','Descartada'].includes(est.value);
+  motivo.style.opacity=show?1:0.6;
+  comp.style.opacity=show?1:0.6;
+}
+
 const TIPOS=[]; // Las opciones de máquina están en el select f-tipo directamente
 const CE={Pendiente:"#f59e0b","En seguimiento":"#3b82f6",Interesado:"#8b5cf6","Negociación":"#f97316",Ganada:"#10b981",Perdida:"#ef4444",Descartada:"#6b7280"};
 const CG=["#38bdf8","#10b981","#f59e0b","#8b5cf6","#f97316","#ef4444","#06b6d4","#84cc16","#ec4899","#6366f1"];
@@ -950,7 +1016,6 @@ function actualizarLabelProv(){
   if(provinciasSeleccionadas.size===0)lbl.textContent="Todas las provincias";
   else if(provinciasSeleccionadas.size===1)lbl.textContent=[...provinciasSeleccionadas][0];
   else lbl.textContent=`${provinciasSeleccionadas.size} provincias`;
- recUpdateToolbar();
 }
 function toggleProvDropdown(){
   const d=document.getElementById("prov-dropdown");
@@ -1306,6 +1371,7 @@ function renderDashboard(){
   const mananaStr=getFechaManana();
   const proxManana=ofertas.filter(o=>o.fechaRecordatorio===mananaStr&&!["Ganada","Perdida","Descartada"].includes(o.estado));
   const alertasInact=getAlertasInactivas();
+ const sinSeg=pend.filter(o=>!o.fechaRecordatorio && !o.proximaAccion && !o.fechaProximaAccion).length;
 
   // Últimas 5 ofertas
   const ultimas=ofertas.slice(0,5);
@@ -1317,7 +1383,7 @@ function renderDashboard(){
   document.getElementById("vista-dashboard").innerHTML=`
   <div class="dashboard">
     <div class="dash-grid">
-      <div class="dash-kpi"><div class="val" style="color:var(--accent)">${ofertas.length}</div><div class="lbl">Total ofertas</div><div class="sub" style="color:var(--text3)">${pend.length} activas en pipeline</div></div>
+      <div class="dash-kpi"><div class="val" style="color:var(--accent)">${ofertas.length}</div><div class="lbl">Total ofertas</div><div class="sub" style="color:var(--text3)">${pend.length} activas en pipeline · ${sinSeg} sin seguimiento</div></div>
       <div class="dash-kpi"><div class="val" style="color:#10b981">${tasa}%</div><div class="lbl">Tasa de cierre</div><div class="sub" style="color:#10b981">${gan.length} ofertas ganadas</div></div>
       <div class="dash-kpi"><div class="val" style="color:#34d399">${totalGan.toLocaleString("es-ES")} €</div><div class="lbl">Ingresos cerrados</div><div class="sub" style="color:var(--text3)">Pipeline: ${totalPipeline.toLocaleString("es-ES")} €</div></div>
       <div class="dash-kpi" style="${(venc.length+proxManana.length)>0?'border-color:#f97316':''};cursor:pointer" onclick="setVista('alertas')">
@@ -1433,6 +1499,10 @@ function renderEstadisticas(){
   const meses=Object.entries(porMes).sort((a,b)=>a[0].localeCompare(b[0])).slice(-12);
   // CAMBIO 8: Estadísticas por máquina
   const porMaquina={};datos.forEach(o=>{if(o.tipoMaquina){const t=o.tipoMaquina.trim();porMaquina[t]=(porMaquina[t]||0)+1;}});
+ // Motivos de pérdida
+ const porMotivo={};datos.forEach(o=>{if(["Perdida","Descartada"].includes(o.estado) && o.motivoPerdida){porMotivo[o.motivoPerdida]=(porMotivo[o.motivoPerdida]||0)+1;}});
+ const topMotivos=Object.entries(porMotivo).sort((a,b)=>b[1]-a[1]).slice(0,10);
+ const maxMotivo=topMotivos.length?topMotivos[0][1]:1;
   const topMaquinas=Object.entries(porMaquina).sort((a,b)=>b[1]-a[1]).slice(0,15);
   const impMaquina={};datos.forEach(o=>{if(o.tipoMaquina){const t=o.tipoMaquina.trim();impMaquina[t]=(impMaquina[t]||0)+(o.importe||0);}});
   const topImpMaquina=Object.entries(impMaquina).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,15);
@@ -1631,6 +1701,7 @@ async function llBorrarHistorialIds(ids){
     }));
     await batch.commit();
 
+    // borrar registros del historial relacionados con llamadas
     for(const id of ids){
       let qs = await db.collection('historial')
         .where('ofertaId','==',id)
@@ -2498,6 +2569,10 @@ async function guardarOferta(){
     responsableUid:currentUser.uid,
     fechaOferta:document.getElementById("f-fecha").value||null,
     fechaRecordatorio:document.getElementById("f-recod").value||null,
+ proximaAccion:document.getElementById("f-next").value.trim()||"",
+ fechaProximaAccion:document.getElementById("f-nextdate").value||null,
+ motivoPerdida:document.getElementById("f-motivo").value||"",
+ competidor:document.getElementById("f-competidor").value.trim()||"",
     referencia:document.getElementById("f-referencia").value.trim(),
     archivos:archivosTemp,
     actualizadoEn:firebase.firestore.FieldValue.serverTimestamp(),
@@ -2685,9 +2760,9 @@ async function mcRenderUsuarios(){
   }catch(e){
     console.error(e);
     body.innerHTML=`<div style="background:var(--red-bg);border:1px solid #fca5a5;border-radius:12px;padding:16px;color:var(--red)">
-      <div style="font-weight:900;margin-bottom:6px">🔒 Error cargando usuarios</div>
+      <div style="font-weight:900;margin-bottom:6px">🔒 No se pudieron cargar los usuarios</div>
       <div style="font-size:12px;line-height:1.7;color:#7f1d1d">${e.code||''} — ${e.message||''}<br>
-      Revisa permisos de Firestore para la colección <b>usuarios</b>.</div>
+      Revisa las reglas de Firestore para la colección <b>usuarios</b>.</div>
     </div>`;
     return;
   }
@@ -2706,7 +2781,7 @@ async function mcRenderUsuarios(){
 
   body.innerHTML=`
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
-    <div style="color:var(--text2);font-size:13px"><b style="color:var(--text)">${usuarios.length}</b> usuarios</div>
+    <div style="color:var(--text2);font-size:13px"><b style="color:var(--text)">${usuarios.length}</b> usuarios registrados</div>
     <button onclick="mcAbrirCrearUsuario()" class="btn-save" style="padding:8px 20px">➕ Nuevo usuario</button>
   </div>
 
@@ -2842,7 +2917,22 @@ function mcRenderOneDrive(){
             value="${getClientId()}"/>
           <button onclick="mcGuardarClientId()" class="btn-save" style="white-space:nowrap">💾 Guardar</button>
         </div>
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        
+ <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin:10px 0">
+  <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Carpeta compartida (OneDrive Personal · Microsoft 365 Family)</div>
+  <div style="color:var(--text3);font-size:12px;line-height:1.6;margin-bottom:10px">
+    Pega aquí el <b>enlace de la carpeta compartida</b> (OneDrive → Compartir carpeta). Si se configura, <b>todos los adjuntos</b> se subirán a esa carpeta común.
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <input id="od-shared-link-input2" placeholder="https://1drv.ms/f/… (enlace carpeta compartida)"
+      style="flex:1;min-width:260px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:12px"
+      value="${getSharedFolderLink()}"/>
+    <button onclick="mcGuardarSharedLink()" style="background:var(--accent);color:white;border:none;border-radius:8px;padding:9px 14px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">💾 Guardar enlace</button>
+    <button onclick="mcLimpiarSharedLink()" style="background:transparent;color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">Quitar</button>
+  </div>
+  <div id="od-shared-status2" style="margin-top:10px;color:var(--text3);font-size:12px"></div>
+ </div>
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <div style="font-size:12px;color:var(--text3)">Estado: <span id="od-status-badge2"></span></div>
           <button onclick="testOneDriveLogin();setTimeout(mcActualizarEstadoOD,2500)" style="background:var(--accent-light);color:var(--accent);border:1px solid var(--border);border-radius:7px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer">🔗 Conectar / Probar login</button>
           <button onclick="desconectarOneDrive();mcActualizarEstadoOD()" style="background:transparent;color:#ef4444;border:1px solid #ef444455;border-radius:7px;padding:6px 14px;font-size:12px;cursor:pointer">⏏️ Desconectar</button>
@@ -2860,6 +2950,7 @@ function mcRenderOneDrive(){
       </div>
     </div>`;
   mcActualizarEstadoOD();
+ mcActualizarSharedStatus();
 }
 
 function mcGuardarClientId(){
@@ -2867,6 +2958,28 @@ function mcGuardarClientId(){
   if(!val||val.length<30){toast("⚠️ Client ID no válido","#f59e0b");return;}
   setClientId(val);toast("✅ Client ID guardado","#10b981");
   mcActualizarEstadoOD();
+}
+
+function mcActualizarSharedStatus(){
+  const el=document.getElementById('od-shared-status2');
+  if(!el) return;
+  const link=getSharedFolderLink();
+  if(!link){ el.innerHTML='<span style="color:#ef4444">⚠️ Sin carpeta compartida configurada</span>'; return; }
+  el.innerHTML='<span style="color:#10b981">✅ Enlace guardado. Se usará para subir adjuntos a la carpeta común.</span>';
+}
+function mcGuardarSharedLink(){
+  const v=(document.getElementById('od-shared-link-input2')||{}).value||'';
+  if(!v.trim()){ toast('⚠️ Pega un enlace de carpeta compartida','#f59e0b'); return; }
+  setSharedFolderLink(v);
+  toast('✅ Enlace de carpeta compartida guardado','#10b981');
+  mcActualizarSharedStatus();
+}
+function mcLimpiarSharedLink(){
+  setSharedFolderLink('');
+  const inp=document.getElementById('od-shared-link-input2');
+  if(inp) inp.value='';
+  toast('🧹 Carpeta compartida desactivada','#f59e0b');
+  mcActualizarSharedStatus();
 }
 
 function mcActualizarEstadoOD(){
