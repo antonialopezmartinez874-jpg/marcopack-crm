@@ -7,22 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script>
-// ===== RESCATE: muestra errores JS en pantalla en lugar de quedarse en blanco =====
-window.addEventListener('error', (ev)=>{
-  try{
-    const msg=(ev&&ev.message)?ev.message:'Error desconocido';
-    const el=document.getElementById('login-error');
-    if(el){el.textContent='❌ Error de carga: '+msg;el.style.display='block';}
-    const app=document.getElementById('app');
-    const login=document.getElementById('login-screen');
-    const setup=document.getElementById('setup-screen');
-    if(app)app.style.display='none';
-    if(setup)setup.style.display='none';
-    if(login)login.style.display='flex';
-  }catch(_){}
-});
-</script>
+
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -440,7 +425,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
   <div class="stats" id="stats-row"></div>
 
   <!-- BANNER PREAVISO RECORDATORIOS (se muestra/oculta dinámicamente) -->
-  <div id="banner-recordatorios" style="display:none;margin:8px 24px 0;background:linear-gradient(135deg,#fff7ed,#fffbeb);border:1.5px solid #fed7aa;border-radius:var(--radius);padding:12px 18px;display:none;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 2px 8px rgba(249,115,22,.12)">
+  <div id="banner-recordatorios" style="display:none;margin:8px 24px 0;background:linear-gradient(135deg,#fff7ed,#fffbeb);border:1.5px solid #fed7aa;border-radius:var(--radius);padding:12px 18px;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 2px 8px rgba(249,115,22,.12)">
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:22px">⏰</span>
       <div>
@@ -539,7 +524,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       <div id="stats-builder"></div>
     </div>
 
-    <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">LOGIN_FIX_20260408_074010</b></div>
+    <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">ERRFIX_20260408_LOGINOK</b></div>
   </div>
 </div></div>
   <div id="vista-mapa" style="display:none;padding:16px 20px 24px"><h3 style="color:var(--accent);margin-bottom:16px">🗺️ Mapa de ofertas por provincia</h3><div id="mapa-container"></div></div>
@@ -899,7 +884,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 // ===== FIREBASE =====
 const firebaseConfig={apiKey:"AIzaSyB4kJsqEtQ0ypOIL4LyY9rhTBpcY_mxhnI",authDomain:"machinecrm-61b34.firebaseapp.com",projectId:"machinecrm-61b34",storageBucket:"machinecrm-61b34.firebasestorage.app",messagingSenderId:"686919580495",appId:"1:686919580495:web:019fa5682054bb089a633a"};
 firebase.initializeApp(firebaseConfig);
-console.log('[Marcopack CRM] Build LOGIN_FIX_20260408_074010');
+console.log('[Marcopack CRM] Build ERRFIX_20260408_LOGINOK');
 const auth=firebase.auth(),db=firebase.firestore();
 
 // ===== SEGURIDAD: No recordar sesión entre visitas =====
@@ -1112,6 +1097,9 @@ auth.onAuthStateChanged(async user=>{
       const login=document.getElementById("login-screen");
       const setup=document.getElementById("setup-screen");
       const app=document.getElementById("app");
+      // Limpiar cualquier mensaje de error de login previo
+      const loginErr=document.getElementById('login-error');
+      if(loginErr){loginErr.style.display='none';loginErr.textContent='';}
       if(login) login.style.display="none";
       if(setup) setup.style.display="none";
       if(app) app.style.display="block";
@@ -1142,7 +1130,7 @@ auth.onAuthStateChanged(async user=>{
   }catch(e){
     console.error('Error en inicialización de sesión:', e);
     const el=document.getElementById('login-error');
-    if(el){ el.textContent='❌ Error inicializando: '+(e.message||e)+' (Build: LOGIN_FIX_20260408_074010)'; el.style.display='block'; }
+    if(el){ el.textContent='❌ Error inicializando: '+(e.message||e)+' (Build: ERRFIX_20260408_LOGINOK)'; el.style.display='block'; }
     const app=document.getElementById("app");
     const setup=document.getElementById("setup-screen");
     const login=document.getElementById("login-screen");
