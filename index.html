@@ -4,10 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Marcopack CRM</title>
-  <!-- Leaflet (mapa profesional) -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -216,39 +212,12 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 .rem-item.vencido{border-color:#fbd0b0;border-left:4px solid var(--orange)}
 .loading{text-align:center;color:var(--text3);padding:40px;font-size:14px}
 
-/* ===== DASHBOARD ===== */
-.dashboard{padding:14px 24px 28px}
-.dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:18px}
-.dash-kpi{background:var(--surface);border:1px solid var(--border);border-radius:16px;
-  padding:20px 22px;box-shadow:var(--shadow-sm);transition:all .2s}
-.dash-kpi:hover{box-shadow:var(--shadow);transform:translateY(-2px)}
-.dash-kpi .val{font-size:30px;font-weight:800;line-height:1;letter-spacing:-.5px}
-.dash-kpi .lbl{color:var(--text3);font-size:12px;margin-top:5px;font-weight:600}
-.dash-kpi .sub{font-size:11px;margin-top:7px;font-weight:500}
-.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-@media(max-width:800px){.charts-grid{grid-template-columns:1fr}.rem-item{grid-template-columns:1fr 1fr}}
-.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
-  padding:20px;box-shadow:var(--shadow-sm)}
-.chart-card h3{color:var(--accent);font-size:13px;font-weight:700;margin-bottom:15px;letter-spacing:-.1px}
-.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.bar-label{color:var(--text2);font-size:11px;min-width:105px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
-.bar-track{flex:1;background:var(--surface2);border-radius:5px;height:20px;overflow:hidden;border:1px solid var(--border)}
-.bar-fill{height:100%;border-radius:5px;display:flex;align-items:center;padding-left:6px;transition:width .5s}
-.bar-val{color:white;font-size:10px;font-weight:700;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.3)}
 
-/* ===== MAPA ===== */
+/* ===== ESTADÍSTICAS (TABS + BUILDER) ===== */
+.st-tabs{display:flex;gap:6px;flex-wrap:wrap}
+.st-tab{background:var(--surface2);border:1px solid var(--border);color:var(--text2);border-radius:10px;padding:7px 12px;font-size:12px;font-weight:900;cursor:pointer}
+.st-tab.active{background:var(--accent-light);color:var(--accent);border-color:#b8d0f5}
 
-/* ===== MAPA (LEAFLET) ===== */
-#leaflet-map{height:540px; border-radius:12px; overflow:hidden; border:1px solid var(--border); box-shadow:var(--shadow-sm)}
-.map-legend{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 12px; box-shadow:var(--shadow); font-size:12px; color:var(--text2)}
-.map-legend .row{display:flex; align-items:center; gap:8px; margin:4px 0}
-.map-legend .sw{width:14px; height:14px; border-radius:4px; display:inline-block; border:1px solid rgba(0,0,0,.08)}
-.map-kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; margin:12px 0 14px}
-.map-kpi{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px 16px; box-shadow:var(--shadow-sm)}
-.map-kpi .val{font-size:22px; font-weight:800; letter-spacing:-.4px}
-.map-kpi .lbl{color:var(--text3); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; margin-top:3px}
-
-/* ===== ESTADÍSTICAS (BUILDER) ===== */
 .sb-wrap{display:grid;grid-template-columns:360px 1fr;gap:14px}
 @media(max-width:980px){.sb-wrap{grid-template-columns:1fr}}
 .sb-panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:var(--shadow-sm)}
@@ -274,6 +243,27 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 .sb-bar{height:18px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);overflow:hidden}
 .sb-bar > div{height:100%;border-radius:8px;background:linear-gradient(90deg,var(--accent),#5b21b6)}
 
+/* ===== DASHBOARD ===== */
+.dashboard{padding:14px 24px 28px}
+.dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:18px}
+.dash-kpi{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  padding:20px 22px;box-shadow:var(--shadow-sm);transition:all .2s}
+.dash-kpi:hover{box-shadow:var(--shadow);transform:translateY(-2px)}
+.dash-kpi .val{font-size:30px;font-weight:800;line-height:1;letter-spacing:-.5px}
+.dash-kpi .lbl{color:var(--text3);font-size:12px;margin-top:5px;font-weight:600}
+.dash-kpi .sub{font-size:11px;margin-top:7px;font-weight:500}
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:800px){.charts-grid{grid-template-columns:1fr}.rem-item{grid-template-columns:1fr 1fr}}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  padding:20px;box-shadow:var(--shadow-sm)}
+.chart-card h3{color:var(--accent);font-size:13px;font-weight:700;margin-bottom:15px;letter-spacing:-.1px}
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.bar-label{color:var(--text2);font-size:11px;min-width:105px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.bar-track{flex:1;background:var(--surface2);border-radius:5px;height:20px;overflow:hidden;border:1px solid var(--border)}
+.bar-fill{height:100%;border-radius:5px;display:flex;align-items:center;padding-left:6px;transition:width .5s}
+.bar-val{color:white;font-size:10px;font-weight:700;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.3)}
+
+/* ===== MAPA ===== */
 .mapa-wrap{position:relative;max-width:700px;margin:0 auto}
 .mapa-wrap svg{width:100%;height:auto}
 .prov-circle{cursor:pointer;transition:r .2s}
@@ -527,7 +517,23 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
     </div>
   </div>
   <div id="vista-estadistas" style="display:none">
-  <div style="padding:16px 20px 24px" id="stats-builder"></div>
+  <div style="padding:16px 20px 24px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <h3 style="color:var(--accent);margin:0">📊 Estadísticas</h3>
+      <div class="st-tabs">
+        <button id="st-tab-resumen" class="st-tab" onclick="statsTab('resumen')">Resumen</button>
+        <button id="st-tab-custom" class="st-tab" onclick="statsTab('custom')">Personalizado</button>
+      </div>
+    </div>
+
+    <div id="st-pane-resumen">
+      <div class="charts-grid" id="charts-container"></div>
+    </div>
+
+    <div id="st-pane-custom" style="display:none">
+      <div id="stats-builder"></div>
+    </div>
+  </div>
 </div></div>
   <div id="vista-mapa" style="display:none;padding:16px 20px 24px"><h3 style="color:var(--accent);margin-bottom:16px">🗺️ Mapa de ofertas por provincia</h3><div id="mapa-container"></div></div>
   <div id="vista-llamadas" style="display:none;padding:16px 20px 24px"></div>
@@ -579,7 +585,165 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
         <div class="field"><label>🌍 País</label><select id="f-pais-form"><option value="">— Seleccionar país —</option></select></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>Tipo de Máquina</label><select id="f-tipo"><option value="">— Seleccionar máquina —</option><optgroup label="PESADORA"><option>CONTROLADORA DE PESO 1 TRANSPORTE</option><option>CONTROLADORA DE PESO 2 TRANSPORTES</option><option>CONTROLADORA DE PESO 3 TRANSPORTES</option></optgroup><optgroup label="DETECTOR"><option>DETECTOR DE METALES</option></optgroup><optgroup label="DISPENSADOR"><option>DISPENSADOR A LA DEMANDA</option></optgroup><optgroup label="DOSIFICADORA"><option>DOSIFICADORA SEMIAUTOMATICA SV-1</option><option>DOSIFICADORA SEMIAUTOMATICA SV-5</option><option>DOSIFICADORA SEMIAUTOMATICA DE 1 BOQUILLA CON BOMBA</option><option>DOSIFICADORA SEMIAUTOMATICA CON DOBLE PLATAFORMA DE LLENADO</option><option>DOSIFICADORA SEMIAUTOMATICA DE 1 BOQUILLA CON BOMBA PERISTALTICA Y PESO LLENADO HASTA 5 LITROS</option><option>DOSIFICADORA SEMIAUTOMATICA DE GARRAFAS GRAN VOLUMEN CON CARRO PORTATIL</option><option>DOSIFICADORA SEMIAUTOMATICA SVP CON MESA GIRATORIA</option><option>LLENADORA SEMIAUTOMATICA POR PISTOLA</option><option>DOSIFICADORA 2 BOQUILLAS CON CAUDALIMETROS MCP 4000</option><option>DOSIFICADORA 4 BOQUILLAS CON CAUDALIMETROS MCP 4000</option><option>DOSIFICADORA 6 BOQUILLAS CON CAUDALIMETROS MCP 4000</option><option>DOSIFICADORA 2 BOQUILLAS VOLUMETRICA MCP 4000</option><option>DOSIFICADORA 4 BOQUILLAS VOLUMETRICA MCP 4000</option><option>DOSIFICADORA 6 BOQUILLAS VOLUMETRICA MCP 4000</option><option>DOSIFICADORA 2 BOQUILLAS VOLUMETRICA HASTA 5 LITROS ATEX</option></optgroup><optgroup label="TAPONADORA"><option>TAPONADORA LINEAL MODELO MCP 5000 ST</option><option>TAPONADORA, ROSCADORA PILFER PROFF</option><option>TAPONADORA LINEAL PARA TAPAS</option><option>TAPONADORA SEMIAUTOMATICA LINEAL NO AMPLIABLE</option><option>TAPONADORA LINEAL PARA TAPAS CON SISTEMA TWIST OFF</option><option>TAPONADORA ROTATIVA ATEX</option><option>TAPONADORA LINEAL PICK UP</option><option>TAPONADORA PICK AND PLACE</option><option>TAPONADORA DE SOBREMESA PARA TAPAS METALICAS</option><option>TAPONADORA SEMIAUTOMATICA DE SOBREMESA PARA TAPAS TWIST OFF</option><option>TAPONADORA DE CUBOS</option><option>TAPONADORA LINEAL PARA TAPAS DE PLASTICO EN LATAS</option><option>CERRADO MANUAL TAPON CRIMPADO</option><option>CERRADORA SEMIAUTOMATICA TWIST OFF</option><option>POSICIONADOR DE TAPONES CON RAMPA</option><option>ALIMENTADOR DE TAPONES CUELLO CISNE</option></optgroup><optgroup label="ETIQUETADORA"><option>ECOLABEL</option><option>ETIQUETADO SUPERIOR SACOS + DESAPILADOR</option><option>LINEA ETIQUETADO EN C EN BANDEJAS</option><option>MCP 60T + BRAZO NEUMATICO PARA COLOCAR EN ENVASADORA VERTICAL</option><option>MCP 60T MINI</option><option>MCP 60T</option><option>MCP 99T</option><option>MCP 140T</option><option>MCP 300T 1C CILINDRICO CON SEPARADOR NEUMATICO</option><option>MCP 300T 1C CILINDRICO Y PLANO</option><option>MCP 300T 1C PLUS</option><option>MCP 300T 2C CILINDRICO Y PLANO</option><option>MCP 300T 2C ETIQUETA Y CONTRA ENVASE CILINDRICO O PLANO</option><option>MCP 300T 2C SISTEMA DE RODILLOS ETIQUETA Y CONTRA ENVASE CILINDRICO</option><option>MCP 300T 2C CON MAMPARA DE PROTECCION</option><option>MCP 350T 1C</option><option>MCP 350T 2C</option><option>MCP 400T 2C CON SISTEMA NEUMATICO</option><option>MCP 400T 2C</option><option>MCP 400T 3C</option><option>MCP 400T 4C</option><option>MCP 600T 1C ETIQUETADO INFERIOR</option><option>MCP 600T 1C ETIQUETADO SUPERIOR</option><option>MCP 600T 1C ETIQUETADO SUPERIOR + DOSIFICADOR DE BOLSAS</option><option>MCP 600T 2C BASIC</option><option>MCP 600T 2C SUPERIORES CON SEPARADOR</option><option>MCP 600T 3C ETIQUETADO SUPERIOR, INFERIOR Y LATERAL</option><option>MCP 600T 4C - ETIQUETADO SUPERIOR E INFERIOR CON SEPARADOR</option><option>MCP 700T</option><option>SET 200 CON SISTEMA DE RODILLOS</option><option>SET 200 ENFARDADOR NORMAL</option><option>SET 200 CON SISTEMA NEUMATICO DE PRECINTO</option><option>POSICIONADOR DE PISTOLAS CON RESPECTO A LA ETIQUETADORA</option><option>ST612 1C 1P CON CABEZAL ZEBRA ZE500 6 PULGADAS</option><option>ST612 1C 1P</option><option>ST612 2C 1P CON CABEZAL ZEBRA ZE500 6 PULGADAS</option><option>ST612 2C 1P</option><option>ST612 2C 2P</option></optgroup><optgroup label="T. REAL"><option>ECOPRINT CON IMPRESORA GODEX EZ6250i</option><option>ECOPRINT CON IMPRESORA TOSHIBA SOBRE TRANSPORTE</option><option>ECOPRINT G ZX1200i</option><option>ECOPRINT G ZX1200i + TRANSPORTE MOTORIZADO</option><option>ST 418 BASIC SOBRE TRANSPORTE CON SISTEMA DE PEGADO ETIQUETA EN ESQUINA</option><option>ST 612 ALTA PRODUCCION 4 PULGADAS CON PALA</option><option>ST 612 CON CABEZAL ZEBRA ZE500 6 PULGADAS + BRAZO NEUMATICO</option><option>ST 612 ALTA PRODUCCION 6 PULGADAS CON PALA</option><option>ST418 CON CABEZAL ZEBRA ZE511 4 PULGADAS + BRAZO NEUMATICO</option><option>ST418 PEGADO FRONTAL + SEPARADOR DE BANDEJAS</option><option>ST418 PLUS CON PALA CABEZAL SPX CV 6 PULGADAS</option><option>ST612 CON CABEZAL ZEBRA ZE500 6 PULGADAS</option><option>ECOPRINT CON IMPRESORA TOSHIBA</option><option>ECOPRINT CON IMPRESORA VITA 5</option><option>ST418 PLUS CABEZAL SPX CV</option><option>ST418 BASIC</option><option>ST418 CON CABEZAL CARL VALENTIN + BRAZO 300 MM DESARROLLO</option><option>ST612 BASIC CON CABEZAL CARL VALENTIN 6 PULGADAS</option><option>ST418 BASIC CON CABEZAL ZEBRA ZE511 4 PULGADAS</option><option>ST418 + SOPLO</option></optgroup><optgroup label="IMPRES."><option>IMPRESORA KOMPA 4 + BRAZO NEUMATICO</option><option>IMPRESORA KOMPA 4 IMPRESION GODEX + BRAZO NEUMATICO</option><option>IMPRESORA KOMPA 4</option><option>IMPRESORA VITA 5</option><option>IMPRESORA 246M + REBOBINADOR INTERNO</option><option>IMPRESORA 246M</option><option>IMPRESORA A COLOR MOD. V750</option><option>IMPRESORA CL 6NX PLUS</option><option>IMPRESORA CLASE H-6210</option><option>IMPRESORA DE ETIQUETAS GODEX -1200i</option><option>IMPRESORA DE ETIQUETAS GODEX -6250i</option><option>IMPRESORA DE SOBREMESA KOMPA 6</option><option>IMPRESORA DE SOBREMESA PK</option><option>IMPRESORA KOMPA 4 CON PALA + TRANSPORTE</option><option>IMPRESORA KOMPA 4 CON PALA</option><option>IMPRESORA KOMPA 162/12 6 PULGADAS</option><option>IMPRESORA KOMPA II 162 12 CON CORTADOR DE ETIQUETAS</option><option>IMPRESORA KOMPA V 108/12</option><option>MODULO DE IMPRESION SPX 6 PULGADAS</option><option>MODULO DE IMPRESION SPX 4 PULGADAS</option><option>MODULO DE IMPRESION S86NX 6 PULGADAS</option><option>MODULO DE IMPRESION S84NX 4 PULGADAS</option><option>MODULO DE IMPRESION ZEBRA ZE511 4 PULGADAS</option><option>IMPRESORA DE ETIQUETAS SATO CL4NX</option><option>IMPRESORA ZEBRA ZPX SERIE 7</option><option>IMPRESORA SERIE 2 SPECTRA 162/12</option><option>IMPRESORA TOSHIBA B-EX4T CON BRAZO ELECTRONEUMATICO DE 500 MM.</option><option>IMPRESORA TOSHIBA B-EX4T</option><option>IMPRESORA TSC 2610 M 6 PULGADAS</option><option>IMPRESORA TSC MB 240</option></optgroup><optgroup label="INK JET"><option>DELPHI 1S</option><option>DELPHI EKO 1 CABEZAL</option><option>DELPHI EKO 2 CABEZALES</option><option>INK JET ALTA RESOLUCION IMPRESION 70 MM</option><option>INK JET MANUAL R9</option><option>INK JET MANUAL R10</option><option>INK JET SERIE-X CABEZAL 18 MM</option><option>INK JET SERIE-X CABEZAL 72 MM</option><option>JET 1</option><option>JET 2</option><option>JET 3</option><option>KOSIJET 1R 1P</option><option>KOSIJET 2R 1P</option></optgroup><optgroup label="REBOBINADOR"><option>REBOBINADOR DE ETIQUETAS ANCHO MAXIMO 230 MM</option><option>REBOBINADOR DE ETIQUETAS</option><option>REBOBINADOR-DESBOBINADOR DE ETIQUETAS ADHESIVAS</option></optgroup><optgroup label="TRANSF."><option>5340</option><option>DYNA 53</option><option>DYNA 107</option><option>TERMOTRANSFER D 24</option><option>TERMOTRANSFER D 32</option><option>TERMOTRANSFER D 53</option><option>TERMOTRANSFER DE 53 MM</option><option>TERMOTRANSFER DE 107 MM</option><option>TERMOTRANSFER DE 128 MM</option></optgroup><optgroup label="VARIOS"><option>PLATO ALIMENTADOR EN ACERO DE 1000 MM</option><option>SISTEMA DE INDUCCION</option><option>MAQUINA PARA LIMPIEZA</option><option>DEPOSITO SIN BOMBA 80 LITROS</option><option>DEPOSITO CON BOMBA 80 LITROS</option><option>LINEA DISPENSADORA DE PRECINTOS TERMO-ENCOGIBLES</option><option>HORNO RETRACTIL P1 CON TRANSPORTE MOTORIZADO</option></optgroup><optgroup label="TRANSPORTES"><option>TRANSPORTE MOTORIZADO</option></optgroup></select></div>
+        <div class="field"><label>Tipo de Máquina</label><input id="f-tipo" list="lista-tipos" placeholder="Escribe o selecciona un modelo..."/><datalist id="lista-tipos">
+  <option value="CONTROLADORA DE PESO 1 TRANSPORTE"></option>
+  <option value="CONTROLADORA DE PESO 2 TRANSPORTES"></option>
+  <option value="CONTROLADORA DE PESO 3 TRANSPORTES"></option>
+  <option value="DETECTOR DE METALES"></option>
+  <option value="DISPENSADOR A LA DEMANDA"></option>
+  <option value="DOSIFICADORA SEMIAUTOMATICA SV-1"></option>
+  <option value="DOSIFICADORA SEMIAUTOMATICA SV-5"></option>
+  <option value="DOSIFICADORA SEMIAUTOMATICA DE 1 BOQUILLA CON BOMBA"></option>
+  <option value="DOSIFICADORA SEMIAUTOMATICA CON DOBLE PLATAFORMA DE LLENADO"></option>
+  <option value="DOSIFICADORA SEMIAUTOMATICA DE 1 BOQUILLA CON BOMBA PERISTALTICA Y PESO LLENADO HASTA 5 LITROS"></option>
+  <option value="DOSIFICADORA SEMIAUTOMATICA DE GARRAFAS GRAN VOLUMEN CON CARRO PORTATIL"></option>
+  <option value="DOSIFICADORA SEMIAUTOMATICA SVP CON MESA GIRATORIA"></option>
+  <option value="LLENADORA SEMIAUTOMATICA POR PISTOLA"></option>
+  <option value="DOSIFICADORA 2 BOQUILLAS CON CAUDALIMETROS MCP 4000"></option>
+  <option value="DOSIFICADORA 4 BOQUILLAS CON CAUDALIMETROS MCP 4000"></option>
+  <option value="DOSIFICADORA 6 BOQUILLAS CON CAUDALIMETROS MCP 4000"></option>
+  <option value="DOSIFICADORA 2 BOQUILLAS VOLUMETRICA MCP 4000"></option>
+  <option value="DOSIFICADORA 4 BOQUILLAS VOLUMETRICA MCP 4000"></option>
+  <option value="DOSIFICADORA 6 BOQUILLAS VOLUMETRICA MCP 4000"></option>
+  <option value="DOSIFICADORA 2 BOQUILLAS VOLUMETRICA HASTA 5 LITROS ATEX"></option>
+  <option value="TAPONADORA LINEAL MODELO MCP 5000 ST"></option>
+  <option value="TAPONADORA, ROSCADORA PILFER PROFF"></option>
+  <option value="TAPONADORA LINEAL PARA TAPAS"></option>
+  <option value="TAPONADORA SEMIAUTOMATICA LINEAL NO AMPLIABLE"></option>
+  <option value="TAPONADORA LINEAL PARA TAPAS CON SISTEMA TWIST OFF"></option>
+  <option value="TAPONADORA ROTATIVA ATEX"></option>
+  <option value="TAPONADORA LINEAL PICK UP"></option>
+  <option value="TAPONADORA PICK AND PLACE"></option>
+  <option value="TAPONADORA DE SOBREMESA PARA TAPAS METALICAS"></option>
+  <option value="TAPONADORA SEMIAUTOMATICA DE SOBREMESA PARA TAPAS TWIST OFF"></option>
+  <option value="TAPONADORA DE CUBOS"></option>
+  <option value="TAPONADORA LINEAL PARA TAPAS DE PLASTICO EN LATAS"></option>
+  <option value="CERRADO MANUAL TAPON CRIMPADO"></option>
+  <option value="CERRADORA SEMIAUTOMATICA TWIST OFF"></option>
+  <option value="POSICIONADOR DE TAPONES CON RAMPA"></option>
+  <option value="ALIMENTADOR DE TAPONES CUELLO CISNE"></option>
+  <option value="ECOLABEL"></option>
+  <option value="ETIQUETADO SUPERIOR SACOS + DESAPILADOR"></option>
+  <option value="LINEA ETIQUETADO EN C EN BANDEJAS"></option>
+  <option value="MCP 60T + BRAZO NEUMATICO PARA COLOCAR EN ENVASADORA VERTICAL"></option>
+  <option value="MCP 60T MINI"></option>
+  <option value="MCP 60T"></option>
+  <option value="MCP 99T"></option>
+  <option value="MCP 140T"></option>
+  <option value="MCP 300T 1C CILINDRICO CON SEPARADOR NEUMATICO"></option>
+  <option value="MCP 300T 1C CILINDRICO Y PLANO"></option>
+  <option value="MCP 300T 1C PLUS"></option>
+  <option value="MCP 300T 2C CILINDRICO Y PLANO"></option>
+  <option value="MCP 300T 2C ETIQUETA Y CONTRA ENVASE CILINDRICO O PLANO"></option>
+  <option value="MCP 300T 2C SISTEMA DE RODILLOS ETIQUETA Y CONTRA ENVASE CILINDRICO"></option>
+  <option value="MCP 300T 2C CON MAMPARA DE PROTECCION"></option>
+  <option value="MCP 350T 1C"></option>
+  <option value="MCP 350T 2C"></option>
+  <option value="MCP 400T 2C CON SISTEMA NEUMATICO"></option>
+  <option value="MCP 400T 2C"></option>
+  <option value="MCP 400T 3C"></option>
+  <option value="MCP 400T 4C"></option>
+  <option value="MCP 600T 1C ETIQUETADO INFERIOR"></option>
+  <option value="MCP 600T 1C ETIQUETADO SUPERIOR"></option>
+  <option value="MCP 600T 1C ETIQUETADO SUPERIOR + DOSIFICADOR DE BOLSAS"></option>
+  <option value="MCP 600T 2C BASIC"></option>
+  <option value="MCP 600T 2C SUPERIORES CON SEPARADOR"></option>
+  <option value="MCP 600T 3C ETIQUETADO SUPERIOR, INFERIOR Y LATERAL"></option>
+  <option value="MCP 600T 4C - ETIQUETADO SUPERIOR E INFERIOR CON SEPARADOR"></option>
+  <option value="MCP 700T"></option>
+  <option value="SET 200 CON SISTEMA DE RODILLOS"></option>
+  <option value="SET 200 ENFARDADOR NORMAL"></option>
+  <option value="SET 200 CON SISTEMA NEUMATICO DE PRECINTO"></option>
+  <option value="POSICIONADOR DE PISTOLAS CON RESPECTO A LA ETIQUETADORA"></option>
+  <option value="ST612 1C 1P CON CABEZAL ZEBRA ZE500 6 PULGADAS"></option>
+  <option value="ST612 1C 1P"></option>
+  <option value="ST612 2C 1P CON CABEZAL ZEBRA ZE500 6 PULGADAS"></option>
+  <option value="ST612 2C 1P"></option>
+  <option value="ST612 2C 2P"></option>
+  <option value="ECOPRINT CON IMPRESORA GODEX EZ6250i"></option>
+  <option value="ECOPRINT CON IMPRESORA TOSHIBA SOBRE TRANSPORTE"></option>
+  <option value="ECOPRINT G ZX1200i"></option>
+  <option value="ECOPRINT G ZX1200i + TRANSPORTE MOTORIZADO"></option>
+  <option value="ST 418 BASIC SOBRE TRANSPORTE CON SISTEMA DE PEGADO ETIQUETA EN ESQUINA"></option>
+  <option value="ST 612 ALTA PRODUCCION 4 PULGADAS CON PALA"></option>
+  <option value="ST 612 CON CABEZAL ZEBRA ZE500 6 PULGADAS + BRAZO NEUMATICO"></option>
+  <option value="ST 612 ALTA PRODUCCION 6 PULGADAS CON PALA"></option>
+  <option value="ST418 CON CABEZAL ZEBRA ZE511 4 PULGADAS + BRAZO NEUMATICO"></option>
+  <option value="ST418 PEGADO FRONTAL + SEPARADOR DE BANDEJAS"></option>
+  <option value="ST418 PLUS CON PALA CABEZAL SPX CV 6 PULGADAS"></option>
+  <option value="ST612 CON CABEZAL ZEBRA ZE500 6 PULGADAS"></option>
+  <option value="ECOPRINT CON IMPRESORA TOSHIBA"></option>
+  <option value="ECOPRINT CON IMPRESORA VITA 5"></option>
+  <option value="ST418 PLUS CABEZAL SPX CV"></option>
+  <option value="ST418 BASIC"></option>
+  <option value="ST418 CON CABEZAL CARL VALENTIN + BRAZO 300 MM DESARROLLO"></option>
+  <option value="ST612 BASIC CON CABEZAL CARL VALENTIN 6 PULGADAS"></option>
+  <option value="ST418 BASIC CON CABEZAL ZEBRA ZE511 4 PULGADAS"></option>
+  <option value="ST418 + SOPLO"></option>
+  <option value="IMPRESORA KOMPA 4 + BRAZO NEUMATICO"></option>
+  <option value="IMPRESORA KOMPA 4 IMPRESION GODEX + BRAZO NEUMATICO"></option>
+  <option value="IMPRESORA KOMPA 4"></option>
+  <option value="IMPRESORA VITA 5"></option>
+  <option value="IMPRESORA 246M + REBOBINADOR INTERNO"></option>
+  <option value="IMPRESORA 246M"></option>
+  <option value="IMPRESORA A COLOR MOD. V750"></option>
+  <option value="IMPRESORA CL 6NX PLUS"></option>
+  <option value="IMPRESORA CLASE H-6210"></option>
+  <option value="IMPRESORA DE ETIQUETAS GODEX -1200i"></option>
+  <option value="IMPRESORA DE ETIQUETAS GODEX -6250i"></option>
+  <option value="IMPRESORA DE SOBREMESA KOMPA 6"></option>
+  <option value="IMPRESORA DE SOBREMESA PK"></option>
+  <option value="IMPRESORA KOMPA 4 CON PALA + TRANSPORTE"></option>
+  <option value="IMPRESORA KOMPA 4 CON PALA"></option>
+  <option value="IMPRESORA KOMPA 162/12 6 PULGADAS"></option>
+  <option value="IMPRESORA KOMPA II 162 12 CON CORTADOR DE ETIQUETAS"></option>
+  <option value="IMPRESORA KOMPA V 108/12"></option>
+  <option value="MODULO DE IMPRESION SPX 6 PULGADAS"></option>
+  <option value="MODULO DE IMPRESION SPX 4 PULGADAS"></option>
+  <option value="MODULO DE IMPRESION S86NX 6 PULGADAS"></option>
+  <option value="MODULO DE IMPRESION S84NX 4 PULGADAS"></option>
+  <option value="MODULO DE IMPRESION ZEBRA ZE511 4 PULGADAS"></option>
+  <option value="IMPRESORA DE ETIQUETAS SATO CL4NX"></option>
+  <option value="IMPRESORA ZEBRA ZPX SERIE 7"></option>
+  <option value="IMPRESORA SERIE 2 SPECTRA 162/12"></option>
+  <option value="IMPRESORA TOSHIBA B-EX4T CON BRAZO ELECTRONEUMATICO DE 500 MM."></option>
+  <option value="IMPRESORA TOSHIBA B-EX4T"></option>
+  <option value="IMPRESORA TSC 2610 M 6 PULGADAS"></option>
+  <option value="IMPRESORA TSC MB 240"></option>
+  <option value="DELPHI 1S"></option>
+  <option value="DELPHI EKO 1 CABEZAL"></option>
+  <option value="DELPHI EKO 2 CABEZALES"></option>
+  <option value="INK JET ALTA RESOLUCION IMPRESION 70 MM"></option>
+  <option value="INK JET MANUAL R9"></option>
+  <option value="INK JET MANUAL R10"></option>
+  <option value="INK JET SERIE-X CABEZAL 18 MM"></option>
+  <option value="INK JET SERIE-X CABEZAL 72 MM"></option>
+  <option value="JET 1"></option>
+  <option value="JET 2"></option>
+  <option value="JET 3"></option>
+  <option value="KOSIJET 1R 1P"></option>
+  <option value="KOSIJET 2R 1P"></option>
+  <option value="REBOBINADOR DE ETIQUETAS ANCHO MAXIMO 230 MM"></option>
+  <option value="REBOBINADOR DE ETIQUETAS"></option>
+  <option value="REBOBINADOR-DESBOBINADOR DE ETIQUETAS ADHESIVAS"></option>
+  <option value="5340"></option>
+  <option value="DYNA 53"></option>
+  <option value="DYNA 107"></option>
+  <option value="TERMOTRANSFER D 24"></option>
+  <option value="TERMOTRANSFER D 32"></option>
+  <option value="TERMOTRANSFER D 53"></option>
+  <option value="TERMOTRANSFER DE 53 MM"></option>
+  <option value="TERMOTRANSFER DE 107 MM"></option>
+  <option value="TERMOTRANSFER DE 128 MM"></option>
+  <option value="PLATO ALIMENTADOR EN ACERO DE 1000 MM"></option>
+  <option value="SISTEMA DE INDUCCION"></option>
+  <option value="MAQUINA PARA LIMPIEZA"></option>
+  <option value="DEPOSITO SIN BOMBA 80 LITROS"></option>
+  <option value="DEPOSITO CON BOMBA 80 LITROS"></option>
+  <option value="LINEA DISPENSADORA DE PRECINTOS TERMO-ENCOGIBLES"></option>
+  <option value="HORNO RETRACTIL P1 CON TRANSPORTE MOTORIZADO"></option>
+  <option value="TRANSPORTE MOTORIZADO"></option>
+</datalist></div>
         <div class="field"><label>Otros <span style="color:var(--text3);font-size:10px;font-weight:400">(campo libre)</span></label><input id="f-otros" placeholder="Escribe lo que necesites..."/></div>
       </div>
       <div class="field"><label>Descripción</label><textarea id="f-desc"></textarea></div>
@@ -912,60 +1076,6 @@ const CE={Pendiente:"#f59e0b","En seguimiento":"#3b82f6",Interesado:"#8b5cf6","N
 const CG=["#38bdf8","#10b981","#f59e0b","#8b5cf6","#f97316","#ef4444","#06b6d4","#84cc16","#ec4899","#6366f1"];
 // Coordenadas aproximadas de capitales de provincia (lat,lng simplificadas en porcentaje SVG)
 const PROV_POS={"Madrid":[42.5,47],"Barcelona":[79,28],"Valencia":[68,52],"Sevilla":[25,67],"M\u00e1laga":[35,75],"Zaragoza":[62,32],"Murcia":[65,60],"Alicante":[70,57],"La Coru\u00f1a":[10,20],"Bilbao":[52,22],"Granada":[42,70],"C\u00f3rdoba":[33,62],"Valladolid":[38,37],"Palencia":[38,32],"Burgos":[45,28],"Le\u00f3n":[28,28],"Salamanca":[30,43],"\u00c1vila":[35,43],"Segovia":[40,40],"Toledo":[40,52],"C\u00e1ceres":[22,53],"Badajoz":[18,60],"Huelva":[18,68],"C\u00e1diz":[22,76],"Ja\u00e9n":[42,63],"Almer\u00eda":[50,72],"Cuenca":[52,50],"Albacete":[57,57],"Ciudad Real":[40,58],"Guadalajara":[48,43],"Lugo":[18,22],"Ourense":[20,28],"Pontevedra":[14,27],"Zamora":[28,34],"Lleida":[68,28],"Girona":[82,22],"Tarragona":[73,38],"Huesca":[62,26],"Teruel":[58,45],"Navarra":[57,22],"La Rioja":[52,27],"Islas Baleares":[82,53],"Las Palmas":[8,88],"Santa Cruz de Tenerife":[5,88],"Asturias":[28,20],"Cantabria":[38,20],"Vizcaya":[50,20],"Guip\u00fazcoa":[55,20],"\u00c1lava":[52,24],"Castell\u00f3n":[70,46],"Soria":[50,33]};
-// Coordenadas (lat,lng) aproximadas de capitales de provincia (para mapa Leaflet)
-const PROV_LATLNG={
-  "Álava":[42.8467,-2.6716],
-  "Albacete":[38.9942,-1.8564],
-  "Alicante":[38.3452,-0.4810],
-  "Almería":[36.8340,-2.4637],
-  "Asturias":[43.3619,-5.8494],
-  "Ávila":[40.6565,-4.6812],
-  "Badajoz":[38.8786,-6.9703],
-  "Barcelona":[41.3874,2.1686],
-  "Burgos":[42.3439,-3.6969],
-  "Cáceres":[39.4753,-6.3722],
-  "Cádiz":[36.5271,-6.2886],
-  "Cantabria":[43.4623,-3.8099],
-  "Castellón":[39.9864,-0.0513],
-  "Ciudad Real":[38.9848,-3.9270],
-  "Córdoba":[37.8882,-4.7794],
-  "Cuenca":[40.0704,-2.1374],
-  "Girona":[41.9794,2.8214],
-  "Granada":[37.1773,-3.5986],
-  "Guadalajara":[40.6333,-3.1667],
-  "Guipúzcoa":[43.3183,-1.9812],
-  "Huelva":[37.2614,-6.9447],
-  "Huesca":[42.1362,-0.4087],
-  "Islas Baleares":[39.5696,2.6502],
-  "Jaén":[37.7796,-3.7849],
-  "La Coruña":[43.3623,-8.4115],
-  "La Rioja":[42.4627,-2.4449],
-  "Las Palmas":[28.1235,-15.4363],
-  "León":[42.5987,-5.5671],
-  "Lleida":[41.6176,0.6200],
-  "Lugo":[43.0121,-7.5559],
-  "Madrid":[40.4168,-3.7038],
-  "Málaga":[36.7213,-4.4214],
-  "Murcia":[37.9922,-1.1307],
-  "Navarra":[42.8125,-1.6458],
-  "Ourense":[42.3364,-7.8641],
-  "Palencia":[42.0096,-4.5288],
-  "Pontevedra":[42.4310,-8.6444],
-  "Salamanca":[40.9701,-5.6635],
-  "Santa Cruz de Tenerife":[28.4636,-16.2518],
-  "Segovia":[40.9429,-4.1088],
-  "Sevilla":[37.3891,-5.9845],
-  "Soria":[41.7636,-2.4649],
-  "Tarragona":[41.1189,1.2445],
-  "Teruel":[40.3434,-1.1065],
-  "Toledo":[39.8628,-4.0273],
-  "Valencia":[39.4699,-0.3763],
-  "Valladolid":[41.6523,-4.7245],
-  "Vizcaya":[43.2630,-2.9350],
-  "Zamora":[41.5035,-5.7446],
-  "Zaragoza":[41.6488,-0.8891]
-};
-
 const DIAS_ALERTA=60; // días sin actividad para generar alerta
 
 // ===== ESTADO =====
@@ -1579,7 +1689,7 @@ function renderTabla(){
 }
 
 // ===== ESTADÍSTICAS =====
-function renderEstadisticas(){
+function renderEstadisticasResumen(){
   const datos=getFiltradas();
   const porEstado={};ESTADOS.forEach(e=>porEstado[e]=0);datos.forEach(o=>{if(porEstado[o.estado]!==undefined)porEstado[o.estado]++;});
   const porProv={};datos.forEach(o=>{if(o.provincia)porProv[o.provincia]=(porProv[o.provincia]||0)+1;});
@@ -1630,103 +1740,446 @@ function renderEstadisticas(){
   `;
 }
 
-// ===== MAPA =====
 
-function renderMapa(){
-  const cont=document.getElementById('mapa-container');
-  if(!cont) return;
 
-  const porProv={};
-  const impProv={};
-  ofertas.forEach(o=>{
-    if(o.provincia){
-      porProv[o.provincia]=(porProv[o.provincia]||0)+1;
-      impProv[o.provincia]=(impProv[o.provincia]||0)+(o.importe||0);
-    }
-  });
+// ===== ESTADÍSTICAS PERSONALIZADAS (BUILDER) =====
+const STATS_TAB_KEY='crm_stats_tab';
+const STATS_STATE_KEY='crm_stats_state_v1';
+function statsLoad(){ try{ return JSON.parse(localStorage.getItem(STATS_STATE_KEY)||'{}')||{}; }catch(_){ return {}; } }
+function statsSave(obj){ localStorage.setItem(STATS_STATE_KEY, JSON.stringify(obj||{})); }
 
-  const totalOfertas=ofertas.length;
-  const totalImporte=ofertas.reduce((s,o)=>s+(o.importe||0),0);
-  const topProv=Object.entries(porProv).sort((a,b)=>b[1]-a[1]).slice(0,5);
+function statsGetDate(o, field){
+  if(field==='fechaOferta' && o.fechaOferta) return new Date(o.fechaOferta+'T12:00:00');
+  if(field==='fechaRecordatorio' && o.fechaRecordatorio) return new Date(o.fechaRecordatorio+'T12:00:00');
+  if(field==='ultimaLlamada' && o.ultimaLlamada) return new Date(o.ultimaLlamada+'T12:00:00');
+  if(field==='creadoEn'){
+    const d=o.creadoEn?.toDate?o.creadoEn.toDate():o.creadoEn?new Date(o.creadoEn):null;
+    return d||null;
+  }
+  return null;
+}
+function statsFmtYM(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+function statsInRange(d, from, to){ if(!d) return false; if(from && d<from) return false; if(to && d>to) return false; return true; }
 
-  cont.innerHTML=`
-    <div class="map-kpis">
-      <div class="map-kpi"><div class="val" style="color:var(--accent)">${totalOfertas}</div><div class="lbl">Ofertas totales</div></div>
-      <div class="map-kpi"><div class="val" style="color:#34d399">${Math.round(totalImporte).toLocaleString('es-ES')} €</div><div class="lbl">Importe total</div></div>
-      <div class="map-kpi"><div class="val" style="color:var(--purple)">${Object.keys(porProv).length}</div><div class="lbl">Provincias con actividad</div></div>
-      <div class="map-kpi"><div class="val" style="color:#fb923c">${topProv.length?topProv[0][0]:"—"}</div><div class="lbl">Provincia #1</div></div>
-    </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">
-      <div style="color:var(--text3);font-size:12px">🗺️ Zoom/arrastre, tooltip con cifras y clic para filtrar en <b>Ofertas</b>.</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn-sm" style="background:var(--surface2);border:1px solid var(--border);color:var(--text2)" onclick="renderMapa()">⟳ Refrescar</button>
-        <button class="btn-sm" style="background:var(--accent-light);border:1px solid #b8d0f5;color:var(--accent)" onclick="(function(){provinciasSeleccionadas.clear();actualizarLabelProv();renderProvOpciones('');toast('✅ Filtro de provincias limpiado','#10b981');})()">🧹 Limpiar filtro</button>
+function statsVal(o, dim){
+  const t=(s)=>String(s||'—').trim()||'—';
+  if(dim==='empresa') return t(o.empresa);
+  if(dim==='provincia') return t(o.provincia);
+  if(dim==='pais') return t(o.pais);
+  if(dim==='estado') return t(o.estado);
+  if(dim==='responsable') return t(o.responsableNombre);
+  if(dim==='tipoMaquina') return t(o.tipoMaquina);
+  if(dim==='motivoPerdida') return t(o.motivoPerdida);
+  if(dim==='competidor') return t(o.competidor);
+  if(dim==='mes'){ const d=statsGetDate(o,'fechaOferta'); return d?statsFmtYM(d):'—'; }
+  if(dim==='anio'){ const d=statsGetDate(o,'fechaOferta'); return d?String(d.getFullYear()):'—'; }
+  return t(o[dim]);
+}
+
+function statsTab(which){
+  localStorage.setItem(STATS_TAB_KEY, which);
+  const r=document.getElementById('st-pane-resumen');
+  const c=document.getElementById('st-pane-custom');
+  const br=document.getElementById('st-tab-resumen');
+  const bc=document.getElementById('st-tab-custom');
+  if(r) r.style.display = (which==='custom')?'none':'block';
+  if(c) c.style.display = (which==='custom')?'block':'none';
+  if(br) br.classList.toggle('active', which!=='custom');
+  if(bc) bc.classList.toggle('active', which==='custom');
+  if(which==='custom') renderEstadisticasCustom();
+  else renderEstadisticasResumen();
+}
+
+function renderEstadisticas(){
+  // Default: resumen (lo de siempre)
+  const which = localStorage.getItem(STATS_TAB_KEY) || 'resumen';
+  statsTab(which);
+}
+
+function renderEstadisticasCustom(){
+  const wrap=document.getElementById('stats-builder');
+  if(!wrap) return;
+
+  const st=statsLoad();
+  const state={
+    scope: st.scope || 'all',
+    dateField: st.dateField || 'fechaOferta',
+    from: st.from || '',
+    to: st.to || '',
+    dim1: st.dim1 || 'provincia',
+    dim2: st.dim2 || '',
+    metric: st.metric || 'count',
+    timeGroup: st.timeGroup || 'none',
+    topN: st.topN || 15,
+    sortDir: st.sortDir || 'desc'
+  };
+
+  wrap.innerHTML=`
+    <div class="sb-wrap">
+      <div class="sb-panel">
+        <h3>🎛️ Estadística personalizada</h3>
+        <div class="sb-mini">Elige <b>qué</b> quieres analizar y <b>qué fechas</b> (mes/año concretos o rangos).</div>
+
+        <div class="sb-grid" style="margin-top:12px">
+          <div class="field"><label>Conjunto</label>
+            <select id="st-scope">
+              <option value="all">Todas</option>
+              <option value="activas">Activas</option>
+              <option value="cerradas">Cerradas</option>
+              <option value="ganadas">Ganadas</option>
+              <option value="perdidas">Perdidas/descartadas</option>
+            </select>
+          </div>
+          <div class="field"><label>Fecha</label>
+            <select id="st-dateField">
+              <option value="fechaOferta">Fecha oferta</option>
+              <option value="fechaRecordatorio">Fecha recordatorio</option>
+              <option value="ultimaLlamada">Última llamada</option>
+              <option value="creadoEn">Creado en</option>
+            </select>
+          </div>
+          <div class="field"><label>Desde</label><input type="date" id="st-from"/></div>
+          <div class="field"><label>Hasta</label><input type="date" id="st-to"/></div>
+
+          <div class="field"><label>Agrupar por</label>
+            <select id="st-dim1">
+              <option value="provincia">Provincia</option>
+              <option value="empresa">Empresa</option>
+              <option value="responsable">Responsable</option>
+              <option value="estado">Estado</option>
+              <option value="tipoMaquina">Tipo máquina</option>
+              <option value="pais">País</option>
+              <option value="motivoPerdida">Motivo pérdida</option>
+              <option value="competidor">Competidor</option>
+              <option value="mes">Mes (fecha oferta)</option>
+              <option value="anio">Año (fecha oferta)</option>
+            </select>
+          </div>
+          <div class="field"><label>2ª dimensión</label>
+            <select id="st-dim2">
+              <option value="">— Ninguna —</option>
+              <option value="provincia">Provincia</option>
+              <option value="empresa">Empresa</option>
+              <option value="responsable">Responsable</option>
+              <option value="estado">Estado</option>
+              <option value="tipoMaquina">Tipo máquina</option>
+              <option value="pais">País</option>
+            </select>
+          </div>
+
+          <div class="field"><label>Métrica</label>
+            <select id="st-metric">
+              <option value="count">Nº ofertas</option>
+              <option value="sum_importe">Suma importe (€)</option>
+              <option value="avg_importe">Importe medio (€)</option>
+              <option value="win_rate">% cierre</option>
+            </select>
+          </div>
+          <div class="field"><label>Serie temporal</label>
+            <select id="st-timeGroup">
+              <option value="none">No</option>
+              <option value="month">Por mes</option>
+              <option value="year">Por año</option>
+            </select>
+          </div>
+
+          <div class="field"><label>Top N</label><input type="number" min="3" max="50" id="st-topN"/></div>
+          <div class="field"><label>Orden</label><select id="st-sortDir"><option value="desc">Desc</option><option value="asc">Asc</option></select></div>
+        </div>
+
+        <div class="sb-actions">
+          <button class="sb-btn primary" id="st-run">▶ Generar</button>
+          <button class="sb-btn ghost" id="st-preset-mes">🗓 Este mes</button>
+          <button class="sb-btn ghost" id="st-preset-ano">📅 Este año</button>
+          <button class="sb-btn danger" id="st-reset">⟲ Reset</button>
+        </div>
       </div>
-    </div>
-    <div id="leaflet-map"></div>
-    <div style="margin-top:14px">
-      <h3 style="color:var(--accent);font-size:13px;margin-bottom:10px">📋 Detalle por provincia</h3>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">
-        ${Object.entries(porProv).sort((a,b)=>b[1]-a[1]).map(([prov,n])=>{
-          const imp=impProv[prov]||0;
-          return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;cursor:pointer" onclick="filtrarProv('${prov.replace(/'/g,'')}')">
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
-              <div style="color:var(--text);font-size:13px;font-weight:800">${prov}</div>
-              <span class="badge" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5">${n} oferta${n!==1?'s':''}</span>
-            </div>
-            <div style="color:#34d399;font-size:12px;font-weight:800;margin-top:6px">${Math.round(imp).toLocaleString('es-ES')} €</div>
-          </div>`;
-        }).join('')}
+
+      <div>
+        <div class="sb-kpis" id="st-kpis"></div>
+        <div class="sb-card" id="st-chart"></div>
+        <div class="sb-card" style="margin-top:14px" id="st-table"></div>
       </div>
     </div>
   `;
 
-  if(!window.L){
-    const el=document.getElementById('leaflet-map');
-    if(el) el.innerHTML='<div style="padding:24px;color:var(--text3);text-align:center">⚠️ No se pudo cargar Leaflet (CDN bloqueado). Revisa conexión o permite unpkg.com.</div>';
-    return;
+  const $=(id)=>document.getElementById(id);
+  $('st-scope').value=state.scope;
+  $('st-dateField').value=state.dateField;
+  $('st-from').value=state.from;
+  $('st-to').value=state.to;
+  $('st-dim1').value=state.dim1;
+  $('st-dim2').value=state.dim2;
+  $('st-metric').value=state.metric;
+  $('st-timeGroup').value=state.timeGroup;
+  $('st-topN').value=state.topN;
+  $('st-sortDir').value=state.sortDir;
+
+  function collect(){
+    const out={
+      scope:$('st-scope').value,
+      dateField:$('st-dateField').value,
+      from:$('st-from').value,
+      to:$('st-to').value,
+      dim1:$('st-dim1').value,
+      dim2:$('st-dim2').value,
+      metric:$('st-metric').value,
+      timeGroup:$('st-timeGroup').value,
+      topN:Math.max(3,Math.min(50, parseInt($('st-topN').value||'15',10))),
+      sortDir:$('st-sortDir').value
+    };
+    statsSave(out);
+    return out;
   }
 
-  if(window.__leafletMap){ try{ window.__leafletMap.remove(); }catch(_){} window.__leafletMap=null; }
+  function formatMetric(v, metric){
+    if(metric==='win_rate') return `${Math.round(v)}%`;
+    if(metric==='sum_importe' || metric==='avg_importe') return `${Math.round(v).toLocaleString('es-ES')} €`;
+    return (typeof v==='number') ? v.toLocaleString('es-ES') : String(v);
+  }
 
-  const map=L.map('leaflet-map',{zoomControl:true,attributionControl:true}).setView([40.3,-3.7],6);
-  window.__leafletMap=map;
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
-
-  const vals=Object.values(porProv);
-  const max=Math.max(...vals,1);
-  const q1=max*0.25, q2=max*0.5, q3=max*0.75;
-  const color=(n)=> n>q3?'#ef4444':n>q2?'#f97316':n>q1?'#f59e0b':'#38bdf8';
-
-  const legend=L.control({position:'bottomright'});
-  legend.onAdd=function(){
-    const div=L.DomUtil.create('div','map-legend');
-    div.innerHTML=`<div style="font-weight:900;color:var(--text);margin-bottom:6px">Leyenda</div>
-      <div class="row"><span class="sw" style="background:#38bdf8"></span> 1 - ${Math.max(1,Math.floor(q1))}</div>
-      <div class="row"><span class="sw" style="background:#f59e0b"></span> ${Math.max(1,Math.floor(q1)+1)} - ${Math.max(2,Math.floor(q2))}</div>
-      <div class="row"><span class="sw" style="background:#f97316"></span> ${Math.max(2,Math.floor(q2)+1)} - ${Math.max(3,Math.floor(q3))}</div>
-      <div class="row"><span class="sw" style="background:#ef4444"></span> > ${Math.max(3,Math.floor(q3))}</div>`;
-    return div;
+  window.statsDownloadCSV = function(){
+    const exp=window.__statsLastExport;
+    if(!exp || !exp.rows) return toast('⚠️ No hay datos para exportar','#f59e0b');
+    const headers=exp.headers;
+    const esc=(x)=>{const s=String(x??''); return /[",
+]/.test(s)?('"'+s.replace(/"/g,'""')+'"'):s;};
+    const lines=[headers.map(esc).join(',')];
+    exp.rows.forEach(r=>lines.push(headers.map(h=>esc(r[h])).join(',')));
+    const blob=new Blob([lines.join('
+')],{type:'text/csv;charset=utf-8;'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`Marcopack_stats_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('✅ CSV descargado','#10b981');
   };
-  legend.addTo(map);
 
-  Object.entries(porProv).forEach(([prov,n])=>{
-    const ll=PROV_LATLNG[prov];
-    if(!ll) return;
-    const imp=impProv[prov]||0;
-    const r=6+Math.sqrt(n/max)*18;
-    const c=color(n);
-    const m=L.circleMarker(ll,{radius:r,color:c,weight:2,fillColor:c,fillOpacity:0.55}).addTo(map);
-    const tip=`<div style="font-weight:900;color:#1a2236;margin-bottom:4px">${prov}</div>
-      <div style="color:#4a5880;font-size:12px">📦 ${n} oferta${n!==1?'s':''}</div>
-      <div style="color:#0a7c5c;font-size:12px;font-weight:800;margin-top:2px">${Math.round(imp).toLocaleString('es-ES')} €</div>
-      <div style="color:#8494b8;font-size:11px;margin-top:6px">Clic para filtrar</div>`;
-    m.bindTooltip(tip,{direction:'top',opacity:1,sticky:true});
-    m.on('click',()=>filtrarProv(prov));
-  });
+  function run(){
+    const s=collect();
+    const from=s.from?new Date(s.from+'T00:00:00'):null;
+    const to=s.to?new Date(s.to+'T23:59:59'):null;
+
+    let rows=[...ofertas];
+    const cerrados=["Ganada","Perdida","Descartada"];
+    if(s.scope==='activas') rows=rows.filter(o=>!cerrados.includes(o.estado));
+    if(s.scope==='cerradas') rows=rows.filter(o=>cerrados.includes(o.estado));
+    if(s.scope==='ganadas') rows=rows.filter(o=>o.estado==='Ganada');
+    if(s.scope==='perdidas') rows=rows.filter(o=>o.estado==='Perdida' || o.estado==='Descartada');
+
+    // Si no pones rango, no elimines filas por no tener esa fecha
+    rows = rows.filter(o=>{
+      const d=statsGetDate(o, s.dateField);
+      if(!d){ return (!from && !to); }
+      return statsInRange(d, from, to);
+    });
+
+    const total=rows.length;
+    const totalImp=rows.reduce((a,o)=>a+(o.importe||0),0);
+    const gan=rows.filter(o=>o.estado==='Ganada');
+    const cerr=rows.filter(o=>cerrados.includes(o.estado));
+    const winRate=cerr.length?Math.round(gan.length/cerr.length*100):0;
+
+    document.getElementById('st-kpis').innerHTML=`
+      <div class="sb-card"><div style="color:var(--accent);font-size:26px;font-weight:900">${total}</div><div style="color:var(--text3);font-size:11px;font-weight:800">OFERTAS</div></div>
+      <div class="sb-card"><div style="color:#34d399;font-size:22px;font-weight:900">${Math.round(totalImp).toLocaleString('es-ES')} €</div><div style="color:var(--text3);font-size:11px;font-weight:800">IMPORTE</div></div>
+      <div class="sb-card"><div style="color:var(--purple);font-size:22px;font-weight:900">${winRate}%</div><div style="color:var(--text3);font-size:11px;font-weight:800">CIERRE</div></div>
+    `;
+
+    function metricAgg(items){
+      const impSum=items.reduce((a,o)=>a+(o.importe||0),0);
+      if(s.metric==='count') return items.length;
+      if(s.metric==='sum_importe') return impSum;
+      if(s.metric==='avg_importe') return items.length?impSum/items.length:0;
+      if(s.metric==='win_rate'){
+        const c=items.filter(o=>cerrados.includes(o.estado));
+        const w=c.filter(o=>o.estado==='Ganada');
+        return c.length? (w.length/c.length*100):0;
+      }
+      return items.length;
+    }
+    const metricLabel=({count:'Nº ofertas',sum_importe:'Importe total (€)',avg_importe:'Importe medio (€)',win_rate:'% cierre'})[s.metric]||'Valor';
+
+    // Serie temporal
+    if(s.timeGroup!=='none'){
+      const bucket={};
+      rows.forEach(o=>{
+        const d=statsGetDate(o, s.dateField) || statsGetDate(o,'fechaOferta');
+        if(!d) return;
+        const key = s.timeGroup==='year'? String(d.getFullYear()) : statsFmtYM(d);
+        (bucket[key]=bucket[key]||[]).push(o);
+      });
+      const labels=Object.keys(bucket).sort();
+      const values=labels.map(k=>metricAgg(bucket[k]));
+      const max=Math.max(...values,1);
+
+      document.getElementById('st-chart').innerHTML=`
+        <h4>🗓 Evolución ${s.timeGroup==='year'?'anual':'mensual'} — ${metricLabel}</h4>
+        <div style="display:flex;align-items:flex-end;gap:8px;height:200px;padding:10px 4px 0">
+          ${labels.map((lab,i)=>{
+            const v=values[i];
+            const h=Math.round(v/max*150)+8;
+            const topTxt=s.metric==='win_rate'?Math.round(v)+'%': (s.metric.includes('importe')?Math.round(v).toLocaleString('es-ES'):v);
+            return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:16px">
+              <div style="font-size:10px;color:var(--accent);font-weight:900">${topTxt}</div>
+              <div class="sb-bar" style="width:100%"><div style="width:100%;height:${h}px"></div></div>
+              <div style="font-size:10px;color:var(--text3);white-space:nowrap">${lab}</div>
+            </div>`;
+          }).join('')}
+        </div>
+        <div class="sb-actions" style="margin-top:12px"><button class="sb-btn ghost" onclick="statsDownloadCSV()">⬇️ CSV</button></div>
+      `;
+
+      const exportRows=labels.map((lab,i)=>({periodo:lab, valor:values[i]}));
+      window.__statsLastExport={headers:['periodo','valor'], rows: exportRows};
+      document.getElementById('st-table').innerHTML=`
+        <h4>📋 Tabla</h4>
+        <table class="sb-table"><thead><tr><th>Periodo</th><th>${metricLabel}</th></tr></thead>
+          <tbody>${exportRows.map(r=>`<tr><td>${r.periodo}</td><td>${formatMetric(r.valor, s.metric)}</td></tr>`).join('')}</tbody>
+        </table>`;
+      return;
+    }
+
+    // Pivot
+    if(s.dim2){
+      const map={};
+      const rowKeys=new Set();
+      const colKeys=new Set();
+      rows.forEach(o=>{
+        const r=statsVal(o, s.dim1);
+        const c=statsVal(o, s.dim2);
+        rowKeys.add(r); colKeys.add(c);
+        map[r]=map[r]||{};
+        (map[r][c]=map[r][c]||[]).push(o);
+      });
+      const rowsK=[...rowKeys].sort();
+      const colsK=[...colKeys].sort();
+
+      const rowTotals=rowsK.map(r=>({r,total:metricAgg(colsK.flatMap(c=>map[r][c]||[]))}));
+      rowTotals.sort((a,b)=>s.sortDir==='asc'?a.total-b.total:b.total-a.total);
+      const showRows=rowTotals.slice(0,s.topN).map(x=>x.r);
+
+      document.getElementById('st-chart').innerHTML=`
+        <h4>🧩 Pivot — ${metricLabel}</h4>
+        <div class="sb-actions" style="margin-top:12px"><button class="sb-btn ghost" onclick="statsDownloadCSV()">⬇️ CSV</button></div>`;
+
+      const headers=[s.dim1, ...colsK, 'total'];
+      const exportRows=[];
+      showRows.forEach(r=>{
+        const obj={}; obj[s.dim1]=r;
+        colsK.forEach(c=>obj[c]=metricAgg(map[r][c]||[]));
+        obj.total=metricAgg(colsK.flatMap(c=>map[r][c]||[]));
+        exportRows.push(obj);
+      });
+      window.__statsLastExport={headers, rows: exportRows};
+
+      const headCols=colsK.map(c=>`<th>${c}</th>`).join('');
+      const body=showRows.map(r=>{
+        const tds=colsK.map(c=>`<td>${formatMetric(metricAgg(map[r][c]||[]), s.metric)}</td>`).join('');
+        const tot=metricAgg(colsK.flatMap(c=>map[r][c]||[]));
+        return `<tr><td><b>${r}</b></td>${tds}<td><b>${formatMetric(tot, s.metric)}</b></td></tr>`;
+      }).join('');
+
+      document.getElementById('st-table').innerHTML=`
+        <h4>📋 Tabla pivot</h4>
+        <div style="overflow:auto">
+          <table class="sb-table" style="min-width:760px"><thead><tr><th>${s.dim1}</th>${headCols}<th>Total</th></tr></thead><tbody>${body}</tbody></table>
+        </div>`;
+      return;
+    }
+
+    // Grouped bars
+    const bucket={};
+    rows.forEach(o=>{ const k=statsVal(o, s.dim1); (bucket[k]=bucket[k]||[]).push(o); });
+    const items=Object.entries(bucket).map(([k,list])=>({label:k,value:metricAgg(list),count:list.length,imp:list.reduce((a,o)=>a+(o.importe||0),0)}));
+    items.sort((a,b)=>s.sortDir==='asc'?a.value-b.value:b.value-a.value);
+    const shown=items.slice(0,s.topN);
+    const max=Math.max(...shown.map(x=>x.value),1);
+
+    document.getElementById('st-chart').innerHTML=`
+      <h4>📌 ${metricLabel} por ${s.dim1}</h4>
+      <div style="margin-top:12px">${shown.map(it=>{
+        const w=Math.round(it.value/max*100);
+        return `<div style="display:flex;align-items:center;gap:10px;margin:8px 0">
+          <div style="min-width:160px;max-width:220px;color:var(--text2);font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${it.label}">${it.label}</div>
+          <div class="sb-bar" style="flex:1"><div style="width:${w}%"></div></div>
+          <div style="min-width:120px;text-align:right;color:var(--text);font-weight:900;font-size:12px">${formatMetric(it.value, s.metric)}</div>
+        </div>`;
+      }).join('')}</div>
+      <div class="sb-actions" style="margin-top:12px"><button class="sb-btn ghost" onclick="statsDownloadCSV()">⬇️ CSV</button></div>`;
+
+    window.__statsLastExport={headers:[s.dim1,'valor','count','importe'], rows: shown.map(it=>({[s.dim1]:it.label, valor:it.value, count:it.count, importe:it.imp}))};
+
+    document.getElementById('st-table').innerHTML=`
+      <h4>📋 Tabla</h4>
+      <table class="sb-table"><thead><tr><th>${s.dim1}</th><th>${metricLabel}</th><th>Nº</th><th>Importe</th></tr></thead>
+        <tbody>${shown.map(it=>`<tr><td><b>${it.label}</b></td><td>${formatMetric(it.value, s.metric)}</td><td>${it.count}</td><td>${Math.round(it.imp).toLocaleString('es-ES')} €</td></tr>`).join('')}</tbody>
+      </table>`;
+  }
+
+  // Presets
+  document.getElementById('st-run').onclick=run;
+  document.getElementById('st-reset').onclick=()=>{ localStorage.removeItem(STATS_STATE_KEY); toast('✅ Reset','#10b981'); renderEstadisticasCustom(); };
+  document.getElementById('st-preset-mes').onclick=()=>{
+    const d=new Date();
+    const from=new Date(d.getFullYear(), d.getMonth(), 1);
+    const to=new Date(d.getFullYear(), d.getMonth()+1, 0);
+    document.getElementById('st-from').value=from.toISOString().split('T')[0];
+    document.getElementById('st-to').value=to.toISOString().split('T')[0];
+    run();
+  };
+  document.getElementById('st-preset-ano').onclick=()=>{
+    const d=new Date();
+    const from=new Date(d.getFullYear(), 0, 1);
+    const to=new Date(d.getFullYear(), 11, 31);
+    document.getElementById('st-from').value=from.toISOString().split('T')[0];
+    document.getElementById('st-to').value=to.toISOString().split('T')[0];
+    run();
+  };
+
+  run();
 }
 
+// ===== MAPA =====
+function renderMapa(){
+  const porProv={};
+  ofertas.forEach(o=>{if(o.provincia)porProv[o.provincia]=(porProv[o.provincia]||0)+1;});
+  const max=Math.max(...Object.values(porProv),1);
+  let circulos="";
+  Object.entries(PROV_POS).forEach(([prov,[x,y]])=>{
+    const n=porProv[prov]||0;
+    if(n===0)return;
+    const r=6+Math.sqrt(n/max)*20;
+    const col=n>10?"#ef4444":n>5?"#f97316":n>2?"#f59e0b":"#38bdf8";
+    circulos+=`<circle class="prov-circle" cx="${x}%" cy="${y}%" r="${r}" fill="${col}" fill-opacity="0.7" stroke="${col}" stroke-width="1.5"
+      onmouseenter="showMapaTip(event,'${prov}',${n})" onmouseleave="hideMapaTip()" onclick="filtrarProv('${prov}')"/>
+      <text x="${x}%" y="${y}%" text-anchor="middle" dominant-baseline="middle" font-size="9" font-weight="700" fill="white" pointer-events="none">${n}</text>`;
+  });
+  document.getElementById("mapa-container").innerHTML=`
+    <div style="color:var(--text3);font-size:12px;margin-bottom:12px">Haz clic en una provincia para filtrar · Tamaño = número de ofertas</div>
+    <div class="mapa-wrap">
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="background:var(--surface);border:1px solid var(--border);border-radius:12px">
+        <rect width="100" height="100" fill="#f0f4fa"/>
+        <!-- España simplificada -->
+        <ellipse cx="42" cy="50" rx="30" ry="28" fill="#131c2e" stroke="#1e3a5f" stroke-width="0.5"/>
+        ${circulos}
+      </svg>
+      <div class="mapa-tooltip" id="mapa-tip"></div>
+    </div>
+    <div style="margin-top:16px">
+      <h3 style="color:var(--accent);font-size:13px;margin-bottom:10px">📋 Detalle por provincia</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px">
+        ${Object.entries(porProv).sort((a,b)=>b[1]-a[1]).map(([prov,n])=>{
+          const imp=ofertas.filter(o=>o.provincia===prov).reduce((s,o)=>s+(o.importe||0),0);
+          return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px;cursor:pointer" onclick="filtrarProv('${prov}')">
+            <div style="color:var(--text);font-size:12px;font-weight:600">${prov}</div>
+            <div style="color:var(--accent);font-size:11px">${n} oferta${n!==1?"s":""}</div>
+            <div style="color:#34d399;font-size:11px">${imp.toLocaleString("es-ES")} €</div>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>`;
+}
 function showMapaTip(e,prov,n){
   const t=document.getElementById("mapa-tip");
   const imp=ofertas.filter(o=>o.provincia===prov).reduce((s,o)=>s+(o.importe||0),0);
@@ -1735,10 +2188,8 @@ function showMapaTip(e,prov,n){
 }
 function hideMapaTip(){document.getElementById("mapa-tip").style.display="none";}
 function filtrarProv(prov){
-  provinciasSeleccionadas = new Set([prov]);
-  actualizarLabelProv();
-  renderProvOpciones(document.getElementById('prov-search')?document.getElementById('prov-search').value:'');
-  setVista('tabla');
+  document.getElementById("f-prov").value=prov;
+  setVista("tabla");
 }
 
 
