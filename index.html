@@ -6,7 +6,28 @@
 <title>Marcopack CRM</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js">
+
+// ===== RESCATE: si hay un error JS, mostrarlo en login para no quedarse en blanco =====
+window.addEventListener('error', (ev)=>{
+  try{
+    const msg = (ev && ev.message) ? ev.message : 'Error desconocido';
+    const el = document.getElementById('login-error');
+    if(el){
+      el.textContent = '❌ Error de carga: ' + msg + ' (abre F12→Console para detalle)';
+      el.style.display='block';
+    }
+    // asegurar que al menos se vea el login
+    const app=document.getElementById('app');
+    const login=document.getElementById('login-screen');
+    const setup=document.getElementById('setup-screen');
+    if(app) app.style.display='none';
+    if(setup) setup.style.display='none';
+    if(login) login.style.display='flex';
+  }catch(_){ }
+});
+
+</script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -212,6 +233,37 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 .rem-item.vencido{border-color:#fbd0b0;border-left:4px solid var(--orange)}
 .loading{text-align:center;color:var(--text3);padding:40px;font-size:14px}
 
+
+/* ===== ESTADÍSTICAS (TABS + BUILDER) ===== */
+.st-tabs{display:flex;gap:6px;flex-wrap:wrap}
+.st-tab{background:var(--surface2);border:1px solid var(--border);color:var(--text2);border-radius:10px;padding:7px 12px;font-size:12px;font-weight:900;cursor:pointer}
+.st-tab.active{background:var(--accent-light);color:var(--accent);border-color:#b8d0f5}
+
+.sb-wrap{display:grid;grid-template-columns:360px 1fr;gap:14px}
+@media(max-width:980px){.sb-wrap{grid-template-columns:1fr}}
+.sb-panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:var(--shadow-sm)}
+.sb-panel h3{color:var(--accent);font-size:13px;font-weight:900;margin-bottom:10px}
+.sb-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sb-grid .field{margin:0}
+.sb-grid .field label{margin-bottom:5px}
+.sb-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.sb-btn{border:none;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:900;cursor:pointer}
+.sb-btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:white}
+.sb-btn.ghost{background:var(--surface2);border:1px solid var(--border);color:var(--text2)}
+.sb-btn.danger{background:var(--red-bg);border:1px solid #fca5a5;color:var(--red)}
+.sb-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}
+.sb-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:var(--shadow-sm)}
+.sb-card h4{color:var(--accent);font-size:12px;font-weight:900;margin-bottom:10px}
+.sb-table{width:100%;border-collapse:separate;border-spacing:0 6px}
+.sb-table th{color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:6px 8px}
+.sb-table td{background:var(--surface);border:1px solid var(--border);padding:8px 8px;font-size:12px}
+.sb-table tr td:first-child{border-radius:10px 0 0 10px}
+.sb-table tr td:last-child{border-radius:0 10px 10px 0}
+.sb-mini{color:var(--text3);font-size:11px;line-height:1.6}
+.sb-badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:900;border:1px solid var(--border);background:var(--surface2);color:var(--text2)}
+.sb-bar{height:18px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);overflow:hidden}
+.sb-bar > div{height:100%;border-radius:8px;background:linear-gradient(90deg,var(--accent),#5b21b6)}
+
 /* ===== DASHBOARD ===== */
 .dashboard{padding:14px 24px 28px}
 .dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:18px}
@@ -239,15 +291,6 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 .mapa-tooltip{position:absolute;background:var(--surface);border:1px solid var(--border);
   border-radius:var(--radius-sm);padding:9px 13px;font-size:12px;pointer-events:none;
   z-index:10;display:none;white-space:nowrap;box-shadow:var(--shadow);color:var(--text)}
-
-/* ===== IA ===== */
-.ia-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
-  padding:22px;margin-bottom:14px;box-shadow:var(--shadow-sm)}
-.ia-card h3{color:var(--purple);font-size:14px;font-weight:700;margin-bottom:13px}
-.ia-pred{display:flex;align-items:center;gap:13px;padding:11px 0;border-bottom:1px solid var(--border)}
-.ia-pred:last-child{border-bottom:none}
-.ia-prob{width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0}
-.ia-loading{color:var(--purple);text-align:center;padding:30px;font-size:14px}
 
 /* ===== LLAMADAS ===== */
 .llamada-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
@@ -423,7 +466,6 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
     <button class="nav-btn" id="nav-tabla" onclick="setVista('tabla')">📋 Ofertas</button>
     <button class="nav-btn" id="nav-estadistas" onclick="setVista('estadistas')">📊 Estadísticas</button>
     <button class="nav-btn" id="nav-mapa" onclick="setVista('mapa')">🗺️ Mapa</button>
-    <button class="nav-btn" id="nav-ia" onclick="setVista('ia')">🤖 Previsión IA</button>
     <button class="nav-btn" id="nav-llamadas" onclick="setVista('llamadas')">📞 Llamadas</button>
     <button class="nav-btn" id="nav-comparativa" onclick="setVista('comparativa')">🏆 Comerciales</button>
     <button class="nav-btn" id="nav-alertas" onclick="setVista('alertas')">🔔 Alertas</button>
@@ -486,9 +528,26 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       </table>
     </div>
   </div>
-  <div id="vista-estadistas" style="display:none"><div class="charts-grid" style="padding:12px 20px 24px" id="charts-container"></div></div>
+  <div id="vista-estadistas" style="display:none">
+  <div style="padding:16px 20px 24px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <h3 style="color:var(--accent);margin:0">📊 Estadísticas</h3>
+      <div class="st-tabs">
+        <button id="st-tab-resumen" class="st-tab" onclick="statsTab('resumen')">Resumen</button>
+        <button id="st-tab-custom" class="st-tab" onclick="statsTab('custom')">Personalizado</button>
+      </div>
+    </div>
+
+    <div id="st-pane-resumen">
+      <div class="charts-grid" id="charts-container"></div>
+    </div>
+
+    <div id="st-pane-custom" style="display:none">
+      <div id="stats-builder"></div>
+    </div>
+  </div>
+</div></div>
   <div id="vista-mapa" style="display:none;padding:16px 20px 24px"><h3 style="color:var(--accent);margin-bottom:16px">🗺️ Mapa de ofertas por provincia</h3><div id="mapa-container"></div></div>
-  <div id="vista-ia" style="display:none;padding:16px 20px 24px"></div>
   <div id="vista-llamadas" style="display:none;padding:16px 20px 24px"></div>
   <div id="vista-comparativa" style="display:none;padding:16px 20px 24px"></div>
   <div id="vista-alertas" style="display:none;padding:16px 20px 24px"></div>
@@ -538,7 +597,165 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
         <div class="field"><label>🌍 País</label><select id="f-pais-form"><option value="">— Seleccionar país —</option></select></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>Tipo de Máquina</label><select id="f-tipo"><option value="">— Seleccionar máquina —</option><optgroup label="PESADORA"><option>CONTROLADORA DE PESO 1 TRANSPORTE</option><option>CONTROLADORA DE PESO 2 TRANSPORTES</option><option>CONTROLADORA DE PESO 3 TRANSPORTES</option></optgroup><optgroup label="DETECTOR"><option>DETECTOR DE METALES</option></optgroup><optgroup label="DISPENSADOR"><option>DISPENSADOR A LA DEMANDA</option></optgroup><optgroup label="DOSIFICADORA"><option>DOSIFICADORA SEMIAUTOMATICA SV-1</option><option>DOSIFICADORA SEMIAUTOMATICA SV-5</option><option>DOSIFICADORA SEMIAUTOMATICA DE 1 BOQUILLA CON BOMBA</option><option>DOSIFICADORA SEMIAUTOMATICA CON DOBLE PLATAFORMA DE LLENADO</option><option>DOSIFICADORA SEMIAUTOMATICA DE 1 BOQUILLA CON BOMBA PERISTALTICA Y PESO LLENADO HASTA 5 LITROS</option><option>DOSIFICADORA SEMIAUTOMATICA DE GARRAFAS GRAN VOLUMEN CON CARRO PORTATIL</option><option>DOSIFICADORA SEMIAUTOMATICA SVP CON MESA GIRATORIA</option><option>LLENADORA SEMIAUTOMATICA POR PISTOLA</option><option>DOSIFICADORA 2 BOQUILLAS CON CAUDALIMETROS MCP 4000</option><option>DOSIFICADORA 4 BOQUILLAS CON CAUDALIMETROS MCP 4000</option><option>DOSIFICADORA 6 BOQUILLAS CON CAUDALIMETROS MCP 4000</option><option>DOSIFICADORA 2 BOQUILLAS VOLUMETRICA MCP 4000</option><option>DOSIFICADORA 4 BOQUILLAS VOLUMETRICA MCP 4000</option><option>DOSIFICADORA 6 BOQUILLAS VOLUMETRICA MCP 4000</option><option>DOSIFICADORA 2 BOQUILLAS VOLUMETRICA HASTA 5 LITROS ATEX</option></optgroup><optgroup label="TAPONADORA"><option>TAPONADORA LINEAL MODELO MCP 5000 ST</option><option>TAPONADORA, ROSCADORA PILFER PROFF</option><option>TAPONADORA LINEAL PARA TAPAS</option><option>TAPONADORA SEMIAUTOMATICA LINEAL NO AMPLIABLE</option><option>TAPONADORA LINEAL PARA TAPAS CON SISTEMA TWIST OFF</option><option>TAPONADORA ROTATIVA ATEX</option><option>TAPONADORA LINEAL PICK UP</option><option>TAPONADORA PICK AND PLACE</option><option>TAPONADORA DE SOBREMESA PARA TAPAS METALICAS</option><option>TAPONADORA SEMIAUTOMATICA DE SOBREMESA PARA TAPAS TWIST OFF</option><option>TAPONADORA DE CUBOS</option><option>TAPONADORA LINEAL PARA TAPAS DE PLASTICO EN LATAS</option><option>CERRADO MANUAL TAPON CRIMPADO</option><option>CERRADORA SEMIAUTOMATICA TWIST OFF</option><option>POSICIONADOR DE TAPONES CON RAMPA</option><option>ALIMENTADOR DE TAPONES CUELLO CISNE</option></optgroup><optgroup label="ETIQUETADORA"><option>ECOLABEL</option><option>ETIQUETADO SUPERIOR SACOS + DESAPILADOR</option><option>LINEA ETIQUETADO EN C EN BANDEJAS</option><option>MCP 60T + BRAZO NEUMATICO PARA COLOCAR EN ENVASADORA VERTICAL</option><option>MCP 60T MINI</option><option>MCP 60T</option><option>MCP 99T</option><option>MCP 140T</option><option>MCP 300T 1C CILINDRICO CON SEPARADOR NEUMATICO</option><option>MCP 300T 1C CILINDRICO Y PLANO</option><option>MCP 300T 1C PLUS</option><option>MCP 300T 2C CILINDRICO Y PLANO</option><option>MCP 300T 2C ETIQUETA Y CONTRA ENVASE CILINDRICO O PLANO</option><option>MCP 300T 2C SISTEMA DE RODILLOS ETIQUETA Y CONTRA ENVASE CILINDRICO</option><option>MCP 300T 2C CON MAMPARA DE PROTECCION</option><option>MCP 350T 1C</option><option>MCP 350T 2C</option><option>MCP 400T 2C CON SISTEMA NEUMATICO</option><option>MCP 400T 2C</option><option>MCP 400T 3C</option><option>MCP 400T 4C</option><option>MCP 600T 1C ETIQUETADO INFERIOR</option><option>MCP 600T 1C ETIQUETADO SUPERIOR</option><option>MCP 600T 1C ETIQUETADO SUPERIOR + DOSIFICADOR DE BOLSAS</option><option>MCP 600T 2C BASIC</option><option>MCP 600T 2C SUPERIORES CON SEPARADOR</option><option>MCP 600T 3C ETIQUETADO SUPERIOR, INFERIOR Y LATERAL</option><option>MCP 600T 4C - ETIQUETADO SUPERIOR E INFERIOR CON SEPARADOR</option><option>MCP 700T</option><option>SET 200 CON SISTEMA DE RODILLOS</option><option>SET 200 ENFARDADOR NORMAL</option><option>SET 200 CON SISTEMA NEUMATICO DE PRECINTO</option><option>POSICIONADOR DE PISTOLAS CON RESPECTO A LA ETIQUETADORA</option><option>ST612 1C 1P CON CABEZAL ZEBRA ZE500 6 PULGADAS</option><option>ST612 1C 1P</option><option>ST612 2C 1P CON CABEZAL ZEBRA ZE500 6 PULGADAS</option><option>ST612 2C 1P</option><option>ST612 2C 2P</option></optgroup><optgroup label="T. REAL"><option>ECOPRINT CON IMPRESORA GODEX EZ6250i</option><option>ECOPRINT CON IMPRESORA TOSHIBA SOBRE TRANSPORTE</option><option>ECOPRINT G ZX1200i</option><option>ECOPRINT G ZX1200i + TRANSPORTE MOTORIZADO</option><option>ST 418 BASIC SOBRE TRANSPORTE CON SISTEMA DE PEGADO ETIQUETA EN ESQUINA</option><option>ST 612 ALTA PRODUCCION 4 PULGADAS CON PALA</option><option>ST 612 CON CABEZAL ZEBRA ZE500 6 PULGADAS + BRAZO NEUMATICO</option><option>ST 612 ALTA PRODUCCION 6 PULGADAS CON PALA</option><option>ST418 CON CABEZAL ZEBRA ZE511 4 PULGADAS + BRAZO NEUMATICO</option><option>ST418 PEGADO FRONTAL + SEPARADOR DE BANDEJAS</option><option>ST418 PLUS CON PALA CABEZAL SPX CV 6 PULGADAS</option><option>ST612 CON CABEZAL ZEBRA ZE500 6 PULGADAS</option><option>ECOPRINT CON IMPRESORA TOSHIBA</option><option>ECOPRINT CON IMPRESORA VITA 5</option><option>ST418 PLUS CABEZAL SPX CV</option><option>ST418 BASIC</option><option>ST418 CON CABEZAL CARL VALENTIN + BRAZO 300 MM DESARROLLO</option><option>ST612 BASIC CON CABEZAL CARL VALENTIN 6 PULGADAS</option><option>ST418 BASIC CON CABEZAL ZEBRA ZE511 4 PULGADAS</option><option>ST418 + SOPLO</option></optgroup><optgroup label="IMPRES."><option>IMPRESORA KOMPA 4 + BRAZO NEUMATICO</option><option>IMPRESORA KOMPA 4 IMPRESION GODEX + BRAZO NEUMATICO</option><option>IMPRESORA KOMPA 4</option><option>IMPRESORA VITA 5</option><option>IMPRESORA 246M + REBOBINADOR INTERNO</option><option>IMPRESORA 246M</option><option>IMPRESORA A COLOR MOD. V750</option><option>IMPRESORA CL 6NX PLUS</option><option>IMPRESORA CLASE H-6210</option><option>IMPRESORA DE ETIQUETAS GODEX -1200i</option><option>IMPRESORA DE ETIQUETAS GODEX -6250i</option><option>IMPRESORA DE SOBREMESA KOMPA 6</option><option>IMPRESORA DE SOBREMESA PK</option><option>IMPRESORA KOMPA 4 CON PALA + TRANSPORTE</option><option>IMPRESORA KOMPA 4 CON PALA</option><option>IMPRESORA KOMPA 162/12 6 PULGADAS</option><option>IMPRESORA KOMPA II 162 12 CON CORTADOR DE ETIQUETAS</option><option>IMPRESORA KOMPA V 108/12</option><option>MODULO DE IMPRESION SPX 6 PULGADAS</option><option>MODULO DE IMPRESION SPX 4 PULGADAS</option><option>MODULO DE IMPRESION S86NX 6 PULGADAS</option><option>MODULO DE IMPRESION S84NX 4 PULGADAS</option><option>MODULO DE IMPRESION ZEBRA ZE511 4 PULGADAS</option><option>IMPRESORA DE ETIQUETAS SATO CL4NX</option><option>IMPRESORA ZEBRA ZPX SERIE 7</option><option>IMPRESORA SERIE 2 SPECTRA 162/12</option><option>IMPRESORA TOSHIBA B-EX4T CON BRAZO ELECTRONEUMATICO DE 500 MM.</option><option>IMPRESORA TOSHIBA B-EX4T</option><option>IMPRESORA TSC 2610 M 6 PULGADAS</option><option>IMPRESORA TSC MB 240</option></optgroup><optgroup label="INK JET"><option>DELPHI 1S</option><option>DELPHI EKO 1 CABEZAL</option><option>DELPHI EKO 2 CABEZALES</option><option>INK JET ALTA RESOLUCION IMPRESION 70 MM</option><option>INK JET MANUAL R9</option><option>INK JET MANUAL R10</option><option>INK JET SERIE-X CABEZAL 18 MM</option><option>INK JET SERIE-X CABEZAL 72 MM</option><option>JET 1</option><option>JET 2</option><option>JET 3</option><option>KOSIJET 1R 1P</option><option>KOSIJET 2R 1P</option></optgroup><optgroup label="REBOBINADOR"><option>REBOBINADOR DE ETIQUETAS ANCHO MAXIMO 230 MM</option><option>REBOBINADOR DE ETIQUETAS</option><option>REBOBINADOR-DESBOBINADOR DE ETIQUETAS ADHESIVAS</option></optgroup><optgroup label="TRANSF."><option>5340</option><option>DYNA 53</option><option>DYNA 107</option><option>TERMOTRANSFER D 24</option><option>TERMOTRANSFER D 32</option><option>TERMOTRANSFER D 53</option><option>TERMOTRANSFER DE 53 MM</option><option>TERMOTRANSFER DE 107 MM</option><option>TERMOTRANSFER DE 128 MM</option></optgroup><optgroup label="VARIOS"><option>PLATO ALIMENTADOR EN ACERO DE 1000 MM</option><option>SISTEMA DE INDUCCION</option><option>MAQUINA PARA LIMPIEZA</option><option>DEPOSITO SIN BOMBA 80 LITROS</option><option>DEPOSITO CON BOMBA 80 LITROS</option><option>LINEA DISPENSADORA DE PRECINTOS TERMO-ENCOGIBLES</option><option>HORNO RETRACTIL P1 CON TRANSPORTE MOTORIZADO</option></optgroup><optgroup label="TRANSPORTES"><option>TRANSPORTE MOTORIZADO</option></optgroup></select></div>
+        <div class="field"><label>Tipo de Máquina</label><input id="f-tipo" list="lista-tipos" placeholder="Escribe o selecciona un modelo..."/><datalist id="lista-tipos">
+  <option value="CONTROLADORA DE PESO 1 TRANSPORTE"></option>
+  <option value="CONTROLADORA DE PESO 2 TRANSPORTES"></option>
+  <option value="CONTROLADORA DE PESO 3 TRANSPORTES"></option>
+  <option value="DETECTOR DE METALES"></option>
+  <option value="DISPENSADOR A LA DEMANDA"></option>
+  <option value="DOSIFICADORA SEMIAUTOMATICA SV-1"></option>
+  <option value="DOSIFICADORA SEMIAUTOMATICA SV-5"></option>
+  <option value="DOSIFICADORA SEMIAUTOMATICA DE 1 BOQUILLA CON BOMBA"></option>
+  <option value="DOSIFICADORA SEMIAUTOMATICA CON DOBLE PLATAFORMA DE LLENADO"></option>
+  <option value="DOSIFICADORA SEMIAUTOMATICA DE 1 BOQUILLA CON BOMBA PERISTALTICA Y PESO LLENADO HASTA 5 LITROS"></option>
+  <option value="DOSIFICADORA SEMIAUTOMATICA DE GARRAFAS GRAN VOLUMEN CON CARRO PORTATIL"></option>
+  <option value="DOSIFICADORA SEMIAUTOMATICA SVP CON MESA GIRATORIA"></option>
+  <option value="LLENADORA SEMIAUTOMATICA POR PISTOLA"></option>
+  <option value="DOSIFICADORA 2 BOQUILLAS CON CAUDALIMETROS MCP 4000"></option>
+  <option value="DOSIFICADORA 4 BOQUILLAS CON CAUDALIMETROS MCP 4000"></option>
+  <option value="DOSIFICADORA 6 BOQUILLAS CON CAUDALIMETROS MCP 4000"></option>
+  <option value="DOSIFICADORA 2 BOQUILLAS VOLUMETRICA MCP 4000"></option>
+  <option value="DOSIFICADORA 4 BOQUILLAS VOLUMETRICA MCP 4000"></option>
+  <option value="DOSIFICADORA 6 BOQUILLAS VOLUMETRICA MCP 4000"></option>
+  <option value="DOSIFICADORA 2 BOQUILLAS VOLUMETRICA HASTA 5 LITROS ATEX"></option>
+  <option value="TAPONADORA LINEAL MODELO MCP 5000 ST"></option>
+  <option value="TAPONADORA, ROSCADORA PILFER PROFF"></option>
+  <option value="TAPONADORA LINEAL PARA TAPAS"></option>
+  <option value="TAPONADORA SEMIAUTOMATICA LINEAL NO AMPLIABLE"></option>
+  <option value="TAPONADORA LINEAL PARA TAPAS CON SISTEMA TWIST OFF"></option>
+  <option value="TAPONADORA ROTATIVA ATEX"></option>
+  <option value="TAPONADORA LINEAL PICK UP"></option>
+  <option value="TAPONADORA PICK AND PLACE"></option>
+  <option value="TAPONADORA DE SOBREMESA PARA TAPAS METALICAS"></option>
+  <option value="TAPONADORA SEMIAUTOMATICA DE SOBREMESA PARA TAPAS TWIST OFF"></option>
+  <option value="TAPONADORA DE CUBOS"></option>
+  <option value="TAPONADORA LINEAL PARA TAPAS DE PLASTICO EN LATAS"></option>
+  <option value="CERRADO MANUAL TAPON CRIMPADO"></option>
+  <option value="CERRADORA SEMIAUTOMATICA TWIST OFF"></option>
+  <option value="POSICIONADOR DE TAPONES CON RAMPA"></option>
+  <option value="ALIMENTADOR DE TAPONES CUELLO CISNE"></option>
+  <option value="ECOLABEL"></option>
+  <option value="ETIQUETADO SUPERIOR SACOS + DESAPILADOR"></option>
+  <option value="LINEA ETIQUETADO EN C EN BANDEJAS"></option>
+  <option value="MCP 60T + BRAZO NEUMATICO PARA COLOCAR EN ENVASADORA VERTICAL"></option>
+  <option value="MCP 60T MINI"></option>
+  <option value="MCP 60T"></option>
+  <option value="MCP 99T"></option>
+  <option value="MCP 140T"></option>
+  <option value="MCP 300T 1C CILINDRICO CON SEPARADOR NEUMATICO"></option>
+  <option value="MCP 300T 1C CILINDRICO Y PLANO"></option>
+  <option value="MCP 300T 1C PLUS"></option>
+  <option value="MCP 300T 2C CILINDRICO Y PLANO"></option>
+  <option value="MCP 300T 2C ETIQUETA Y CONTRA ENVASE CILINDRICO O PLANO"></option>
+  <option value="MCP 300T 2C SISTEMA DE RODILLOS ETIQUETA Y CONTRA ENVASE CILINDRICO"></option>
+  <option value="MCP 300T 2C CON MAMPARA DE PROTECCION"></option>
+  <option value="MCP 350T 1C"></option>
+  <option value="MCP 350T 2C"></option>
+  <option value="MCP 400T 2C CON SISTEMA NEUMATICO"></option>
+  <option value="MCP 400T 2C"></option>
+  <option value="MCP 400T 3C"></option>
+  <option value="MCP 400T 4C"></option>
+  <option value="MCP 600T 1C ETIQUETADO INFERIOR"></option>
+  <option value="MCP 600T 1C ETIQUETADO SUPERIOR"></option>
+  <option value="MCP 600T 1C ETIQUETADO SUPERIOR + DOSIFICADOR DE BOLSAS"></option>
+  <option value="MCP 600T 2C BASIC"></option>
+  <option value="MCP 600T 2C SUPERIORES CON SEPARADOR"></option>
+  <option value="MCP 600T 3C ETIQUETADO SUPERIOR, INFERIOR Y LATERAL"></option>
+  <option value="MCP 600T 4C - ETIQUETADO SUPERIOR E INFERIOR CON SEPARADOR"></option>
+  <option value="MCP 700T"></option>
+  <option value="SET 200 CON SISTEMA DE RODILLOS"></option>
+  <option value="SET 200 ENFARDADOR NORMAL"></option>
+  <option value="SET 200 CON SISTEMA NEUMATICO DE PRECINTO"></option>
+  <option value="POSICIONADOR DE PISTOLAS CON RESPECTO A LA ETIQUETADORA"></option>
+  <option value="ST612 1C 1P CON CABEZAL ZEBRA ZE500 6 PULGADAS"></option>
+  <option value="ST612 1C 1P"></option>
+  <option value="ST612 2C 1P CON CABEZAL ZEBRA ZE500 6 PULGADAS"></option>
+  <option value="ST612 2C 1P"></option>
+  <option value="ST612 2C 2P"></option>
+  <option value="ECOPRINT CON IMPRESORA GODEX EZ6250i"></option>
+  <option value="ECOPRINT CON IMPRESORA TOSHIBA SOBRE TRANSPORTE"></option>
+  <option value="ECOPRINT G ZX1200i"></option>
+  <option value="ECOPRINT G ZX1200i + TRANSPORTE MOTORIZADO"></option>
+  <option value="ST 418 BASIC SOBRE TRANSPORTE CON SISTEMA DE PEGADO ETIQUETA EN ESQUINA"></option>
+  <option value="ST 612 ALTA PRODUCCION 4 PULGADAS CON PALA"></option>
+  <option value="ST 612 CON CABEZAL ZEBRA ZE500 6 PULGADAS + BRAZO NEUMATICO"></option>
+  <option value="ST 612 ALTA PRODUCCION 6 PULGADAS CON PALA"></option>
+  <option value="ST418 CON CABEZAL ZEBRA ZE511 4 PULGADAS + BRAZO NEUMATICO"></option>
+  <option value="ST418 PEGADO FRONTAL + SEPARADOR DE BANDEJAS"></option>
+  <option value="ST418 PLUS CON PALA CABEZAL SPX CV 6 PULGADAS"></option>
+  <option value="ST612 CON CABEZAL ZEBRA ZE500 6 PULGADAS"></option>
+  <option value="ECOPRINT CON IMPRESORA TOSHIBA"></option>
+  <option value="ECOPRINT CON IMPRESORA VITA 5"></option>
+  <option value="ST418 PLUS CABEZAL SPX CV"></option>
+  <option value="ST418 BASIC"></option>
+  <option value="ST418 CON CABEZAL CARL VALENTIN + BRAZO 300 MM DESARROLLO"></option>
+  <option value="ST612 BASIC CON CABEZAL CARL VALENTIN 6 PULGADAS"></option>
+  <option value="ST418 BASIC CON CABEZAL ZEBRA ZE511 4 PULGADAS"></option>
+  <option value="ST418 + SOPLO"></option>
+  <option value="IMPRESORA KOMPA 4 + BRAZO NEUMATICO"></option>
+  <option value="IMPRESORA KOMPA 4 IMPRESION GODEX + BRAZO NEUMATICO"></option>
+  <option value="IMPRESORA KOMPA 4"></option>
+  <option value="IMPRESORA VITA 5"></option>
+  <option value="IMPRESORA 246M + REBOBINADOR INTERNO"></option>
+  <option value="IMPRESORA 246M"></option>
+  <option value="IMPRESORA A COLOR MOD. V750"></option>
+  <option value="IMPRESORA CL 6NX PLUS"></option>
+  <option value="IMPRESORA CLASE H-6210"></option>
+  <option value="IMPRESORA DE ETIQUETAS GODEX -1200i"></option>
+  <option value="IMPRESORA DE ETIQUETAS GODEX -6250i"></option>
+  <option value="IMPRESORA DE SOBREMESA KOMPA 6"></option>
+  <option value="IMPRESORA DE SOBREMESA PK"></option>
+  <option value="IMPRESORA KOMPA 4 CON PALA + TRANSPORTE"></option>
+  <option value="IMPRESORA KOMPA 4 CON PALA"></option>
+  <option value="IMPRESORA KOMPA 162/12 6 PULGADAS"></option>
+  <option value="IMPRESORA KOMPA II 162 12 CON CORTADOR DE ETIQUETAS"></option>
+  <option value="IMPRESORA KOMPA V 108/12"></option>
+  <option value="MODULO DE IMPRESION SPX 6 PULGADAS"></option>
+  <option value="MODULO DE IMPRESION SPX 4 PULGADAS"></option>
+  <option value="MODULO DE IMPRESION S86NX 6 PULGADAS"></option>
+  <option value="MODULO DE IMPRESION S84NX 4 PULGADAS"></option>
+  <option value="MODULO DE IMPRESION ZEBRA ZE511 4 PULGADAS"></option>
+  <option value="IMPRESORA DE ETIQUETAS SATO CL4NX"></option>
+  <option value="IMPRESORA ZEBRA ZPX SERIE 7"></option>
+  <option value="IMPRESORA SERIE 2 SPECTRA 162/12"></option>
+  <option value="IMPRESORA TOSHIBA B-EX4T CON BRAZO ELECTRONEUMATICO DE 500 MM."></option>
+  <option value="IMPRESORA TOSHIBA B-EX4T"></option>
+  <option value="IMPRESORA TSC 2610 M 6 PULGADAS"></option>
+  <option value="IMPRESORA TSC MB 240"></option>
+  <option value="DELPHI 1S"></option>
+  <option value="DELPHI EKO 1 CABEZAL"></option>
+  <option value="DELPHI EKO 2 CABEZALES"></option>
+  <option value="INK JET ALTA RESOLUCION IMPRESION 70 MM"></option>
+  <option value="INK JET MANUAL R9"></option>
+  <option value="INK JET MANUAL R10"></option>
+  <option value="INK JET SERIE-X CABEZAL 18 MM"></option>
+  <option value="INK JET SERIE-X CABEZAL 72 MM"></option>
+  <option value="JET 1"></option>
+  <option value="JET 2"></option>
+  <option value="JET 3"></option>
+  <option value="KOSIJET 1R 1P"></option>
+  <option value="KOSIJET 2R 1P"></option>
+  <option value="REBOBINADOR DE ETIQUETAS ANCHO MAXIMO 230 MM"></option>
+  <option value="REBOBINADOR DE ETIQUETAS"></option>
+  <option value="REBOBINADOR-DESBOBINADOR DE ETIQUETAS ADHESIVAS"></option>
+  <option value="5340"></option>
+  <option value="DYNA 53"></option>
+  <option value="DYNA 107"></option>
+  <option value="TERMOTRANSFER D 24"></option>
+  <option value="TERMOTRANSFER D 32"></option>
+  <option value="TERMOTRANSFER D 53"></option>
+  <option value="TERMOTRANSFER DE 53 MM"></option>
+  <option value="TERMOTRANSFER DE 107 MM"></option>
+  <option value="TERMOTRANSFER DE 128 MM"></option>
+  <option value="PLATO ALIMENTADOR EN ACERO DE 1000 MM"></option>
+  <option value="SISTEMA DE INDUCCION"></option>
+  <option value="MAQUINA PARA LIMPIEZA"></option>
+  <option value="DEPOSITO SIN BOMBA 80 LITROS"></option>
+  <option value="DEPOSITO CON BOMBA 80 LITROS"></option>
+  <option value="LINEA DISPENSADORA DE PRECINTOS TERMO-ENCOGIBLES"></option>
+  <option value="HORNO RETRACTIL P1 CON TRANSPORTE MOTORIZADO"></option>
+  <option value="TRANSPORTE MOTORIZADO"></option>
+</datalist></div>
         <div class="field"><label>Otros <span style="color:var(--text3);font-size:10px;font-weight:400">(campo libre)</span></label><input id="f-otros" placeholder="Escribe lo que necesites..."/></div>
       </div>
       <div class="field"><label>Descripción</label><textarea id="f-desc"></textarea></div>
@@ -692,7 +909,7 @@ const auth=firebase.auth(),db=firebase.firestore();
 // ===== SEGURIDAD: No recordar sesión entre visitas =====
 // SESSION = la sesión solo dura mientras la pestaña está abierta.
 // Al cerrar el navegador o la pestaña, hay que volver a identificarse.
-auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
 
 // ===== MICROSOFT ONEDRIVE CENTRAL (Graph API) =====
 // MODO: OneDrive central del administrador.
@@ -890,6 +1107,9 @@ auth.onAuthStateChanged(async user=>{
     document.getElementById("urol").textContent=currentProfile.rol;
     if(currentProfile.rol==="admin")document.getElementById("nav-admin").style.display="block";
     poblarSelects();escucharOfertas();
+  // Asegurar vista inicial estable (GitHub Pages incluido)
+  setTimeout(()=>{ try{ setVista('dashboard'); }catch(_){ } }, 50);
+
   }else{
     document.getElementById("app").style.display="none";
     document.getElementById("setup-screen").style.display="none";
@@ -954,7 +1174,7 @@ async function doLogin(){
   btn.textContent="Verificando...";btn.disabled=true;
   try{
     // Asegurar que la persistencia es solo de sesión antes de cada login
-    await auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+    await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
     await auth.signInWithEmailAndPassword(email,pass);
     // onAuthStateChanged se encarga de mostrar la app
   }catch(e){
@@ -1332,7 +1552,7 @@ document.addEventListener("click",function(e){
 // ===== VISTAS =====
 function setVista(v){
   vistaActual=v;
-  const vistas=["dashboard","tabla","estadistas","mapa","ia","llamadas","comparativa","alertas","historial","admin"];
+  const vistas=["dashboard","tabla","estadistas","mapa","llamadas","comparativa","alertas","historial","admin"];
   vistas.forEach(x=>{
     const el=document.getElementById("vista-"+x);
     if(el)el.style.display=x===v?"block":"none";
@@ -1340,12 +1560,10 @@ function setVista(v){
     if(btn)btn.classList.toggle("active",x===v);
   });
   // Mostrar/ocultar filtros según vista
-  const sinFiltros=["dashboard","mapa","ia","llamadas","comparativa","alertas","historial","admin"];
+  const sinFiltros=["dashboard","mapa","estadistas","llamadas","comparativa","alertas","historial","admin"];
   document.getElementById("filtros-barra").style.display=sinFiltros.includes(v)?"none":"flex";
   if(v==="historial")cargarHistorial();
-  if(v==="admin")cargarAdmin();
-  if(v==="ia")renderIA();
-  if(v==="mapa")renderMapa();
+  if(v==="admin")cargarAdmin();  if(v==="mapa")renderMapa();
   if(v==="llamadas")renderLlamadas();
   if(v==="comparativa")renderComparativa();
   if(v==="alertas")renderAlertas();
@@ -1485,8 +1703,8 @@ function renderTabla(){
   }).join("");
 }
 
-// ===== ESTADÍSTICAS =====
-function renderEstadisticas(){
+// ===== ESTADÍSTICAS (RESUMEN) =====
+function renderEstadisticasResumen(){
   const datos=getFiltradas();
   const porEstado={};ESTADOS.forEach(e=>porEstado[e]=0);datos.forEach(o=>{if(porEstado[o.estado]!==undefined)porEstado[o.estado]++;});
   const porProv={};datos.forEach(o=>{if(o.provincia)porProv[o.provincia]=(porProv[o.provincia]||0)+1;});
@@ -1537,6 +1755,404 @@ function renderEstadisticas(){
   `;
 }
 
+
+
+// ===== ESTADÍSTICAS (TABS + PERSONALIZADO) =====
+const STATS_TAB_KEY='crm_stats_tab';
+const STATS_STATE_KEY='crm_stats_state_v1';
+function statsLoad(){ try{ return JSON.parse(localStorage.getItem(STATS_STATE_KEY)||'{}')||{}; }catch(_){ return {}; } }
+function statsSave(obj){ localStorage.setItem(STATS_STATE_KEY, JSON.stringify(obj||{})); }
+
+function statsGetDate(o, field){
+  if(field==='fechaOferta' && o.fechaOferta) return new Date(o.fechaOferta+'T12:00:00');
+  if(field==='fechaRecordatorio' && o.fechaRecordatorio) return new Date(o.fechaRecordatorio+'T12:00:00');
+  if(field==='ultimaLlamada' && o.ultimaLlamada) return new Date(o.ultimaLlamada+'T12:00:00');
+  if(field==='creadoEn'){
+    const d=o.creadoEn?.toDate?o.creadoEn.toDate():o.creadoEn?new Date(o.creadoEn):null;
+    return d||null;
+  }
+  return null;
+}
+function statsFmtYM(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+function statsInRange(d, from, to){ if(!d) return false; if(from && d<from) return false; if(to && d>to) return false; return true; }
+function statsVal(o, dim){
+  const t=(s)=>String(s||'—').trim()||'—';
+  if(dim==='empresa') return t(o.empresa);
+  if(dim==='provincia') return t(o.provincia);
+  if(dim==='pais') return t(o.pais);
+  if(dim==='estado') return t(o.estado);
+  if(dim==='responsable') return t(o.responsableNombre);
+  if(dim==='tipoMaquina') return t(o.tipoMaquina);
+  if(dim==='motivoPerdida') return t(o.motivoPerdida);
+  if(dim==='competidor') return t(o.competidor);
+  if(dim==='mes'){ const d=statsGetDate(o,'fechaOferta'); return d?statsFmtYM(d):'—'; }
+  if(dim==='anio'){ const d=statsGetDate(o,'fechaOferta'); return d?String(d.getFullYear()):'—'; }
+  return t(o[dim]);
+}
+
+function statsTab(which){
+  localStorage.setItem(STATS_TAB_KEY, which);
+  const r=document.getElementById('st-pane-resumen');
+  const c=document.getElementById('st-pane-custom');
+  const br=document.getElementById('st-tab-resumen');
+  const bc=document.getElementById('st-tab-custom');
+  if(r) r.style.display = (which==='custom')?'none':'block';
+  if(c) c.style.display = (which==='custom')?'block':'none';
+  if(br) br.classList.toggle('active', which!=='custom');
+  if(bc) bc.classList.toggle('active', which==='custom');
+  if(which==='custom') renderEstadisticasCustom();
+  else renderEstadisticasResumen();
+}
+
+// Wrapper que mantiene el comportamiento antiguo (Resumen) y añade Personalizado
+function renderEstadisticas(){
+  const which = localStorage.getItem(STATS_TAB_KEY) || 'resumen';
+  statsTab(which);
+}
+
+function renderEstadisticasCustom(){
+  const wrap=document.getElementById('stats-builder');
+  if(!wrap) return;
+
+  const st=statsLoad();
+  const state={
+    scope: st.scope || 'all',
+    dateField: st.dateField || 'fechaOferta',
+    from: st.from || '',
+    to: st.to || '',
+    dim1: st.dim1 || 'provincia',
+    dim2: st.dim2 || '',
+    metric: st.metric || 'count',
+    timeGroup: st.timeGroup || 'none',
+    topN: st.topN || 15,
+    sortDir: st.sortDir || 'desc'
+  };
+
+  wrap.innerHTML=`
+    <div class="sb-wrap">
+      <div class="sb-panel">
+        <h3>🎛️ Estadística personalizada</h3>
+        <div class="sb-mini">Crea tus propias estadísticas por <b>empresa</b>, <b>provincia</b>, <b>tipo máquina</b>, etc. y filtra por <b>mes/año</b> o por rango de fechas.</div>
+
+        <div class="sb-grid" style="margin-top:12px">
+          <div class="field"><label>Conjunto</label>
+            <select id="st-scope">
+              <option value="all">Todas</option>
+              <option value="activas">Activas</option>
+              <option value="cerradas">Cerradas</option>
+              <option value="ganadas">Ganadas</option>
+              <option value="perdidas">Perdidas/descartadas</option>
+            </select>
+          </div>
+          <div class="field"><label>Campo de fecha</label>
+            <select id="st-dateField">
+              <option value="fechaOferta">Fecha oferta</option>
+              <option value="fechaRecordatorio">Fecha recordatorio</option>
+              <option value="ultimaLlamada">Última llamada</option>
+              <option value="creadoEn">Creado en</option>
+            </select>
+          </div>
+          <div class="field"><label>Desde</label><input type="date" id="st-from"/></div>
+          <div class="field"><label>Hasta</label><input type="date" id="st-to"/></div>
+
+          <div class="field"><label>Agrupar por</label>
+            <select id="st-dim1">
+              <option value="provincia">Provincia</option>
+              <option value="empresa">Empresa</option>
+              <option value="responsable">Responsable</option>
+              <option value="estado">Estado</option>
+              <option value="tipoMaquina">Tipo máquina</option>
+              <option value="pais">País</option>
+              <option value="motivoPerdida">Motivo pérdida</option>
+              <option value="competidor">Competidor</option>
+              <option value="mes">Mes (fecha oferta)</option>
+              <option value="anio">Año (fecha oferta)</option>
+            </select>
+          </div>
+          <div class="field"><label>2ª dimensión</label>
+            <select id="st-dim2">
+              <option value="">— Ninguna —</option>
+              <option value="provincia">Provincia</option>
+              <option value="empresa">Empresa</option>
+              <option value="responsable">Responsable</option>
+              <option value="estado">Estado</option>
+              <option value="tipoMaquina">Tipo máquina</option>
+              <option value="pais">País</option>
+            </select>
+          </div>
+
+          <div class="field"><label>Métrica</label>
+            <select id="st-metric">
+              <option value="count">Nº ofertas</option>
+              <option value="sum_importe">Suma importe (€)</option>
+              <option value="avg_importe">Importe medio (€)</option>
+              <option value="win_rate">% cierre</option>
+            </select>
+          </div>
+          <div class="field"><label>Serie temporal</label>
+            <select id="st-timeGroup">
+              <option value="none">No</option>
+              <option value="month">Por mes</option>
+              <option value="year">Por año</option>
+            </select>
+          </div>
+
+          <div class="field"><label>Top N</label><input type="number" min="3" max="50" id="st-topN"/></div>
+          <div class="field"><label>Orden</label><select id="st-sortDir"><option value="desc">Desc</option><option value="asc">Asc</option></select></div>
+        </div>
+
+        <div class="sb-actions">
+          <button class="sb-btn primary" id="st-run">▶ Generar</button>
+          <button class="sb-btn ghost" id="st-preset-mes">🗓 Este mes</button>
+          <button class="sb-btn ghost" id="st-preset-ano">📅 Este año</button>
+          <button class="sb-btn danger" id="st-reset">⟲ Reset</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="sb-kpis" id="st-kpis"></div>
+        <div class="sb-card" id="st-chart"></div>
+        <div class="sb-card" style="margin-top:14px" id="st-table"></div>
+      </div>
+    </div>
+  `;
+
+  const $=(id)=>document.getElementById(id);
+  $('st-scope').value=state.scope;
+  $('st-dateField').value=state.dateField;
+  $('st-from').value=state.from;
+  $('st-to').value=state.to;
+  $('st-dim1').value=state.dim1;
+  $('st-dim2').value=state.dim2;
+  $('st-metric').value=state.metric;
+  $('st-timeGroup').value=state.timeGroup;
+  $('st-topN').value=state.topN;
+  $('st-sortDir').value=state.sortDir;
+
+  function collect(){
+    const out={
+      scope:$('st-scope').value,
+      dateField:$('st-dateField').value,
+      from:$('st-from').value,
+      to:$('st-to').value,
+      dim1:$('st-dim1').value,
+      dim2:$('st-dim2').value,
+      metric:$('st-metric').value,
+      timeGroup:$('st-timeGroup').value,
+      topN:Math.max(3,Math.min(50, parseInt($('st-topN').value||'15',10))),
+      sortDir:$('st-sortDir').value
+    };
+    statsSave(out);
+    return out;
+  }
+
+  function formatMetric(v, metric){
+    if(metric==='win_rate') return `${Math.round(v)}%`;
+    if(metric==='sum_importe' || metric==='avg_importe') return `${Math.round(v).toLocaleString('es-ES')} €`;
+    return (typeof v==='number') ? v.toLocaleString('es-ES') : String(v);
+  }
+
+  window.statsDownloadCSV = function(){
+    const exp=window.__statsLastExport;
+    if(!exp || !exp.rows) return toast('⚠️ No hay datos para exportar','#f59e0b');
+    const headers=exp.headers;
+    const esc=(x)=>{const s=String(x??''); return /[",
+]/.test(s)?('"'+s.replace(/"/g,'""')+'"'):s;};
+    const lines=[headers.map(esc).join(',')];
+    exp.rows.forEach(r=>lines.push(headers.map(h=>esc(r[h])).join(',')));
+    const blob=new Blob([lines.join('
+')],{type:'text/csv;charset=utf-8;'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`Marcopack_stats_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('✅ CSV descargado','#10b981');
+  };
+
+  function run(){
+    const s=collect();
+    const from=s.from?new Date(s.from+'T00:00:00'):null;
+    const to=s.to?new Date(s.to+'T23:59:59'):null;
+
+    let rows=[...ofertas];
+    const cerrados=["Ganada","Perdida","Descartada"];
+    if(s.scope==='activas') rows=rows.filter(o=>!cerrados.includes(o.estado));
+    if(s.scope==='cerradas') rows=rows.filter(o=>cerrados.includes(o.estado));
+    if(s.scope==='ganadas') rows=rows.filter(o=>o.estado==='Ganada');
+    if(s.scope==='perdidas') rows=rows.filter(o=>o.estado==='Perdida' || o.estado==='Descartada');
+
+    // Si no hay rango, no excluyas por no tener fecha en ese campo
+    rows = rows.filter(o=>{
+      const d=statsGetDate(o, s.dateField);
+      if(!d){ return (!from && !to); }
+      return statsInRange(d, from, to);
+    });
+
+    const total=rows.length;
+    const totalImp=rows.reduce((a,o)=>a+(o.importe||0),0);
+    const gan=rows.filter(o=>o.estado==='Ganada');
+    const cerr=rows.filter(o=>cerrados.includes(o.estado));
+    const winRate=cerr.length?Math.round(gan.length/cerr.length*100):0;
+
+    document.getElementById('st-kpis').innerHTML=`
+      <div class="sb-card"><div style="color:var(--accent);font-size:26px;font-weight:900">${total}</div><div style="color:var(--text3);font-size:11px;font-weight:800">OFERTAS</div></div>
+      <div class="sb-card"><div style="color:#34d399;font-size:22px;font-weight:900">${Math.round(totalImp).toLocaleString('es-ES')} €</div><div style="color:var(--text3);font-size:11px;font-weight:800">IMPORTE</div></div>
+      <div class="sb-card"><div style="color:var(--purple);font-size:22px;font-weight:900">${winRate}%</div><div style="color:var(--text3);font-size:11px;font-weight:800">CIERRE</div></div>
+    `;
+
+    function metricAgg(items){
+      const impSum=items.reduce((a,o)=>a+(o.importe||0),0);
+      if(s.metric==='count') return items.length;
+      if(s.metric==='sum_importe') return impSum;
+      if(s.metric==='avg_importe') return items.length?impSum/items.length:0;
+      if(s.metric==='win_rate'){
+        const c=items.filter(o=>cerrados.includes(o.estado));
+        const w=c.filter(o=>o.estado==='Ganada');
+        return c.length? (w.length/c.length*100):0;
+      }
+      return items.length;
+    }
+    const metricLabel=({count:'Nº ofertas',sum_importe:'Importe total (€)',avg_importe:'Importe medio (€)',win_rate:'% cierre'})[s.metric]||'Valor';
+
+    // Serie temporal
+    if(s.timeGroup!=='none'){
+      const bucket={};
+      rows.forEach(o=>{
+        const d=statsGetDate(o, s.dateField) || statsGetDate(o,'fechaOferta');
+        if(!d) return;
+        const key = s.timeGroup==='year'? String(d.getFullYear()) : statsFmtYM(d);
+        (bucket[key]=bucket[key]||[]).push(o);
+      });
+      const labels=Object.keys(bucket).sort();
+      const values=labels.map(k=>metricAgg(bucket[k]));
+      const max=Math.max(...values,1);
+
+      document.getElementById('st-chart').innerHTML=`
+        <h4>🗓 Evolución ${s.timeGroup==='year'?'anual':'mensual'} — ${metricLabel}</h4>
+        <div style="display:flex;align-items:flex-end;gap:8px;height:200px;padding:10px 4px 0">
+          ${labels.map((lab,i)=>{
+            const v=values[i];
+            const h=Math.round(v/max*150)+8;
+            const topTxt=s.metric==='win_rate'?Math.round(v)+'%': (s.metric.includes('importe')?Math.round(v).toLocaleString('es-ES'):v);
+            return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:16px">
+              <div style="font-size:10px;color:var(--accent);font-weight:900">${topTxt}</div>
+              <div class="sb-bar" style="width:100%"><div style="width:100%;height:${h}px"></div></div>
+              <div style="font-size:10px;color:var(--text3);white-space:nowrap">${lab}</div>
+            </div>`;
+          }).join('')}
+        </div>
+        <div class="sb-actions" style="margin-top:12px"><button class="sb-btn ghost" onclick="statsDownloadCSV()">⬇️ CSV</button></div>
+      `;
+
+      const exportRows=labels.map((lab,i)=>({periodo:lab, valor:values[i]}));
+      window.__statsLastExport={headers:['periodo','valor'], rows: exportRows};
+      document.getElementById('st-table').innerHTML=`
+        <h4>📋 Tabla</h4>
+        <table class="sb-table"><thead><tr><th>Periodo</th><th>${metricLabel}</th></tr></thead>
+          <tbody>${exportRows.map(r=>`<tr><td>${r.periodo}</td><td>${formatMetric(r.valor, s.metric)}</td></tr>`).join('')}</tbody>
+        </table>`;
+      return;
+    }
+
+    // Pivot
+    if(s.dim2){
+      const map={};
+      const rowKeys=new Set();
+      const colKeys=new Set();
+      rows.forEach(o=>{
+        const r=statsVal(o, s.dim1);
+        const c=statsVal(o, s.dim2);
+        rowKeys.add(r); colKeys.add(c);
+        map[r]=map[r]||{};
+        (map[r][c]=map[r][c]||[]).push(o);
+      });
+      const rowsK=[...rowKeys].sort();
+      const colsK=[...colKeys].sort();
+
+      const rowTotals=rowsK.map(r=>({r,total:metricAgg(colsK.flatMap(c=>map[r][c]||[]))}));
+      rowTotals.sort((a,b)=>s.sortDir==='asc'?a.total-b.total:b.total-a.total);
+      const showRows=rowTotals.slice(0,s.topN).map(x=>x.r);
+
+      document.getElementById('st-chart').innerHTML=`
+        <h4>🧩 Pivot — ${metricLabel}</h4>
+        <div class="sb-actions" style="margin-top:12px"><button class="sb-btn ghost" onclick="statsDownloadCSV()">⬇️ CSV</button></div>`;
+
+      const headers=[s.dim1, ...colsK, 'total'];
+      const exportRows=[];
+      showRows.forEach(r=>{
+        const obj={}; obj[s.dim1]=r;
+        colsK.forEach(c=>obj[c]=metricAgg(map[r][c]||[]));
+        obj.total=metricAgg(colsK.flatMap(c=>map[r][c]||[]));
+        exportRows.push(obj);
+      });
+      window.__statsLastExport={headers, rows: exportRows};
+
+      const headCols=colsK.map(c=>`<th>${c}</th>`).join('');
+      const body=showRows.map(r=>{
+        const tds=colsK.map(c=>`<td>${formatMetric(metricAgg(map[r][c]||[]), s.metric)}</td>`).join('');
+        const tot=metricAgg(colsK.flatMap(c=>map[r][c]||[]));
+        return `<tr><td><b>${r}</b></td>${tds}<td><b>${formatMetric(tot, s.metric)}</b></td></tr>`;
+      }).join('');
+
+      document.getElementById('st-table').innerHTML=`
+        <h4>📋 Tabla pivot</h4>
+        <div style="overflow:auto">
+          <table class="sb-table" style="min-width:760px"><thead><tr><th>${s.dim1}</th>${headCols}<th>Total</th></tr></thead><tbody>${body}</tbody></table>
+        </div>`;
+      return;
+    }
+
+    // Grouped bars
+    const bucket={};
+    rows.forEach(o=>{ const k=statsVal(o, s.dim1); (bucket[k]=bucket[k]||[]).push(o); });
+    const items=Object.entries(bucket).map(([k,list])=>({label:k,value:metricAgg(list),count:list.length,imp:list.reduce((a,o)=>a+(o.importe||0),0)}));
+    items.sort((a,b)=>s.sortDir==='asc'?a.value-b.value:b.value-a.value);
+    const shown=items.slice(0,s.topN);
+    const max=Math.max(...shown.map(x=>x.value),1);
+
+    document.getElementById('st-chart').innerHTML=`
+      <h4>📌 ${metricLabel} por ${s.dim1}</h4>
+      <div style="margin-top:12px">${shown.map(it=>{
+        const w=Math.round(it.value/max*100);
+        return `<div style="display:flex;align-items:center;gap:10px;margin:8px 0">
+          <div style="min-width:160px;max-width:220px;color:var(--text2);font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${it.label}">${it.label}</div>
+          <div class="sb-bar" style="flex:1"><div style="width:${w}%"></div></div>
+          <div style="min-width:120px;text-align:right;color:var(--text);font-weight:900;font-size:12px">${formatMetric(it.value, s.metric)}</div>
+        </div>`;
+      }).join('')}</div>
+      <div class="sb-actions" style="margin-top:12px"><button class="sb-btn ghost" onclick="statsDownloadCSV()">⬇️ CSV</button></div>`;
+
+    window.__statsLastExport={headers:[s.dim1,'valor','count','importe'], rows: shown.map(it=>({[s.dim1]:it.label, valor:it.value, count:it.count, importe:it.imp}))};
+
+    document.getElementById('st-table').innerHTML=`
+      <h4>📋 Tabla</h4>
+      <table class="sb-table"><thead><tr><th>${s.dim1}</th><th>${metricLabel}</th><th>Nº</th><th>Importe</th></tr></thead>
+        <tbody>${shown.map(it=>`<tr><td><b>${it.label}</b></td><td>${formatMetric(it.value, s.metric)}</td><td>${it.count}</td><td>${Math.round(it.imp).toLocaleString('es-ES')} €</td></tr>`).join('')}</tbody>
+      </table>`;
+  }
+
+  document.getElementById('st-run').onclick=run;
+  document.getElementById('st-reset').onclick=()=>{ localStorage.removeItem(STATS_STATE_KEY); toast('✅ Reset','#10b981'); renderEstadisticasCustom(); };
+  document.getElementById('st-preset-mes').onclick=()=>{
+    const d=new Date();
+    const from=new Date(d.getFullYear(), d.getMonth(), 1);
+    const to=new Date(d.getFullYear(), d.getMonth()+1, 0);
+    document.getElementById('st-from').value=from.toISOString().split('T')[0];
+    document.getElementById('st-to').value=to.toISOString().split('T')[0];
+    run();
+  };
+  document.getElementById('st-preset-ano').onclick=()=>{
+    const d=new Date();
+    const from=new Date(d.getFullYear(), 0, 1);
+    const to=new Date(d.getFullYear(), 11, 31);
+    document.getElementById('st-from').value=from.toISOString().split('T')[0];
+    document.getElementById('st-to').value=to.toISOString().split('T')[0];
+    run();
+  };
+
+  run();
+}
+
 // ===== MAPA =====
 function renderMapa(){
   const porProv={};
@@ -1585,75 +2201,13 @@ function showMapaTip(e,prov,n){
 }
 function hideMapaTip(){document.getElementById("mapa-tip").style.display="none";}
 function filtrarProv(prov){
-  document.getElementById("f-prov").value=prov;
-  setVista("tabla");
+  try{
+    provinciasSeleccionadas = new Set([prov]);
+    actualizarLabelProv();
+    renderProvOpciones(document.getElementById('prov-search')?document.getElementById('prov-search').value:'');
+  }catch(_){}
+  setVista('tabla');
 }
-
-// ===== IA PREVISIÓN =====
-async function renderIA(){
-  const el=document.getElementById("vista-ia");
-  el.innerHTML=`<div class="ia-loading">🤖 Analizando ofertas con IA...</div>`;
-
-  // Preparar datos para análisis
-  const activas=ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado));
-  if(!activas.length){el.innerHTML=`<div style="color:var(--text3);padding:40px;text-align:center">No hay ofertas activas para analizar</div>`;return;}
-
-  // Calcular puntuación de probabilidad basada en reglas
-  const scored=activas.map(o=>{
-    let score=30; // base
-    if(o.estado==="Negociación")score+=35;
-    else if(o.estado==="Interesado")score+=25;
-    else if(o.estado==="En seguimiento")score+=10;
-    // Penalizar por inactividad
-    const ultima=o.fechaUltimaActividad?.toDate?o.fechaUltimaActividad.toDate():o.creadoEn?.toDate?o.creadoEn.toDate():null;
-    if(ultima){
-      const dias=Math.floor((new Date()-ultima)/(864e5));
-      if(dias>90)score-=20;
-      else if(dias>30)score-=10;
-      else if(dias<7)score+=10;
-    }
-    // Bonificar si tiene recordatorio próximo
-    if(o.fechaRecordatorio){
-      const diasRec=Math.ceil((new Date(o.fechaRecordatorio)-new Date())/(864e5));
-      if(diasRec>=0&&diasRec<=14)score+=10;
-    }
-    // Llamadas registradas
-    if((o.numLlamadas||0)>2)score+=10;
-    score=Math.max(5,Math.min(95,score));
-    return {...o,score};
-  }).sort((a,b)=>b.score-a.score);
-
-  const totalPipeline=scored.reduce((s,o)=>s+(o.importe||0),0);
-  const previsionPonderada=scored.reduce((s,o)=>s+(o.importe||0)*(o.score/100),0);
-
-  el.innerHTML=`
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:20px">
-      <div class="dash-kpi"><div class="val" style="color:#a78bfa">${scored.length}</div><div class="lbl">Ofertas en análisis</div></div>
-      <div class="dash-kpi"><div class="val" style="color:var(--accent)">${totalPipeline.toLocaleString("es-ES")} €</div><div class="lbl">Pipeline total</div></div>
-      <div class="dash-kpi"><div class="val" style="color:#10b981">${Math.round(previsionPonderada).toLocaleString("es-ES")} €</div><div class="lbl">Previsión ponderada</div><div class="sub" style="color:var(--text3)">Basada en probabilidad</div></div>
-    </div>
-    <div class="ia-card">
-      <h3>🎯 Ranking de probabilidad de cierre</h3>
-      ${scored.slice(0,15).map(o=>{
-        const col=o.score>=70?"#10b981":o.score>=40?"#f59e0b":"#ef4444";
-        return `<div class="ia-pred" onclick="verDetalle('${o.id}')" style="cursor:pointer">
-          <div class="ia-prob" style="background:${col}22;color:${col};border:2px solid ${col}55">${o.score}%</div>
-          <div style="flex:1">
-            <div style="color:var(--text);font-size:13px;font-weight:600">${o.empresa}</div>
-            <div style="color:var(--text3);font-size:11px">${o.provincia||""} · ${o.tipoMaquina||""} · ${(o.responsableNombre||"").split(" ")[0]}</div>
-          </div>
-          <div style="text-align:right">
-            <div style="color:#34d399;font-size:13px;font-weight:700">${(o.importe||0).toLocaleString("es-ES")} €</div>
-            <span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}55;font-size:10px">${o.estado}</span>
-          </div>
-        </div>`;
-      }).join("")}
-    </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:12px">
-      <div style="color:var(--text3);font-size:12px">ℹ️ La probabilidad se calcula en base al estado de la oferta, días de inactividad, historial de llamadas y proximidad del recordatorio. No requiere conexión a una IA externa.</div>
-    </div>`;
-}
-
 // ===== LLAMADAS =====
 
 // ===== LLAMADAS — BORRADO SELECTIVO DE HISTORIAL (solo historial, NO elimina oferta) =====
@@ -3098,12 +3652,11 @@ function toast(msg,color="#10b981"){
   setTimeout(()=>el.style.opacity="0",3500);
 }
 
-// Arrancar en dashboard
+// Arranque seguro
 window.onload=()=>{
-  // Cerrar cualquier sesión residual al cargar la página
-  // Así siempre se pide usuario y contraseña
-  auth.signOut().catch(()=>{});
-  setTimeout(()=>{ if(document.getElementById("app").style.display!=="none")setVista("dashboard"); },500);
+  // Si hay sesión válida, onAuthStateChanged mostrará la app.
+  // Si no, se queda en login.
+  // Nunca forzamos signOut aquí (evita bucles/errores en GitHub Pages).
 };
 </script>
 </body>
