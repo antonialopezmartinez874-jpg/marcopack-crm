@@ -576,7 +576,12 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
         <div class="field"><label>🌍 País</label><select id="f-pais-form"><option value="">— Seleccionar país —</option></select></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>Tipo de Máquina</label><input id="f-tipo" list="lista-tipos" placeholder="Escribe o selecciona un modelo..."/><datalist id="lista-tipos">
+        <div class="field"><label>Tipo de Máquina <span style="color:var(--text3);font-size:10px;font-weight:400">(escribe libremente o elige de la lista)</span></label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input id="f-tipo" list="lista-tipos" placeholder="Escribe o elige un modelo..." style="flex:1"/>
+            <button type="button" onclick="guardarTipoPersonalizado()" title="Guardar este tipo en la lista" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:var(--radius-sm);padding:7px 10px;font-size:13px;cursor:pointer;white-space:nowrap;font-family:inherit;font-weight:700;flex-shrink:0">＋ Guardar</button>
+          </div>
+          <datalist id="lista-tipos">
   <option value="CONTROLADORA DE PESO 1 TRANSPORTE"></option>
   <option value="CONTROLADORA DE PESO 2 TRANSPORTES"></option>
   <option value="CONTROLADORA DE PESO 3 TRANSPORTES"></option>
@@ -883,7 +888,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 // ===== FIREBASE =====
 const firebaseConfig={apiKey:"AIzaSyB4kJsqEtQ0ypOIL4LyY9rhTBpcY_mxhnI",authDomain:"machinecrm-61b34.firebaseapp.com",projectId:"machinecrm-61b34",storageBucket:"machinecrm-61b34.firebasestorage.app",messagingSenderId:"686919580495",appId:"1:686919580495:web:019fa5682054bb089a633a"};
 firebase.initializeApp(firebaseConfig);
-console.log('[Marcopack CRM] Build v2.0_STABLE_20260408');
+console.log('[Marcopack CRM] v3.0 — Build estable');
 const auth=firebase.auth(),db=firebase.firestore();
 
 // ===== SEGURIDAD: No recordar sesión entre visitas =====
@@ -1066,6 +1071,34 @@ function toggleMotivoUI(){
 }
 
 const TIPOS=[]; // Las opciones de máquina están en el select f-tipo directamente
+// ===== TIPOS PERSONALIZADOS DE MÁQUINA =====
+function cargarTiposPersonalizados(){
+  try{
+    const guardados=JSON.parse(localStorage.getItem('crm_tipos_extra')||'[]');
+    const dl=document.getElementById('lista-tipos');
+    if(!dl) return;
+    guardados.forEach(t=>{
+      // Evitar duplicados
+      const existe=[...dl.options].some(o=>o.value===t);
+      if(!existe){ const op=document.createElement('option'); op.value=t; dl.appendChild(op); }
+    });
+  }catch(e){}
+}
+function guardarTipoPersonalizado(){
+  const val=(document.getElementById('f-tipo')?.value||'').trim().toUpperCase();
+  if(!val){ toast('⚠️ Escribe primero el tipo de máquina','#f59e0b'); return; }
+  try{
+    const guardados=JSON.parse(localStorage.getItem('crm_tipos_extra')||'[]');
+    const dl=document.getElementById('lista-tipos');
+    // Comprobar si ya existe en el datalist
+    const existe=[...dl.options].some(o=>o.value===val);
+    if(existe){ toast('ℹ️ Este tipo ya está en la lista','#3b82f6'); return; }
+    guardados.push(val);
+    localStorage.setItem('crm_tipos_extra',JSON.stringify(guardados));
+    const op=document.createElement('option'); op.value=val; dl.appendChild(op);
+    toast('✅ Tipo "'+val+'" guardado en la lista','#10b981');
+  }catch(e){ toast('❌ Error al guardar: '+e.message,'#ef4444'); }
+}
 const CE={Pendiente:"#f59e0b","En seguimiento":"#3b82f6",Interesado:"#8b5cf6","Negociación":"#f97316",Ganada:"#10b981",Perdida:"#ef4444",Descartada:"#6b7280"};
 const CG=["#38bdf8","#10b981","#f59e0b","#8b5cf6","#f97316","#ef4444","#06b6d4","#84cc16","#ec4899","#6366f1"];
 // Coordenadas aproximadas de capitales de provincia (lat,lng simplificadas en porcentaje SVG)
@@ -1076,6 +1109,7 @@ const DIAS_ALERTA=60; // días sin actividad para generar alerta
 let currentUser=null,currentProfile=null;
 let ofertas=[],ordenCampo="fechaOferta",ordenDir="desc";
 let vistaActual="dashboard",archivosTemp=[],editandoId=null,llamadaOfertaId=null;
+let _ofertasUnsub=null; // Referencia al listener de Firestore para cancelarlo en logout
 
 // ===== AUTH =====
 auth.onAuthStateChanged(async user=>{
@@ -1113,8 +1147,9 @@ auth.onAuthStateChanged(async user=>{
       setTimeout(()=>{ try{ setVista('dashboard'); }catch(_){ } }, 50);
 
     }else{
-      // Sin sesión
-      currentUser=null; currentProfile=null;
+      // Sin sesión — cancelar listener activo antes de limpiar estado
+      if(_ofertasUnsub){ try{ _ofertasUnsub(); }catch(_){} _ofertasUnsub=null; }
+      currentUser=null; currentProfile=null; ofertas=[];
       const app=document.getElementById("app");
       const setup=document.getElementById("setup-screen");
       const login=document.getElementById("login-screen");
@@ -1124,9 +1159,12 @@ auth.onAuthStateChanged(async user=>{
       comprobarPrimerAcceso();
     }
   }catch(e){
-    console.error('Error en inicialización de sesión:', e);
+    console.error('[CRM] Error en inicialización de sesión:', e);
     const el=document.getElementById('login-error');
-    if(el){ el.textContent='❌ Error inicializando: '+(e.message||e)+' (Build: LOGIN_FIX_20260408_074010)'; el.style.display='block'; }
+    if(el){
+      el.textContent='❌ Error al iniciar sesión. Recarga la página e inténtalo de nuevo.';
+      el.style.display='block';
+    }
     const app=document.getElementById("app");
     const setup=document.getElementById("setup-screen");
     const login=document.getElementById("login-screen");
@@ -1136,16 +1174,17 @@ auth.onAuthStateChanged(async user=>{
   }
 });
 async function comprobarPrimerAcceso(){
-  // Comprueba si ya existe algún usuario en Firestore
   try{
     const snap=await db.collection("usuarios").limit(1).get();
     if(snap.empty){
-      // No hay usuarios — mostrar pantalla de primer acceso
-      document.getElementById("login-screen").style.display="none";
-      document.getElementById("setup-screen").style.display="flex";
+      const login=document.getElementById("login-screen");
+      const setup=document.getElementById("setup-screen");
+      if(login) login.style.display="none";
+      if(setup) setup.style.display="flex";
     }
   }catch(e){
-    // Si falla (sin conexión, etc.) simplemente mostramos el login normal
+    // Sin conexión o Firestore no disponible — mostrar login normal sin bloquear
+    console.warn('[CRM] comprobarPrimerAcceso: no se pudo contactar con Firestore', e);
   }
 }
 
@@ -1191,7 +1230,6 @@ async function doLogin(){
   const btn=document.getElementById("btn-login");
   btn.textContent="Verificando...";btn.disabled=true;
   try{
-    // Asegurar que la persistencia es solo de sesión antes de cada login
     await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
     await auth.signInWithEmailAndPassword(email,pass);
     // onAuthStateChanged se encarga de mostrar la app
@@ -1202,9 +1240,13 @@ async function doLogin(){
     } else if(e.code==="auth/invalid-email"){
       showErr("El formato del email no es válido.");
     } else if(e.code==="auth/too-many-requests"){
-      showErr("Cuenta bloqueada temporalmente por demasiados intentos. Inténtalo más tarde.");
+      showErr("Cuenta bloqueada temporalmente por demasiados intentos fallidos. Inténtalo en unos minutos.");
+    } else if(e.code==="auth/network-request-failed"){
+      showErr("Sin conexión a internet. Comprueba tu red e inténtalo de nuevo.");
+    } else if(e.code==="auth/user-disabled"){
+      showErr("Esta cuenta ha sido desactivada. Contacta con el administrador.");
     } else {
-      showErr("Error de acceso: "+e.message);
+      showErr("Error de acceso. Inténtalo de nuevo.");
     }
   }
 }
@@ -1213,7 +1255,13 @@ function showErr(msg){
   el.textContent=msg;el.style.display="block";
   setTimeout(()=>el.style.display="none",6000);
 }
-function doLogout(){auth.signOut();}
+function doLogout(){
+  // Cancelar listener de Firestore antes de cerrar sesión
+  // (evita errores de permission-denied al intentar leer sin autenticación)
+  if(_ofertasUnsub){ try{ _ofertasUnsub(); }catch(_){} _ofertasUnsub=null; }
+  ofertas=[];
+  auth.signOut();
+}
 
 // ===== SELECTS =====
 let provinciasSeleccionadas=new Set();
@@ -1357,7 +1405,9 @@ document.addEventListener("click",function(e){
 
 // ===== TIEMPO REAL =====
 function escucharOfertas(){
-  db.collection("ofertas").orderBy("fechaOferta","desc").onSnapshot(snap=>{
+  // Cancelar listener anterior si existe (evita duplicados y errores de permiso al re-login)
+  if(_ofertasUnsub){ try{ _ofertasUnsub(); }catch(_){} _ofertasUnsub=null; }
+  _ofertasUnsub=db.collection("ofertas").orderBy("fechaOferta","desc").onSnapshot(snap=>{
     ofertas=snap.docs.map(d=>({id:d.id,...d.data()}));
     acReconstruirIndice();
     const fr=document.getElementById("f-resp"),frm=document.getElementById("f-resp-form");
@@ -1367,6 +1417,13 @@ function escucharOfertas(){
     nombres.forEach(n=>{fr.add(new Option(n,n));frm.add(new Option(n,n));});
     if(currentProfile?.nombre&&!nombres.includes(currentProfile.nombre))frm.add(new Option(currentProfile.nombre,currentProfile.nombre));
     renderStats();renderVista();
+  }, err=>{
+    // Si Firestore devuelve permission-denied (p.ej. sesión caducada), silenciar
+    if(err.code==='permission-denied'||err.code==='unauthenticated'){
+      console.warn('[CRM] Listener de ofertas cerrado por falta de permisos (sesión terminada)');
+    } else {
+      console.error('[CRM] Error en listener de ofertas:', err);
+    }
   });
 }
 
@@ -1843,12 +1900,36 @@ function renderEstadisticasCustom(){
   const st=statsLoad();
   const state={scope:st.scope||'all',dateField:st.dateField||'fechaOferta',from:st.from||'',to:st.to||'',dim1:st.dim1||'provincia',dim2:st.dim2||'',metric:st.metric||'count',timeGroup:st.timeGroup||'none',topN:st.topN||15,sortDir:st.sortDir||'desc'};
 
+  // Generar opciones de años disponibles (últimos 6 años)
+  const anioActual=new Date().getFullYear();
+  const aniosOpts=[...Array(6)].map((_,i)=>anioActual-i).map(y=>`<option value="${y}">${y}</option>`).join('');
+  const mesesNombres=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const mesActual=new Date().getMonth();
+  const mesesOpts=mesesNombres.map((m,i)=>`<option value="${i}"${i===mesActual?' selected':''}>${m}</option>`).join('');
+
   wrap.innerHTML=`
     <div class="sb-wrap">
       <div class="sb-panel">
         <h3>🎛️ Estadística personalizada</h3>
-        <div class="sb-mini">Crea estadísticas por provincia/empresa/tipo… y filtra por rango (mes/año). Puedes exportar a CSV.</div>
-        <div class="sb-grid" style="margin-top:12px">
+        <div class="sb-mini">Crea estadísticas por provincia, empresa, tipo de máquina… Filtra por mes, año o rango libre. Exporta a CSV.</div>
+
+        <!-- PRESETS RÁPIDOS -->
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:10px 0">
+          <div style="color:var(--text3);font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">⚡ Acceso rápido</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <button class="sb-btn ghost" id="st-preset-mes">🗓 Este mes</button>
+            <button class="sb-btn ghost" id="st-preset-ano">📅 Este año</button>
+            <span style="color:var(--border2);font-size:16px">|</span>
+            <select id="st-preset-mes-sel" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 8px;font-size:12px;color:var(--text);font-family:inherit">${mesesOpts}</select>
+            <select id="st-preset-mes-anio" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 8px;font-size:12px;color:var(--text);font-family:inherit">${aniosOpts}</select>
+            <button class="sb-btn ghost" id="st-preset-mes-custom">Ver mes</button>
+            <span style="color:var(--border2);font-size:16px">|</span>
+            <select id="st-preset-anio-sel" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 8px;font-size:12px;color:var(--text);font-family:inherit">${aniosOpts}</select>
+            <button class="sb-btn ghost" id="st-preset-anio-custom">Ver año</button>
+          </div>
+        </div>
+
+        <div class="sb-grid" style="margin-top:10px">
           <div class="field"><label>Conjunto</label>
             <select id="st-scope"><option value="all">Todas</option><option value="activas">Activas</option><option value="cerradas">Cerradas</option><option value="ganadas">Ganadas</option><option value="perdidas">Perdidas/descartadas</option></select>
           </div>
@@ -1874,8 +1955,6 @@ function renderEstadisticasCustom(){
         </div>
         <div class="sb-actions">
           <button class="sb-btn primary" id="st-run">▶ Generar</button>
-          <button class="sb-btn ghost" id="st-preset-mes">🗓 Este mes</button>
-          <button class="sb-btn ghost" id="st-preset-ano">📅 Este año</button>
           <button class="sb-btn danger" id="st-reset">⟲ Reset</button>
         </div>
       </div>
@@ -1988,61 +2067,178 @@ function renderEstadisticasCustom(){
   document.getElementById('st-reset').onclick=()=>{ localStorage.removeItem(STATS_STATE_KEY); toast('✅ Reset','#10b981'); renderEstadisticasCustom(); };
   document.getElementById('st-preset-mes').onclick=()=>{ const d=new Date(); const from=new Date(d.getFullYear(),d.getMonth(),1); const to=new Date(d.getFullYear(),d.getMonth()+1,0); document.getElementById('st-from').value=from.toISOString().split('T')[0]; document.getElementById('st-to').value=to.toISOString().split('T')[0]; run(); };
   document.getElementById('st-preset-ano').onclick=()=>{ const d=new Date(); const from=new Date(d.getFullYear(),0,1); const to=new Date(d.getFullYear(),11,31); document.getElementById('st-from').value=from.toISOString().split('T')[0]; document.getElementById('st-to').value=to.toISOString().split('T')[0]; run(); };
+  document.getElementById('st-preset-mes-custom').onclick=()=>{
+    const mes=parseInt(document.getElementById('st-preset-mes-sel').value,10);
+    const anio=parseInt(document.getElementById('st-preset-mes-anio').value,10);
+    const from=new Date(anio,mes,1); const to=new Date(anio,mes+1,0);
+    document.getElementById('st-from').value=from.toISOString().split('T')[0];
+    document.getElementById('st-to').value=to.toISOString().split('T')[0];
+    run();
+  };
+  document.getElementById('st-preset-anio-custom').onclick=()=>{
+    const anio=parseInt(document.getElementById('st-preset-anio-sel').value,10);
+    const from=new Date(anio,0,1); const to=new Date(anio,11,31);
+    document.getElementById('st-from').value=from.toISOString().split('T')[0];
+    document.getElementById('st-to').value=to.toISOString().split('T')[0];
+    run();
+  };
   run();
 }
 
 // ===== MAPA =====
 function renderMapa(){
   const porProv={};
-  ofertas.forEach(o=>{if(o.provincia)porProv[o.provincia]=(porProv[o.provincia]||0)+1;});
+  const impProv={};
+  const ganProv={};
+  ofertas.forEach(o=>{
+    if(!o.provincia) return;
+    porProv[o.provincia]=(porProv[o.provincia]||0)+1;
+    impProv[o.provincia]=(impProv[o.provincia]||0)+(o.importe||0);
+    if(o.estado==='Ganada') ganProv[o.provincia]=(ganProv[o.provincia]||0)+1;
+  });
   const max=Math.max(...Object.values(porProv),1);
-  let circulos="";
+  const totalOfertas=Object.values(porProv).reduce((a,b)=>a+b,0);
+  const totalImporte=Object.values(impProv).reduce((a,b)=>a+b,0);
+  const ranking=Object.entries(porProv).sort((a,b)=>b[1]-a[1]).slice(0,10);
+
+  // Paleta de calor: de azul claro a rojo intenso según intensidad
+  function colorProv(n){
+    const t=n/max;
+    if(t===0) return '#cbd5e1';
+    if(t<0.2) return '#93c5fd';
+    if(t<0.4) return '#60a5fa';
+    if(t<0.6) return '#f59e0b';
+    if(t<0.8) return '#f97316';
+    return '#ef4444';
+  }
+
+  // Círculos del mapa
+  let circulos='';
   Object.entries(PROV_POS).forEach(([prov,[x,y]])=>{
     const n=porProv[prov]||0;
-    if(n===0)return;
-    const r=6+Math.sqrt(n/max)*20;
-    const col=n>10?"#ef4444":n>5?"#f97316":n>2?"#f59e0b":"#38bdf8";
-    circulos+=`<circle class="prov-circle" cx="${x}%" cy="${y}%" r="${r}" fill="${col}" fill-opacity="0.7" stroke="${col}" stroke-width="1.5"
-      onmouseenter="showMapaTip(event,'${prov}',${n})" onmouseleave="hideMapaTip()" onclick="filtrarProv('${prov}')"/>
-      <text x="${x}%" y="${y}%" text-anchor="middle" dominant-baseline="middle" font-size="9" font-weight="700" fill="white" pointer-events="none">${n}</text>`;
+    const imp=impProv[prov]||0;
+    const gan=ganProv[prov]||0;
+    const r=n===0?0:Math.max(4, 4+Math.sqrt(n/max)*22);
+    const col=colorProv(n);
+    const wonPct=n>0?Math.round(gan/n*100):0;
+    if(n===0){
+      circulos+=`<circle cx="${x}%" cy="${y}%" r="2.5" fill="#e2e8f0" stroke="#c7d2e0" stroke-width="0.5" opacity="0.6"/>`;
+    } else {
+      circulos+=`<g class="prov-g" onclick="filtrarProv('${prov}')" style="cursor:pointer">
+        <circle cx="${x}%" cy="${y}%" r="${r}" fill="${col}" fill-opacity="0.82" stroke="white" stroke-width="1.5"
+          onmouseenter="showMapaTip(event,'${prov}',${n},${imp},${gan})" onmouseleave="hideMapaTip()"/>
+        <text x="${x}%" y="${y}%" text-anchor="middle" dominant-baseline="middle" font-size="${r>10?9:7}" font-weight="800" fill="white" pointer-events="none">${n}</text>
+      </g>`;
+    }
   });
-  document.getElementById("mapa-container").innerHTML=`
-    <div style="color:var(--text3);font-size:12px;margin-bottom:12px">Haz clic en una provincia para filtrar · Tamaño = número de ofertas</div>
-    <div class="mapa-wrap">
-      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="background:var(--surface);border:1px solid var(--border);border-radius:12px">
-        <rect width="100" height="100" fill="#f0f4fa"/>
-        <!-- España simplificada -->
-        <ellipse cx="42" cy="50" rx="30" ry="28" fill="#131c2e" stroke="#1e3a5f" stroke-width="0.5"/>
-        ${circulos}
-      </svg>
-      <div class="mapa-tooltip" id="mapa-tip"></div>
-    </div>
-    <div style="margin-top:16px">
-      <h3 style="color:var(--accent);font-size:13px;margin-bottom:10px">📋 Detalle por provincia</h3>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px">
-        ${Object.entries(porProv).sort((a,b)=>b[1]-a[1]).map(([prov,n])=>{
-          const imp=ofertas.filter(o=>o.provincia===prov).reduce((s,o)=>s+(o.importe||0),0);
-          return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px;cursor:pointer" onclick="filtrarProv('${prov}')">
-            <div style="color:var(--text);font-size:12px;font-weight:600">${prov}</div>
-            <div style="color:var(--accent);font-size:11px">${n} oferta${n!==1?"s":""}</div>
-            <div style="color:#34d399;font-size:11px">${imp.toLocaleString("es-ES")} €</div>
-          </div>`;
-        }).join("")}
+
+  // Ranking lateral
+  const rankingHTML=ranking.map(([prov,n],i)=>{
+    const imp=impProv[prov]||0;
+    const gan=ganProv[prov]||0;
+    const pct=Math.round(n/max*100);
+    const col=colorProv(n);
+    return `<div onclick="filtrarProv('${prov}')" style="cursor:pointer;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);margin-bottom:6px;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 4px 14px rgba(21,101,192,.15)'" onmouseout="this.style.boxShadow='none'">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span style="background:${col};color:white;border-radius:5px;padding:1px 7px;font-size:11px;font-weight:900;min-width:22px;text-align:center">${i+1}</span>
+        <span style="color:var(--text);font-size:12px;font-weight:700;flex:1">${prov}</span>
+        <span style="color:var(--accent);font-size:13px;font-weight:900">${n}</span>
+      </div>
+      <div style="height:5px;background:var(--surface2);border-radius:4px;overflow:hidden;margin-bottom:3px"><div style="width:${pct}%;height:100%;background:${col};border-radius:4px"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3)">
+        <span>${Math.round(imp).toLocaleString('es-ES')} €</span>
+        <span style="color:#10b981;font-weight:700">${gan} ganada${gan!==1?'s':''}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Filtro por estado en el mapa
+  const estadoFiltroHTML=`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+    <span style="color:var(--text3);font-size:11px;font-weight:700">Filtrar:</span>
+    <button onclick="filtrarProv(null)" class="sb-btn ghost" style="padding:5px 10px;font-size:11px">🗺️ Todo</button>
+    ${['Pendiente','En seguimiento','Ganada','Perdida'].map(est=>`<button onclick="filtrarMapaEstado('${est}')" class="sb-btn ghost" style="padding:5px 10px;font-size:11px">${est}</button>`).join('')}
+  </div>`;
+
+  document.getElementById('mapa-container').innerHTML=`
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <!-- MAPA -->
+      <div style="flex:1;min-width:320px">
+        <!-- KPIs rápidos -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center">
+            <div style="color:var(--accent);font-size:22px;font-weight:900">${totalOfertas}</div>
+            <div style="color:var(--text3);font-size:10px;font-weight:700">OFERTAS</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center">
+            <div style="color:#10b981;font-size:16px;font-weight:900">${Math.round(totalImporte).toLocaleString('es-ES')} €</div>
+            <div style="color:var(--text3);font-size:10px;font-weight:700">IMPORTE</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center">
+            <div style="color:var(--purple);font-size:22px;font-weight:900">${Object.keys(porProv).length}</div>
+            <div style="color:var(--text3);font-size:10px;font-weight:700">PROVINCIAS</div>
+          </div>
+        </div>
+        ${estadoFiltroHTML}
+        <!-- Mapa SVG -->
+        <div class="mapa-wrap" style="position:relative">
+          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"
+            style="width:100%;height:auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-sm)">
+            <defs>
+              <radialGradient id="bgGrad" cx="50%" cy="50%" r="70%">
+                <stop offset="0%" stop-color="#f0f6ff"/>
+                <stop offset="100%" stop-color="#e8effe"/>
+              </radialGradient>
+            </defs>
+            <rect width="100" height="100" fill="url(#bgGrad)"/>
+            <!-- Silueta simplificada España continental -->
+            <path d="M14,30 Q10,20 18,18 Q30,14 42,16 Q60,14 72,18 Q82,22 84,30 Q88,36 86,44 Q88,52 84,58 Q82,66 76,70 Q72,76 68,78 Q60,82 52,80 Q44,84 38,80 Q30,76 26,72 Q18,68 14,60 Q10,52 12,44 Q12,36 14,30 Z" fill="#dde8fa" stroke="#b8ccee" stroke-width="0.5" opacity="0.5"/>
+            ${circulos}
+          </svg>
+          <div class="mapa-tooltip" id="mapa-tip"></div>
+        </div>
+        <!-- Leyenda -->
+        <div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap">
+          <span style="color:var(--text3);font-size:10px;font-weight:700">Intensidad:</span>
+          ${[['Baja','#93c5fd'],['Media','#f59e0b'],['Alta','#f97316'],['Muy alta','#ef4444']].map(([l,c])=>`<span style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text2)"><span style="width:12px;height:12px;background:${c};border-radius:3px;display:inline-block"></span>${l}</span>`).join('')}
+          <span style="color:var(--text3);font-size:10px;margin-left:6px">· Clic en círculo → filtrar tabla</span>
+        </div>
+      </div>
+      <!-- RANKING -->
+      <div style="width:220px;flex-shrink:0">
+        <div style="color:var(--accent);font-size:12px;font-weight:900;margin-bottom:10px">🏆 Top 10 provincias</div>
+        <div style="max-height:480px;overflow-y:auto;padding-right:4px">${rankingHTML}</div>
       </div>
     </div>`;
 }
-function showMapaTip(e,prov,n){
+function showMapaTip(e,prov,n,imp,gan){
   const t=document.getElementById("mapa-tip");
-  const imp=ofertas.filter(o=>o.provincia===prov).reduce((s,o)=>s+(o.importe||0),0);
-  t.innerHTML=`<strong style="color:var(--accent)">${prov}</strong><br>${n} oferta${n!==1?"s":""}<br>${imp.toLocaleString("es-ES")} €`;
-  t.style.display="block";t.style.left=(e.offsetX+12)+"px";t.style.top=(e.offsetY-10)+"px";
+  const winRate=n>0?Math.round(gan/n*100):0;
+  t.innerHTML=`<strong style="color:var(--accent);font-size:13px">${prov}</strong><br>
+    <span style="color:var(--text2)">${n} oferta${n!==1?'s':''}</span><br>
+    <span style="color:#10b981;font-weight:700">${Math.round(imp).toLocaleString('es-ES')} €</span><br>
+    <span style="color:var(--purple)">Ganadas: ${gan} (${winRate}%)</span><br>
+    <span style="color:var(--text3);font-size:10px">Clic para filtrar tabla</span>`;
+  t.style.display="block";t.style.left=(e.offsetX+14)+"px";t.style.top=(e.offsetY-10)+"px";
 }
 function hideMapaTip(){document.getElementById("mapa-tip").style.display="none";}
+function filtrarMapaEstado(estado){
+  try{
+    const sel=document.getElementById('f-est');
+    if(sel) sel.value=estado;
+  }catch(_){}
+  setVista('tabla');
+}
 function filtrarProv(prov){
   try{
-    provinciasSeleccionadas = new Set([prov]);
-    actualizarLabelProv();
-    renderProvOpciones(document.getElementById('prov-search')?document.getElementById('prov-search').value:'');
+    if(prov===null){
+      provinciasSeleccionadas=new Set();
+      actualizarLabelProv();
+      renderProvOpciones(document.getElementById('prov-search')?document.getElementById('prov-search').value:'');
+    } else {
+      provinciasSeleccionadas=new Set([prov]);
+      actualizarLabelProv();
+      renderProvOpciones(document.getElementById('prov-search')?document.getElementById('prov-search').value:'');
+    }
   }catch(_){}
   setVista('tabla');
 }
@@ -2866,6 +3062,7 @@ function abrirModal(o){
   document.getElementById("f-notas").value=o?.notas||"";
   document.getElementById("f-referencia").value=o?.referencia||"";
   renderArchivos();
+  cargarTiposPersonalizados();
   document.getElementById("modal").style.display="flex";
 }
 function editarOferta(id){abrirModal(ofertas.find(o=>o.id===id));}
@@ -2961,6 +3158,7 @@ function renderArchivosDetalle(archivos){
     </div>`).join("");
 }
 async function guardarOferta(){
+  if(!currentUser){ toast("⚠️ Sesión caducada. Por favor vuelve a iniciar sesión.","#f59e0b"); return; }
   const empresa=document.getElementById("f-empresa").value.trim();
   if(!empresa){toast("⚠️ El nombre de empresa es obligatorio","#f59e0b");return;}
   const estadoNuevo=document.getElementById("f-est-form").value;
@@ -3043,11 +3241,17 @@ async function guardarOferta(){
   }
 }
 async function eliminarOferta(id){
+  if(!currentUser){ toast("⚠️ Sesión caducada. Por favor vuelve a iniciar sesión.","#f59e0b"); return; }
   if(!confirm("¿Eliminar esta oferta? No se puede deshacer."))return;
-  const o=ofertas.find(x=>x.id===id);
-  await db.collection("historial").add({ofertaId:id,empresa:o?.empresa,numeroOferta:o?.numeroOferta,usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,accion:"eliminada",fecha:firebase.firestore.FieldValue.serverTimestamp()});
-  await db.collection("ofertas").doc(id).delete();
-  toast("🗑 Oferta eliminada","#f59e0b");
+  try{
+    const o=ofertas.find(x=>x.id===id);
+    await db.collection("historial").add({ofertaId:id,empresa:o?.empresa,numeroOferta:o?.numeroOferta,usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,accion:"eliminada",fecha:firebase.firestore.FieldValue.serverTimestamp()});
+    await db.collection("ofertas").doc(id).delete();
+    toast("🗑 Oferta eliminada","#f59e0b");
+  }catch(e){
+    if(e.code==="permission-denied"){ mostrarErrorPermisos(); }
+    else { toast("❌ Error al eliminar: "+e.message,"#ef4444"); }
+  }
 }
 
 // ===== MI CUENTA — PANEL DE CONTROL =====
