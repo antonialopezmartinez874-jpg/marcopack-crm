@@ -950,6 +950,7 @@ function actualizarLabelProv(){
   if(provinciasSeleccionadas.size===0)lbl.textContent="Todas las provincias";
   else if(provinciasSeleccionadas.size===1)lbl.textContent=[...provinciasSeleccionadas][0];
   else lbl.textContent=`${provinciasSeleccionadas.size} provincias`;
+ recUpdateToolbar();
 }
 function toggleProvDropdown(){
   const d=document.getElementById("prov-dropdown");
@@ -1584,6 +1585,83 @@ async function renderIA(){
 }
 
 // ===== LLAMADAS =====
+
+// ===== LLAMADAS — BORRADO SELECTIVO DE HISTORIAL (solo historial, NO elimina oferta) =====
+let llHistSel = new Set();
+function llUpdateToolbar(){
+  const btn=document.getElementById('ll-btn-borrar-sel');
+  const cnt=document.getElementById('ll-sel-count');
+  const all=document.getElementById('ll-check-all');
+  const checks=document.querySelectorAll('.ll-hist-check');
+  const total=checks.length;
+  const n=llHistSel.size;
+  if(cnt) cnt.textContent = n>0 ? `${n} seleccionada${n!==1?'s':''}` : '';
+  if(btn){ btn.style.display = n>0 ? 'inline-flex' : 'none'; btn.textContent = `🗑 Borrar historial (${n} selec.)`; }
+  if(all){ all.indeterminate = n>0 && n<total; all.checked = total>0 && n===total; }
+}
+function llToggleHist(ev,id){ ev.stopPropagation(); if(ev.target.checked) llHistSel.add(id); else llHistSel.delete(id); llUpdateToolbar(); }
+function llToggleAllHist(ev){
+  ev.stopPropagation();
+  const checked=ev.target.checked;
+  llHistSel.clear();
+  document.querySelectorAll('.ll-hist-check').forEach(ch=>{ch.checked=checked; if(checked) llHistSel.add(ch.dataset.id);});
+  llUpdateToolbar();
+}
+async function llBorrarHistorialOferta(ofertaId, empresa){
+  if(!confirm(`¿Borrar el historial de llamadas de "${empresa}"?
+La oferta NO se elimina, solo se reinicia el historial.`)) return;
+  await llBorrarHistorialIds([ofertaId]);
+}
+async function llBorrarHistorialSeleccion(){
+  const ids=[...llHistSel];
+  if(!ids.length) return;
+  if(!confirm(`¿Borrar historial de llamadas de ${ids.length} oferta${ids.length!==1?'s':''}?
+Las ofertas NO se eliminan.`)) return;
+  await llBorrarHistorialIds(ids);
+}
+async function llBorrarHistorialIds(ids){
+  const btn=document.getElementById('ll-btn-borrar-sel');
+  if(btn){btn.disabled=true; btn.textContent='🗑 Borrando...';}
+  try{
+    const batch=db.batch();
+    ids.forEach(id=>batch.update(db.collection('ofertas').doc(id),{
+      numLlamadas: 0,
+      ultimaLlamada: firebase.firestore.FieldValue.delete(),
+      ultimoResultado: firebase.firestore.FieldValue.delete()
+    }));
+    await batch.commit();
+
+    for(const id of ids){
+      let qs = await db.collection('historial')
+        .where('ofertaId','==',id)
+        .where('accion','==','llamada registrada')
+        .limit(450)
+        .get();
+      while(!qs.empty){
+        const b=db.batch();
+        qs.docs.forEach(d=>b.delete(d.ref));
+        await b.commit();
+        qs = await db.collection('historial')
+          .where('ofertaId','==',id)
+          .where('accion','==','llamada registrada')
+          .limit(450)
+          .get();
+      }
+    }
+
+    llHistSel.clear();
+    toast(`✅ Historial de llamadas borrado (${ids.length})`, '#10b981');
+    if(vistaActual==='llamadas') renderLlamadas();
+    if(vistaActual==='historial') cargarHistorial();
+  }catch(e){
+    console.error(e);
+    toast('❌ Error borrando historial: '+e.message,'#ef4444');
+  }finally{
+    if(btn){btn.disabled=false;}
+    llUpdateToolbar();
+  }
+}
+
 let llBusqueda="";
 function renderLlamadas(){
   const hoy=new Date().toISOString().split("T")[0];
@@ -1668,7 +1746,10 @@ function renderLlamadas(){
                 ${urgente?`<span style="color:var(--orange);font-size:10px;font-weight:700">🔔 Recordatorio vencido</span>`:""}
               </div>
             </div>
-            <button class="llamada-btn" onclick="abrirLlamada('${o.id}')">+ Llamada</button>
+            <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+ <button class="llamada-btn" onclick="abrirLlamada('${o.id}')">+ Llamada</button>
+ <button onclick="event.stopPropagation();llBorrarHistorialOferta('${o.id}','${(o.empresa||'').replace(/'/g,'')}')" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:900;cursor:pointer">🗑 Borrar historial</button>
+</div>
           </div>`;
         }).join("") : `<div style="color:var(--text3);font-size:13px;text-align:center;padding:30px 10px">Aún no hay llamadas registradas</div>`}
       </div>
@@ -1917,6 +1998,46 @@ async function borrarTodosRecordatorios(){
   renderStats();
 }
 
+// ===== ALERTAS — BORRADO SELECTIVO DE RECORDATORIOS =====
+let recSel = new Set();
+function recUpdateToolbar(){
+  const n=recSel.size;
+  const btn=document.getElementById('rec-btn-borrar-sel');
+  const cnt=document.getElementById('rec-sel-count');
+  const all=document.getElementById('rec-check-all');
+  const total=document.querySelectorAll('.rec-check').length;
+  if(cnt) cnt.textContent = n>0 ? `${n} seleccionado${n!==1?'s':''}` : '';
+  if(btn){ btn.style.display = n>0 ? 'inline-flex' : 'none'; btn.textContent = `🗑 Borrar seleccionados (${n})`; }
+  if(all){ all.indeterminate = n>0 && n<total; all.checked = total>0 && n===total; }
+}
+function recToggle(ev,id){ ev.stopPropagation(); if(ev.target.checked) recSel.add(id); else recSel.delete(id); recUpdateToolbar(); }
+function recToggleAll(ev){
+  ev.stopPropagation();
+  const checked=ev.target.checked;
+  recSel.clear();
+  document.querySelectorAll('.rec-check').forEach(ch=>{ch.checked=checked; if(checked) recSel.add(ch.dataset.id);});
+  recUpdateToolbar();
+}
+async function borrarRecordatoriosSeleccionados(){
+  const ids=[...recSel];
+  if(!ids.length) return;
+  if(!confirm(`¿Borrar ${ids.length} recordatorio${ids.length!==1?'s':''} seleccionado${ids.length!==1?'s':''}?
+Las ofertas seguirán existiendo.`)) return;
+  try{
+    const batch=db.batch();
+    ids.forEach(id=>batch.update(db.collection('ofertas').doc(id),{fechaRecordatorio:firebase.firestore.FieldValue.delete()}));
+    await batch.commit();
+    recSel.clear();
+    toast(`✅ Recordatorios borrados (${ids.length})`, '#10b981');
+    renderAlertas();
+    renderStats();
+  }catch(e){
+    console.error(e);
+    toast('❌ Error: '+e.message,'#ef4444');
+  }
+}
+
+
 // ===== ALERTAS =====
 function renderAlertas(){
   const hoy=new Date().toISOString().split("T")[0];
@@ -1934,6 +2055,10 @@ function renderAlertas(){
     const fechaFmt=new Date(o.fechaRecordatorio+"T12:00:00").toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"});
     const tel=o.telefonoMovil||o.telefono||"—";
     return `<div class="alerta-item" style="${estilo}" onclick="verDetalle('${o.id}')">
+ <div onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+  <input type="checkbox" class="rec-check" data-id="${o.id}" onclick="recToggle(event,'${o.id}')" style="accent-color:var(--accent);cursor:pointer;width:15px;height:15px"/>
+  <span style="color:var(--text3);font-size:11px;font-weight:800">Seleccionar</span>
+ </div>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:14px;margin-bottom:2px">${o.empresa}</div>
@@ -2553,65 +2678,97 @@ async function mcRenderUsuarios(){
   if(currentProfile.rol!=="admin"){toast("⚠️ Solo administradores","#f59e0b");return;}
   const body=document.getElementById("micuenta-body");
   body.innerHTML='<div class="loading">Cargando usuarios...</div>';
-  const snap=await db.collection("usuarios").get();
-  const usuarios=snap.docs.map(d=>({id:d.id,...d.data()}));
-  body.innerHTML=`
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
-      <div style="color:var(--text2);font-size:13px"><b style="color:var(--text)">${usuarios.length}</b> usuarios registrados</div>
-      <button onclick="mcAbrirCrearUsuario()" class="btn-save" style="padding:8px 20px">➕ Nuevo usuario</button>
-    </div>
-    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;overflow:hidden">
-      <div style="display:grid;grid-template-columns:1fr 1fr 120px 110px;padding:10px 16px;background:var(--surface2);border-bottom:2px solid var(--border)">
-        <div style="color:var(--text3);font-size:11px;font-weight:700;text-transform:uppercase">Usuario</div>
-        <div style="color:var(--text3);font-size:11px;font-weight:700;text-transform:uppercase">Email</div>
-        <div style="color:var(--text3);font-size:11px;font-weight:700;text-transform:uppercase;text-align:center">Rol</div>
-        <div style="color:var(--text3);font-size:11px;font-weight:700;text-transform:uppercase;text-align:center">Acción</div>
-      </div>
-      ${usuarios.map(u=>{
-        const esMio=u.id===currentUser.uid;
-        const nOfertas=ofertas.filter(o=>o.responsableUid===u.id||o.responsableNombre===u.nombre).length;
-        return `<div style="display:grid;grid-template-columns:1fr 1fr 120px 110px;padding:12px 16px;border-bottom:1px solid var(--border);align-items:center;background:${esMio?"var(--accent-light)":"var(--surface)"}">
-          <div>
-            <div style="color:var(--text);font-weight:600;font-size:13px">${u.nombre||"—"} ${esMio?'<span style="background:var(--accent);color:white;border-radius:10px;padding:1px 7px;font-size:9px;font-weight:700">TÚ</span>':''}</div>
-            <div style="color:var(--text3);font-size:11px;margin-top:2px">${nOfertas} oferta${nOfertas!==1?"s":""}</div>
-          </div>
-          <div style="color:var(--text2);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px">${u.email||"—"}</div>
-          <div style="text-align:center">
-            ${esMio
-              ?`<span class="badge" style="background:var(--purple-bg);color:var(--purple);border:1px solid #c4b5fd">${u.rol}</span>`
-              :`<select onchange="mcCambiarRol('${u.id}',this.value)" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px;width:100%;cursor:pointer">
-                  ${["comercial","admin","lectura"].map(r=>`<option value="${r}"${u.rol===r?" selected":""}>${r}</option>`).join("")}
-                </select>`
-            }
-          </div>
-          <div style="text-align:center">
-            ${!esMio
-              ?`<button onclick="mcEliminarUsuario('${u.id}','${(u.nombre||u.email).replace(/'/g,"")}' )" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">🗑 Eliminar</button>`
-              :`<span style="color:var(--text3);font-size:11px">—</span>`}
-          </div>
-        </div>`;
-      }).join("")}
-    </div>
-    <div id="mc-nuevo-usuario" style="display:none;background:var(--surface2);border:2px solid var(--accent);border-radius:12px;padding:18px;margin-top:14px">
-      <div style="color:var(--accent);font-weight:700;font-size:14px;margin-bottom:14px">➕ Crear nuevo usuario</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-        <div class="field" style="margin:0"><label>Nombre completo</label><input id="mc-nu-nombre" placeholder="Nombre Apellido"/></div>
-        <div class="field" style="margin:0"><label>Email</label><input type="email" id="mc-nu-email" placeholder="usuario@empresa.com"/></div>
-        <div class="field" style="margin:0"><label>Contraseña temporal</label><input type="password" id="mc-nu-pass" placeholder="Mínimo 6 caracteres"/></div>
-        <div class="field" style="margin:0"><label>Rol</label>
-          <select id="mc-nu-rol">
-            <option value="comercial">Comercial</option>
-            <option value="admin">Administrador</option>
-            <option value="lectura">Solo lectura</option>
-          </select>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button onclick="document.getElementById('mc-nuevo-usuario').style.display='none'" class="btn-cancel">Cancelar</button>
-        <button onclick="mcCrearUsuario()" class="btn-save">Crear usuario</button>
-      </div>
+  let usuarios=[];
+  try{
+    const snap=await db.collection("usuarios").get();
+    usuarios=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){
+    console.error(e);
+    body.innerHTML=`<div style="background:var(--red-bg);border:1px solid #fca5a5;border-radius:12px;padding:16px;color:var(--red)">
+      <div style="font-weight:900;margin-bottom:6px">🔒 Error cargando usuarios</div>
+      <div style="font-size:12px;line-height:1.7;color:#7f1d1d">${e.code||''} — ${e.message||''}<br>
+      Revisa permisos de Firestore para la colección <b>usuarios</b>.</div>
     </div>`;
+    return;
+  }
+
+  const yoId=currentUser.uid;
+  usuarios.sort((a,b)=>{
+    if(a.id===yoId) return -1;
+    if(b.id===yoId) return 1;
+    const aAdmin=a.rol==='admin', bAdmin=b.rol==='admin';
+    if(aAdmin&&!bAdmin) return -1;
+    if(!aAdmin&&bAdmin) return 1;
+    return (a.nombre||a.email||'').toLowerCase().localeCompare((b.nombre||b.email||'').toLowerCase());
+  });
+
+  const fmt=(ts)=>{try{const d=ts?.toDate?ts.toDate():null;return d?d.toLocaleDateString('es-ES'):'—';}catch(_){return '—';}};
+
+  body.innerHTML=`
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+    <div style="color:var(--text2);font-size:13px"><b style="color:var(--text)">${usuarios.length}</b> usuarios</div>
+    <button onclick="mcAbrirCrearUsuario()" class="btn-save" style="padding:8px 20px">➕ Nuevo usuario</button>
+  </div>
+
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+    <div style="display:grid;grid-template-columns:1.2fr 1.4fr 120px 130px 150px;padding:10px 16px;background:var(--surface2);border-bottom:2px solid var(--border)">
+      <div style="color:var(--text3);font-size:11px;font-weight:800;text-transform:uppercase">Usuario</div>
+      <div style="color:var(--text3);font-size:11px;font-weight:800;text-transform:uppercase">Email</div>
+      <div style="color:var(--text3);font-size:11px;font-weight:800;text-transform:uppercase;text-align:center">Alta</div>
+      <div style="color:var(--text3);font-size:11px;font-weight:800;text-transform:uppercase;text-align:center">Rol</div>
+      <div style="color:var(--text3);font-size:11px;font-weight:800;text-transform:uppercase;text-align:center">Acciones</div>
+    </div>
+
+    ${usuarios.map(u=>{
+      const esMio=u.id===yoId;
+      const nOfertas=ofertas.filter(o=>o.responsableUid===u.id || o.responsableNombre===u.nombre).length;
+      const alta=fmt(u.creadoEn);
+      return `<div style="display:grid;grid-template-columns:1.2fr 1.4fr 120px 130px 150px;padding:12px 16px;border-bottom:1px solid var(--border);align-items:center;background:${esMio?'var(--accent-light)':'var(--surface)'}">
+        <div>
+          <div style="color:var(--text);font-weight:800;font-size:13px">${u.nombre||'—'} ${esMio?'<span style="background:var(--accent);color:white;border-radius:10px;padding:1px 7px;font-size:9px;font-weight:900">TÚ</span>':''}</div>
+          <div style="color:var(--text3);font-size:11px;margin-top:2px">${nOfertas} oferta${nOfertas!==1?'s':''}</div>
+        </div>
+        <div style="color:var(--text2);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px">${u.email||'—'}</div>
+        <div style="text-align:center;color:var(--text2);font-size:12px">${alta}</div>
+        <div style="text-align:center">${esMio?`<span class="badge" style="background:var(--purple-bg);color:var(--purple);border:1px solid #c4b5fd">${u.rol||'—'}</span>`:
+          `<select onchange="mcCambiarRol('${u.id}',this.value)" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px;width:100%;cursor:pointer">
+            ${['comercial','admin','lectura'].map(r=>`<option value="${r}"${u.rol===r?' selected':''}>${r}</option>`).join('')}
+          </select>`}</div>
+        <div style="text-align:center;display:flex;justify-content:center;gap:6px;flex-wrap:wrap">
+          <button onclick="mcResetPassword('${(u.email||'').replace(/'/g,'')}')" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:900;cursor:pointer">🔑 Contraseña</button>
+          ${!esMio?`<button onclick="mcEliminarUsuario('${u.id}','${((u.nombre||u.email)||'').replace(/'/g,'')}',${nOfertas})" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:900;cursor:pointer">🗑 Eliminar</button>`:`<span style="color:var(--text3);font-size:11px">—</span>`}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>
+
+  <div id="mc-nuevo-usuario" style="display:none;background:var(--surface2);border:2px solid var(--accent);border-radius:12px;padding:18px;margin-top:14px">
+    <div style="color:var(--accent);font-weight:900;font-size:14px;margin-bottom:14px">➕ Crear nuevo usuario</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div class="field" style="margin:0"><label>Nombre completo</label><input id="mc-nu-nombre" placeholder="Nombre Apellido"/></div>
+      <div class="field" style="margin:0"><label>Email</label><input type="email" id="mc-nu-email" placeholder="usuario@empresa.com"/></div>
+      <div class="field" style="margin:0"><label>Contraseña temporal</label><input type="password" id="mc-nu-pass" placeholder="Mínimo 6 caracteres"/></div>
+      <div class="field" style="margin:0"><label>Rol</label><select id="mc-nu-rol"><option value="comercial">Comercial</option><option value="admin">Administrador</option><option value="lectura">Solo lectura</option></select></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="document.getElementById('mc-nuevo-usuario').style.display='none'" class="btn-cancel">Cancelar</button>
+      <button id="mc-btn-crear" onclick="mcCrearUsuario()" class="btn-save">Crear usuario</button>
+    </div>
+  </div>`;
 }
+
+async function mcResetPassword(email){
+  if(!email){toast('⚠️ Email no válido','#f59e0b');return;}
+  if(!confirm(`¿Enviar email de restablecimiento de contraseña a ${email}?`)) return;
+  try{ await auth.sendPasswordResetEmail(email); toast('✅ Email de reseteo enviado','#10b981'); }
+  catch(e){ console.error(e); toast('❌ Error: '+(e.message||e),'#ef4444'); }
+}
+
+function mcAbrirCrearUsuario(){
+  const el=document.getElementById('mc-nuevo-usuario');
+  if(el){el.style.display='block';el.scrollIntoView({behavior:'smooth'});} 
+}
+
 
 function mcAbrirCrearUsuario(){
   const el=document.getElementById("mc-nuevo-usuario");
@@ -2626,32 +2783,47 @@ async function mcCambiarRol(uid,rol){
   }catch(e){toast("❌ Error: "+e.message,"#ef4444");}
 }
 
-async function mcEliminarUsuario(uid,nombre){
-  if(!confirm(`¿Eliminar al usuario "${nombre}"? No se puede deshacer.`))return;
-  try{
-    await db.collection("usuarios").doc(uid).delete();
-    toast("🗑 Usuario eliminado","#f59e0b");
-    mcRenderUsuarios();
-  }catch(e){toast("❌ Error: "+e.message,"#ef4444");}
+async function mcEliminarUsuario(uid,nombre,ofertasCount){
+  const extra = (ofertasCount && ofertasCount>0) ? `
+⚠️ Este usuario tiene ${ofertasCount} oferta(s) asignadas.` : '';
+  if(!confirm(`¿Eliminar al usuario "${nombre}"?${extra}
+No se puede deshacer.`))return;
+  try{ await db.collection('usuarios').doc(uid).delete(); toast('🗑 Usuario eliminado','#f59e0b'); mcRenderUsuarios(); }
+  catch(e){ console.error(e); toast('❌ Error: '+e.message,'#ef4444'); }
 }
 
+
 async function mcCrearUsuario(){
-  const nombre=document.getElementById("mc-nu-nombre").value.trim();
-  const email=document.getElementById("mc-nu-email").value.trim();
-  const pass=document.getElementById("mc-nu-pass").value;
-  const rol=document.getElementById("mc-nu-rol").value;
-  if(!nombre||!email||!pass){toast("⚠️ Completa todos los campos","#f59e0b");return;}
-  if(pass.length<6){toast("⚠️ Contraseña mínimo 6 caracteres","#f59e0b");return;}
+  const nombre=document.getElementById('mc-nu-nombre').value.trim();
+  const email=document.getElementById('mc-nu-email').value.trim();
+  const pass=document.getElementById('mc-nu-pass').value;
+  const rol=document.getElementById('mc-nu-rol').value;
+  if(!nombre||!email||!pass){toast('⚠️ Completa todos los campos','#f59e0b');return;}
+  if(pass.length<6){toast('⚠️ Contraseña mínimo 6 caracteres','#f59e0b');return;}
+  const btn=document.getElementById('mc-btn-crear');
+  if(btn){btn.disabled=true;btn.textContent='Creando...';}
   try{
-    const secondary=firebase.initializeApp(firebaseConfig,"sec_"+Date.now());
+    const secondary=firebase.initializeApp(firebaseConfig,'sec_'+Date.now());
     const secAuth=secondary.auth();
     const cred=await secAuth.createUserWithEmailAndPassword(email,pass);
-    await db.collection("usuarios").doc(cred.user.uid).set({nombre,email,rol,creadoEn:firebase.firestore.FieldValue.serverTimestamp()});
-    await secAuth.signOut();await secondary.delete();
-    toast("✅ Usuario creado correctamente","#10b981");
+    await db.collection('usuarios').doc(cred.user.uid).set({nombre,email,rol,creadoEn:firebase.firestore.FieldValue.serverTimestamp()});
+    await secAuth.signOut();
+    await secondary.delete();
+    toast('✅ Usuario creado correctamente','#10b981');
+    const form=document.getElementById('mc-nuevo-usuario');
+    if(form) form.style.display='none';
     mcRenderUsuarios();
-  }catch(e){toast("❌ Error: "+e.message,"#ef4444");}
+  }catch(e){
+    console.error(e);
+    if(e.code==='auth/email-already-in-use') toast('⚠️ Ese email ya existe','#f59e0b');
+    else if(e.code==='auth/invalid-email') toast('⚠️ Email inválido','#f59e0b');
+    else if(e.code==='auth/weak-password') toast('⚠️ Contraseña débil','#f59e0b');
+    else toast('❌ Error: '+e.message,'#ef4444');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='Crear usuario';}
+  }
 }
+
 
 function mcRenderOneDrive(){
   if(currentProfile.rol!=="admin"){toast("⚠️ Solo administradores","#f59e0b");return;}
