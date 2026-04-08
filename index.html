@@ -13,7 +13,7 @@ window.addEventListener('error', (ev)=>{
   try{
     const msg = (ev && ev.message) ? ev.message : 'Error desconocido';
     const el = document.getElementById('login-error');
-    if(el){ el.textContent = '❌ Error de carga: ' + msg + ' (Build CEO_READY_20260408_073115)'; el.style.display='block'; }
+    if(el){ el.textContent = '❌ Error de carga: ' + msg + ' (Build LOGIN_FIX_20260408_074010)'; el.style.display='block'; }
     const app=document.getElementById('app');
     const login=document.getElementById('login-screen');
     const setup=document.getElementById('setup-screen');
@@ -234,7 +234,6 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 .st-tabs{display:flex;gap:6px;flex-wrap:wrap}
 .st-tab{background:var(--surface2);border:1px solid var(--border);color:var(--text2);border-radius:10px;padding:7px 12px;font-size:12px;font-weight:900;cursor:pointer}
 .st-tab.active{background:var(--accent-light);color:var(--accent);border-color:#b8d0f5}
-
 .sb-wrap{display:grid;grid-template-columns:360px 1fr;gap:14px}
 @media(max-width:980px){.sb-wrap{grid-template-columns:1fr}}
 .sb-panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:var(--shadow-sm)}
@@ -249,7 +248,6 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 .sb-btn.danger{background:var(--red-bg);border:1px solid #fca5a5;color:var(--red)}
 .sb-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}
 .sb-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:var(--shadow-sm)}
-.sb-card h4{color:var(--accent);font-size:12px;font-weight:900;margin-bottom:10px}
 .sb-table{width:100%;border-collapse:separate;border-spacing:0 6px}
 .sb-table th{color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:6px 8px}
 .sb-table td{background:var(--surface);border:1px solid var(--border);padding:8px 8px;font-size:12px}
@@ -542,7 +540,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       <div id="stats-builder"></div>
     </div>
 
-    <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">CEO_READY_20260408_073115</b></div>
+    <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">LOGIN_FIX_20260408_074010</b></div>
   </div>
 </div></div>
   <div id="vista-mapa" style="display:none;padding:16px 20px 24px"><h3 style="color:var(--accent);margin-bottom:16px">🗺️ Mapa de ofertas por provincia</h3><div id="mapa-container"></div></div>
@@ -902,7 +900,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 // ===== FIREBASE =====
 const firebaseConfig={apiKey:"AIzaSyB4kJsqEtQ0ypOIL4LyY9rhTBpcY_mxhnI",authDomain:"machinecrm-61b34.firebaseapp.com",projectId:"machinecrm-61b34",storageBucket:"machinecrm-61b34.firebasestorage.app",messagingSenderId:"686919580495",appId:"1:686919580495:web:019fa5682054bb089a633a"};
 firebase.initializeApp(firebaseConfig);
-console.log('[Marcopack CRM] Build CEO_READY_20260408_073115');
+console.log('[Marcopack CRM] Build LOGIN_FIX_20260408_074010');
 const auth=firebase.auth(),db=firebase.firestore();
 
 // ===== SEGURIDAD: No recordar sesión entre visitas =====
@@ -1096,23 +1094,60 @@ let vistaActual="dashboard",archivosTemp=[],editandoId=null,llamadaOfertaId=null
 
 // ===== AUTH =====
 auth.onAuthStateChanged(async user=>{
-  if(user){
-    const doc=await db.collection("usuarios").doc(user.uid).get();
-    currentUser=user;
-    currentProfile=doc.exists?doc.data():{nombre:user.email,rol:"comercial"};
-    document.getElementById("login-screen").style.display="none";
-    document.getElementById("app").style.display="block";
-    document.getElementById("uname").textContent=currentProfile.nombre;
-    document.getElementById("urol").textContent=currentProfile.rol;
-    if(currentProfile.rol==="admin")document.getElementById("nav-admin").style.display="block";
-    poblarSelects();escucharOfertas();
-  setTimeout(()=>{ try{ setVista('dashboard'); }catch(_){ } }, 50);
+  try{
+    if(user){
+      currentUser=user;
+      // Perfil por defecto (si Firestore falla, no bloquea el acceso)
+      let profile={nombre:user.email, rol:"comercial"};
+      try{
+        const doc=await db.collection("usuarios").doc(user.uid).get();
+        if(doc.exists) profile=doc.data();
+      }catch(e){
+        console.warn('No se pudo leer perfil de usuario en Firestore:', e);
+      }
+      currentProfile=profile;
 
-  }else{
-    document.getElementById("app").style.display="none";
-    document.getElementById("setup-screen").style.display="none";
-    document.getElementById("login-screen").style.display="flex";
-    comprobarPrimerAcceso();
+      // UI: mostrar app
+      const login=document.getElementById("login-screen");
+      const setup=document.getElementById("setup-screen");
+      const app=document.getElementById("app");
+      if(login) login.style.display="none";
+      if(setup) setup.style.display="none";
+      if(app) app.style.display="block";
+
+      const un=document.getElementById("uname");
+      const ur=document.getElementById("urol");
+      if(un) un.textContent=currentProfile.nombre||user.email;
+      if(ur) ur.textContent=currentProfile.rol||'comercial';
+      const navAdmin=document.getElementById("nav-admin");
+      if(navAdmin) navAdmin.style.display=(currentProfile.rol==="admin")?"block":"none";
+
+      poblarSelects();
+      escucharOfertas();
+      // Vista inicial estable
+      setTimeout(()=>{ try{ setVista('dashboard'); }catch(_){ } }, 50);
+
+    }else{
+      // Sin sesión
+      currentUser=null; currentProfile=null;
+      const app=document.getElementById("app");
+      const setup=document.getElementById("setup-screen");
+      const login=document.getElementById("login-screen");
+      if(app) app.style.display="none";
+      if(setup) setup.style.display="none";
+      if(login) login.style.display="flex";
+      comprobarPrimerAcceso();
+    }
+  }catch(e){
+    console.error('Error en inicialización de sesión:', e);
+    const el=document.getElementById('login-error');
+    if(el){ el.textContent='❌ Error inicializando: '+(e.message||e)+' (Build: LOGIN_FIX_20260408_074010)'; el.style.display='block'; }
+    const app=document.getElementById("app");
+    const setup=document.getElementById("setup-screen");
+    const login=document.getElementById("login-screen");
+    if(app) app.style.display="none";
+    if(setup) setup.style.display="none";
+    if(login) login.style.display="flex";
   }
 });
 async function comprobarPrimerAcceso(){
@@ -1760,7 +1795,6 @@ const STATS_TAB_KEY='crm_stats_tab';
 const STATS_STATE_KEY='crm_stats_state_v1';
 function statsLoad(){ try{ return JSON.parse(localStorage.getItem(STATS_STATE_KEY)||'{}')||{}; }catch(_){ return {}; } }
 function statsSave(obj){ localStorage.setItem(STATS_STATE_KEY, JSON.stringify(obj||{})); }
-
 function statsGetDate(o, field){
   if(field==='fechaOferta' && o.fechaOferta) return new Date(o.fechaOferta+'T12:00:00');
   if(field==='fechaRecordatorio' && o.fechaRecordatorio) return new Date(o.fechaRecordatorio+'T12:00:00');
@@ -1785,7 +1819,6 @@ function statsVal(o, dim){
   if(dim==='anio'){ const d=statsGetDate(o,'fechaOferta'); return d?String(d.getFullYear()):'—'; }
   return t(o[dim]);
 }
-
 function statsTab(which){
   localStorage.setItem(STATS_TAB_KEY, which);
   const r=document.getElementById('st-pane-resumen');
@@ -1799,101 +1832,57 @@ function statsTab(which){
   if(which==='custom') renderEstadisticasCustom();
   else renderEstadisticasResumen();
 }
-
 function renderEstadisticas(){
   const which = localStorage.getItem(STATS_TAB_KEY) || 'resumen';
   statsTab(which);
 }
-
+function statsDownloadCSV(headers, rows){
+  const esc=(x)=>{const s=String(x??''); return /[",
+]/.test(s)?('"'+s.replace(/"/g,'""')+'"'):s;};
+  const lines=[headers.map(esc).join(',')];
+  rows.forEach(r=>lines.push(headers.map(h=>esc(r[h])).join(',')));
+  const blob=new Blob([lines.join('
+')],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`Marcopack_stats_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+}
 function renderEstadisticasCustom(){
   const wrap=document.getElementById('stats-builder');
   if(!wrap) return;
-
   const st=statsLoad();
-  const state={
-    scope: st.scope || 'all',
-    dateField: st.dateField || 'fechaOferta',
-    from: st.from || '',
-    to: st.to || '',
-    dim1: st.dim1 || 'provincia',
-    dim2: st.dim2 || '',
-    metric: st.metric || 'count',
-    timeGroup: st.timeGroup || 'none',
-    topN: st.topN || 15,
-    sortDir: st.sortDir || 'desc'
-  };
+  const state={scope:st.scope||'all',dateField:st.dateField||'fechaOferta',from:st.from||'',to:st.to||'',dim1:st.dim1||'provincia',dim2:st.dim2||'',metric:st.metric||'count',timeGroup:st.timeGroup||'none',topN:st.topN||15,sortDir:st.sortDir||'desc'};
 
   wrap.innerHTML=`
     <div class="sb-wrap">
       <div class="sb-panel">
         <h3>🎛️ Estadística personalizada</h3>
-        <div class="sb-mini">Elige dimensión, métrica y un rango de fechas (mes/año concretos). Exporta a CSV si quieres.</div>
-
+        <div class="sb-mini">Crea estadísticas por provincia/empresa/tipo… y filtra por rango (mes/año). Puedes exportar a CSV.</div>
         <div class="sb-grid" style="margin-top:12px">
           <div class="field"><label>Conjunto</label>
-            <select id="st-scope">
-              <option value="all">Todas</option>
-              <option value="activas">Activas</option>
-              <option value="cerradas">Cerradas</option>
-              <option value="ganadas">Ganadas</option>
-              <option value="perdidas">Perdidas/descartadas</option>
-            </select>
+            <select id="st-scope"><option value="all">Todas</option><option value="activas">Activas</option><option value="cerradas">Cerradas</option><option value="ganadas">Ganadas</option><option value="perdidas">Perdidas/descartadas</option></select>
           </div>
           <div class="field"><label>Campo de fecha</label>
-            <select id="st-dateField">
-              <option value="fechaOferta">Fecha oferta</option>
-              <option value="fechaRecordatorio">Fecha recordatorio</option>
-              <option value="ultimaLlamada">Última llamada</option>
-              <option value="creadoEn">Creado en</option>
-            </select>
+            <select id="st-dateField"><option value="fechaOferta">Fecha oferta</option><option value="fechaRecordatorio">Fecha recordatorio</option><option value="ultimaLlamada">Última llamada</option><option value="creadoEn">Creado en</option></select>
           </div>
           <div class="field"><label>Desde</label><input type="date" id="st-from"/></div>
           <div class="field"><label>Hasta</label><input type="date" id="st-to"/></div>
-
           <div class="field"><label>Agrupar por</label>
-            <select id="st-dim1">
-              <option value="provincia">Provincia</option>
-              <option value="empresa">Empresa</option>
-              <option value="responsable">Responsable</option>
-              <option value="estado">Estado</option>
-              <option value="tipoMaquina">Tipo máquina</option>
-              <option value="pais">País</option>
-              <option value="mes">Mes (fecha oferta)</option>
-              <option value="anio">Año (fecha oferta)</option>
-            </select>
+            <select id="st-dim1"><option value="provincia">Provincia</option><option value="empresa">Empresa</option><option value="responsable">Responsable</option><option value="estado">Estado</option><option value="tipoMaquina">Tipo máquina</option><option value="pais">País</option><option value="mes">Mes (fecha oferta)</option><option value="anio">Año (fecha oferta)</option></select>
           </div>
           <div class="field"><label>2ª dimensión (pivot)</label>
-            <select id="st-dim2">
-              <option value="">— Ninguna —</option>
-              <option value="provincia">Provincia</option>
-              <option value="empresa">Empresa</option>
-              <option value="responsable">Responsable</option>
-              <option value="estado">Estado</option>
-              <option value="tipoMaquina">Tipo máquina</option>
-              <option value="pais">País</option>
-            </select>
+            <select id="st-dim2"><option value="">— Ninguna —</option><option value="provincia">Provincia</option><option value="empresa">Empresa</option><option value="responsable">Responsable</option><option value="estado">Estado</option><option value="tipoMaquina">Tipo máquina</option><option value="pais">País</option></select>
           </div>
-
           <div class="field"><label>Métrica</label>
-            <select id="st-metric">
-              <option value="count">Nº ofertas</option>
-              <option value="sum_importe">Suma importe (€)</option>
-              <option value="avg_importe">Importe medio (€)</option>
-              <option value="win_rate">% cierre</option>
-            </select>
+            <select id="st-metric"><option value="count">Nº ofertas</option><option value="sum_importe">Suma importe (€)</option><option value="avg_importe">Importe medio (€)</option><option value="win_rate">% cierre</option></select>
           </div>
           <div class="field"><label>Serie temporal</label>
-            <select id="st-timeGroup">
-              <option value="none">No</option>
-              <option value="month">Por mes</option>
-              <option value="year">Por año</option>
-            </select>
+            <select id="st-timeGroup"><option value="none">No</option><option value="month">Por mes</option><option value="year">Por año</option></select>
           </div>
-
           <div class="field"><label>Top N</label><input type="number" min="3" max="50" id="st-topN"/></div>
           <div class="field"><label>Orden</label><select id="st-sortDir"><option value="desc">Desc</option><option value="asc">Asc</option></select></div>
         </div>
-
         <div class="sb-actions">
           <button class="sb-btn primary" id="st-run">▶ Generar</button>
           <button class="sb-btn ghost" id="st-preset-mes">🗓 Este mes</button>
@@ -1901,109 +1890,50 @@ function renderEstadisticasCustom(){
           <button class="sb-btn danger" id="st-reset">⟲ Reset</button>
         </div>
       </div>
-
       <div>
         <div class="sb-kpis" id="st-kpis"></div>
         <div class="sb-card" id="st-chart"></div>
         <div class="sb-card" style="margin-top:14px" id="st-table"></div>
       </div>
-    </div>
-  `;
+    </div>`;
 
   const $=(id)=>document.getElementById(id);
-  $('st-scope').value=state.scope;
-  $('st-dateField').value=state.dateField;
-  $('st-from').value=state.from;
-  $('st-to').value=state.to;
-  $('st-dim1').value=state.dim1;
-  $('st-dim2').value=state.dim2;
-  $('st-metric').value=state.metric;
-  $('st-timeGroup').value=state.timeGroup;
-  $('st-topN').value=state.topN;
-  $('st-sortDir').value=state.sortDir;
+  $('st-scope').value=state.scope; $('st-dateField').value=state.dateField; $('st-from').value=state.from; $('st-to').value=state.to;
+  $('st-dim1').value=state.dim1; $('st-dim2').value=state.dim2; $('st-metric').value=state.metric; $('st-timeGroup').value=state.timeGroup;
+  $('st-topN').value=state.topN; $('st-sortDir').value=state.sortDir;
 
   function collect(){
-    const out={
-      scope:$('st-scope').value,
-      dateField:$('st-dateField').value,
-      from:$('st-from').value,
-      to:$('st-to').value,
-      dim1:$('st-dim1').value,
-      dim2:$('st-dim2').value,
-      metric:$('st-metric').value,
-      timeGroup:$('st-timeGroup').value,
-      topN:Math.max(3,Math.min(50, parseInt($('st-topN').value||'15',10))),
-      sortDir:$('st-sortDir').value
-    };
-    statsSave(out);
-    return out;
+    const out={scope:$('st-scope').value,dateField:$('st-dateField').value,from:$('st-from').value,to:$('st-to').value,dim1:$('st-dim1').value,dim2:$('st-dim2').value,metric:$('st-metric').value,timeGroup:$('st-timeGroup').value,topN:Math.max(3,Math.min(50,parseInt($('st-topN').value||'15',10))),sortDir:$('st-sortDir').value};
+    statsSave(out); return out;
   }
-
   function formatMetric(v, metric){
     if(metric==='win_rate') return `${Math.round(v)}%`;
     if(metric==='sum_importe' || metric==='avg_importe') return `${Math.round(v).toLocaleString('es-ES')} €`;
     return (typeof v==='number') ? v.toLocaleString('es-ES') : String(v);
   }
 
-  window.statsDownloadCSV = function(){
-    const exp=window.__statsLastExport;
-    if(!exp || !exp.rows) return toast('⚠️ No hay datos para exportar','#f59e0b');
-    const headers=exp.headers;
-    const esc=(x)=>{const s=String(x??''); return /[",
-]/.test(s)?('"'+s.replace(/"/g,'""')+'"'):s;};
-    const lines=[headers.map(esc).join(',')];
-    exp.rows.forEach(r=>lines.append(''));
-  };
-
-  function setExport(headers, rows){
-    window.__statsLastExport = {headers, rows};
-    // sobrescribe descarga
-    window.statsDownloadCSV = function(){
-      const exp=window.__statsLastExport;
-      if(!exp || !exp.rows) return toast('⚠️ No hay datos para exportar','#f59e0b');
-      const esc=(x)=>{const s=String(x??''); return /[",
-]/.test(s)?('"'+s.replace(/"/g,'""')+'"'):s;};
-      const lines=[exp.headers.map(esc).join(',')];
-      exp.rows.forEach(r=>lines.push(exp.headers.map(h=>esc(r[h])).join(',')));
-      const blob=new Blob([lines.join('
-')],{type:'text/csv;charset=utf-8;'});
-      const a=document.createElement('a');
-      a.href=URL.createObjectURL(blob);
-      a.download=`Marcopack_stats_${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(a); a.click(); a.remove();
-      toast('✅ CSV descargado','#10b981');
-    };
-  }
-
   function run(){
     const s=collect();
     const from=s.from?new Date(s.from+'T00:00:00'):null;
     const to=s.to?new Date(s.to+'T23:59:59'):null;
-
-    let rows=[...ofertas];
+    let base=[...ofertas];
     const cerrados=["Ganada","Perdida","Descartada"];
-    if(s.scope==='activas') rows=rows.filter(o=>!cerrados.includes(o.estado));
-    if(s.scope==='cerradas') rows=rows.filter(o=>cerrados.includes(o.estado));
-    if(s.scope==='ganadas') rows=rows.filter(o=>o.estado==='Ganada');
-    if(s.scope==='perdidas') rows=rows.filter(o=>o.estado==='Perdida' || o.estado==='Descartada');
+    if(s.scope==='activas') base=base.filter(o=>!cerrados.includes(o.estado));
+    if(s.scope==='cerradas') base=base.filter(o=>cerrados.includes(o.estado));
+    if(s.scope==='ganadas') base=base.filter(o=>o.estado==='Ganada');
+    if(s.scope==='perdidas') base=base.filter(o=>o.estado==='Perdida' || o.estado==='Descartada');
 
-    rows = rows.filter(o=>{
-      const d=statsGetDate(o, s.dateField);
-      if(!d){ return (!from && !to); }
-      return statsInRange(d, from, to);
-    });
+    base=base.filter(o=>{ const d=statsGetDate(o,s.dateField); if(!d) return (!from && !to); return statsInRange(d,from,to); });
 
-    const total=rows.length;
-    const totalImp=rows.reduce((a,o)=>a+(o.importe||0),0);
-    const gan=rows.filter(o=>o.estado==='Ganada');
-    const cerr=rows.filter(o=>cerrados.includes(o.estado));
+    const total=base.length;
+    const totalImp=base.reduce((a,o)=>a+(o.importe||0),0);
+    const gan=base.filter(o=>o.estado==='Ganada');
+    const cerr=base.filter(o=>cerrados.includes(o.estado));
     const winRate=cerr.length?Math.round(gan.length/cerr.length*100):0;
-
     document.getElementById('st-kpis').innerHTML=`
       <div class="sb-card"><div style="color:var(--accent);font-size:26px;font-weight:900">${total}</div><div style="color:var(--text3);font-size:11px;font-weight:800">OFERTAS</div></div>
       <div class="sb-card"><div style="color:#34d399;font-size:22px;font-weight:900">${Math.round(totalImp).toLocaleString('es-ES')} €</div><div style="color:var(--text3);font-size:11px;font-weight:800">IMPORTE</div></div>
-      <div class="sb-card"><div style="color:var(--purple);font-size:22px;font-weight:900">${winRate}%</div><div style="color:var(--text3);font-size:11px;font-weight:800">CIERRE</div></div>
-    `;
+      <div class="sb-card"><div style="color:var(--purple);font-size:22px;font-weight:900">${winRate}%</div><div style="color:var(--text3);font-size:11px;font-weight:800">CIERRE</div></div>`;
 
     function metricAgg(items){
       const impSum=items.reduce((a,o)=>a+(o.importe||0),0);
@@ -2022,137 +1952,53 @@ function renderEstadisticasCustom(){
     // Serie temporal
     if(s.timeGroup!=='none'){
       const bucket={};
-      rows.forEach(o=>{
-        const d=statsGetDate(o, s.dateField) || statsGetDate(o,'fechaOferta');
-        if(!d) return;
-        const key = s.timeGroup==='year'? String(d.getFullYear()) : statsFmtYM(d);
-        (bucket[key]=bucket[key]||[]).push(o);
-      });
+      base.forEach(o=>{ const d=statsGetDate(o,s.dateField)||statsGetDate(o,'fechaOferta'); if(!d) return; const key=s.timeGroup==='year'?String(d.getFullYear()):statsFmtYM(d); (bucket[key]=bucket[key]||[]).push(o);});
       const labels=Object.keys(bucket).sort();
       const values=labels.map(k=>metricAgg(bucket[k]));
       const max=Math.max(...values,1);
-
-      document.getElementById('st-chart').innerHTML=`
-        <h4>🗓 Evolución ${s.timeGroup==='year'?'anual':'mensual'} — ${metricLabel}</h4>
-        <div style="display:flex;align-items:flex-end;gap:8px;height:200px;padding:10px 4px 0">
-          ${labels.map((lab,i)=>{
-            const v=values[i];
-            const h=Math.round(v/max*150)+8;
-            const topTxt=s.metric==='win_rate'?Math.round(v)+'%': (s.metric.includes('importe')?Math.round(v).toLocaleString('es-ES'):v);
-            return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:16px">
-              <div style="font-size:10px;color:var(--accent);font-weight:900">${topTxt}</div>
-              <div class="sb-bar" style="width:100%"><div style="width:100%;height:${h}px"></div></div>
-              <div style="font-size:10px;color:var(--text3);white-space:nowrap">${lab}</div>
-            </div>`;
-          }).join('')}
-        </div>
-        <div class="sb-actions" style="margin-top:12px"><button class="sb-btn ghost" onclick="statsDownloadCSV()">⬇️ CSV</button></div>
-      `;
-      const exportRows=labels.map((lab,i)=>({periodo:lab, valor:values[i]}));
-      setExport(['periodo','valor'], exportRows);
-      document.getElementById('st-table').innerHTML=`
-        <h4>📋 Tabla</h4>
-        <table class="sb-table"><thead><tr><th>Periodo</th><th>${metricLabel}</th></tr></thead>
-          <tbody>${exportRows.map(r=>`<tr><td>${r.periodo}</td><td>${formatMetric(r.valor, s.metric)}</td></tr>`).join('')}</tbody>
-        </table>`;
+      document.getElementById('st-chart').innerHTML=`<h4>🗓 Evolución ${s.timeGroup==='year'?'anual':'mensual'} — ${metricLabel}</h4>
+        <div style="display:flex;align-items:flex-end;gap:8px;height:200px;padding:10px 4px 0">${labels.map((lab,i)=>{const v=values[i];const h=Math.round(v/max*150)+8;const top=s.metric==='win_rate'?Math.round(v)+'%':(s.metric.includes('importe')?Math.round(v).toLocaleString('es-ES'):v);return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:16px"><div style="font-size:10px;color:var(--accent);font-weight:900">${top}</div><div class="sb-bar" style="width:100%"><div style="width:100%;height:${h}px"></div></div><div style="font-size:10px;color:var(--text3);white-space:nowrap">${lab}</div></div>`;}).join('')}</div>
+        <div class="sb-actions" style="margin-top:12px"><button class="sb-btn ghost" id="st-csv">⬇️ CSV</button></div>`;
+      const rows=labels.map((lab,i)=>({periodo:lab, valor:values[i]}));
+      document.getElementById('st-table').innerHTML=`<h4>📋 Tabla</h4><table class="sb-table"><thead><tr><th>Periodo</th><th>${metricLabel}</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.periodo}</td><td>${formatMetric(r.valor,s.metric)}</td></tr>`).join('')}</tbody></table>`;
+      document.getElementById('st-csv').onclick=()=>statsDownloadCSV(['periodo','valor'],rows);
       return;
     }
 
     // Pivot
     if(s.dim2){
-      const map={};
-      const rowKeys=new Set();
-      const colKeys=new Set();
-      rows.forEach(o=>{
-        const r=statsVal(o, s.dim1);
-        const c=statsVal(o, s.dim2);
-        rowKeys.add(r); colKeys.add(c);
-        map[r]=map[r]||{};
-        (map[r][c]=map[r][c]||[]).push(o);
-      });
-      const rowsK=[...rowKeys].sort();
-      const colsK=[...colKeys].sort();
-
+      const map={}; const rowKeys=new Set(); const colKeys=new Set();
+      base.forEach(o=>{const r=statsVal(o,s.dim1); const c=statsVal(o,s.dim2); rowKeys.add(r); colKeys.add(c); map[r]=map[r]||{}; (map[r][c]=map[r][c]||[]).push(o);});
+      const rowsK=[...rowKeys].sort(); const colsK=[...colKeys].sort();
       const rowTotals=rowsK.map(r=>({r,total:metricAgg(colsK.flatMap(c=>map[r][c]||[]))}));
       rowTotals.sort((a,b)=>s.sortDir==='asc'?a.total-b.total:b.total-a.total);
       const showRows=rowTotals.slice(0,s.topN).map(x=>x.r);
-
       const headers=[s.dim1, ...colsK, 'total'];
-      const exportRows=[];
-      showRows.forEach(r=>{
-        const obj={}; obj[s.dim1]=r;
-        colsK.forEach(c=>obj[c]=metricAgg(map[r][c]||[]));
-        obj.total=metricAgg(colsK.flatMap(c=>map[r][c]||[]));
-        exportRows.push(obj);
-      });
-      setExport(headers, exportRows);
-
-      document.getElementById('st-chart').innerHTML=`
-        <h4>🧩 Pivot — ${metricLabel}</h4>
-        <div class="sb-actions" style="margin-top:12px"><button class="sb-btn ghost" onclick="statsDownloadCSV()">⬇️ CSV</button></div>`;
-
+      const exportRows=showRows.map(r=>{const obj={}; obj[s.dim1]=r; colsK.forEach(c=>obj[c]=metricAgg(map[r][c]||[])); obj.total=metricAgg(colsK.flatMap(c=>map[r][c]||[])); return obj;});
+      document.getElementById('st-chart').innerHTML=`<h4>🧩 Pivot — ${metricLabel}</h4><div class="sb-actions" style="margin-top:12px"><button class="sb-btn ghost" id="st-csv">⬇️ CSV</button></div>`;
       const headCols=colsK.map(c=>`<th>${c}</th>`).join('');
-      const body=showRows.map(r=>{
-        const tds=colsK.map(c=>`<td>${formatMetric(metricAgg(map[r][c]||[]), s.metric)}</td>`).join('');
-        const tot=metricAgg(colsK.flatMap(c=>map[r][c]||[]));
-        return `<tr><td><b>${r}</b></td>${tds}<td><b>${formatMetric(tot, s.metric)}</b></td></tr>`;
-      }).join('');
-      document.getElementById('st-table').innerHTML=`
-        <h4>📋 Tabla pivot</h4>
-        <div style="overflow:auto">
-          <table class="sb-table" style="min-width:760px"><thead><tr><th>${s.dim1}</th>${headCols}<th>Total</th></tr></thead><tbody>${body}</tbody></table>
-        </div>`;
+      const body=showRows.map(r=>{const tds=colsK.map(c=>`<td>${formatMetric(metricAgg(map[r][c]||[]),s.metric)}</td>`).join(''); const tot=metricAgg(colsK.flatMap(c=>map[r][c]||[])); return `<tr><td><b>${r}</b></td>${tds}<td><b>${formatMetric(tot,s.metric)}</b></td></tr>`;}).join('');
+      document.getElementById('st-table').innerHTML=`<h4>📋 Tabla pivot</h4><div style="overflow:auto"><table class="sb-table" style="min-width:760px"><thead><tr><th>${s.dim1}</th>${headCols}<th>Total</th></tr></thead><tbody>${body}</tbody></table></div>`;
+      document.getElementById('st-csv').onclick=()=>statsDownloadCSV(headers,exportRows);
       return;
     }
 
     // Grouped
-    const bucket={};
-    rows.forEach(o=>{ const k=statsVal(o, s.dim1); (bucket[k]=bucket[k]||[]).push(o); });
+    const bucket={}; base.forEach(o=>{const k=statsVal(o,s.dim1); (bucket[k]=bucket[k]||[]).push(o);});
     const items=Object.entries(bucket).map(([k,list])=>({label:k,value:metricAgg(list),count:list.length,imp:list.reduce((a,o)=>a+(o.importe||0),0)}));
     items.sort((a,b)=>s.sortDir==='asc'?a.value-b.value:b.value-a.value);
     const shown=items.slice(0,s.topN);
     const max=Math.max(...shown.map(x=>x.value),1);
-
-    document.getElementById('st-chart').innerHTML=`
-      <h4>📌 ${metricLabel} por ${s.dim1}</h4>
-      <div style="margin-top:12px">${shown.map(it=>{
-        const w=Math.round(it.value/max*100);
-        return `<div style="display:flex;align-items:center;gap:10px;margin:8px 0">
-          <div style="min-width:160px;max-width:220px;color:var(--text2);font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${it.label}">${it.label}</div>
-          <div class="sb-bar" style="flex:1"><div style="width:${w}%"></div></div>
-          <div style="min-width:120px;text-align:right;color:var(--text);font-weight:900;font-size:12px">${formatMetric(it.value, s.metric)}</div>
-        </div>`;
-      }).join('')}</div>
-      <div class="sb-actions" style="margin-top:12px"><button class="sb-btn ghost" onclick="statsDownloadCSV()">⬇️ CSV</button></div>`;
-
+    document.getElementById('st-chart').innerHTML=`<h4>📌 ${metricLabel} por ${s.dim1}</h4><div style="margin-top:12px">${shown.map(it=>{const w=Math.round(it.value/max*100);return `<div style="display:flex;align-items:center;gap:10px;margin:8px 0"><div style="min-width:160px;max-width:220px;color:var(--text2);font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${it.label}">${it.label}</div><div class="sb-bar" style="flex:1"><div style="width:${w}%"></div></div><div style="min-width:120px;text-align:right;color:var(--text);font-weight:900;font-size:12px">${formatMetric(it.value,s.metric)}</div></div>`;}).join('')}</div><div class="sb-actions" style="margin-top:12px"><button class="sb-btn ghost" id="st-csv">⬇️ CSV</button></div>`;
+    document.getElementById('st-table').innerHTML=`<h4>📋 Tabla</h4><table class="sb-table"><thead><tr><th>${s.dim1}</th><th>${metricLabel}</th><th>Nº</th><th>Importe</th></tr></thead><tbody>${shown.map(it=>`<tr><td><b>${it.label}</b></td><td>${formatMetric(it.value,s.metric)}</td><td>${it.count}</td><td>${Math.round(it.imp).toLocaleString('es-ES')} €</td></tr>`).join('')}</tbody></table>`;
     const exportRows=shown.map(it=>({[s.dim1]:it.label, valor:it.value, count:it.count, importe:it.imp}));
-    setExport([s.dim1,'valor','count','importe'], exportRows);
-
-    document.getElementById('st-table').innerHTML=`
-      <h4>📋 Tabla</h4>
-      <table class="sb-table"><thead><tr><th>${s.dim1}</th><th>${metricLabel}</th><th>Nº</th><th>Importe</th></tr></thead>
-        <tbody>${shown.map(it=>`<tr><td><b>${it.label}</b></td><td>${formatMetric(it.value, s.metric)}</td><td>${it.count}</td><td>${Math.round(it.imp).toLocaleString('es-ES')} €</td></tr>`).join('')}</tbody>
-      </table>`;
+    document.getElementById('st-csv').onclick=()=>statsDownloadCSV([s.dim1,'valor','count','importe'],exportRows);
   }
 
   document.getElementById('st-run').onclick=run;
   document.getElementById('st-reset').onclick=()=>{ localStorage.removeItem(STATS_STATE_KEY); toast('✅ Reset','#10b981'); renderEstadisticasCustom(); };
-  document.getElementById('st-preset-mes').onclick=()=>{
-    const d=new Date();
-    const from=new Date(d.getFullYear(), d.getMonth(), 1);
-    const to=new Date(d.getFullYear(), d.getMonth()+1, 0);
-    document.getElementById('st-from').value=from.toISOString().split('T')[0];
-    document.getElementById('st-to').value=to.toISOString().split('T')[0];
-    run();
-  };
-  document.getElementById('st-preset-ano').onclick=()=>{
-    const d=new Date();
-    const from=new Date(d.getFullYear(), 0, 1);
-    const to=new Date(d.getFullYear(), 11, 31);
-    document.getElementById('st-from').value=from.toISOString().split('T')[0];
-    document.getElementById('st-to').value=to.toISOString().split('T')[0];
-    run();
-  };
+  document.getElementById('st-preset-mes').onclick=()=>{ const d=new Date(); const from=new Date(d.getFullYear(),d.getMonth(),1); const to=new Date(d.getFullYear(),d.getMonth()+1,0); document.getElementById('st-from').value=from.toISOString().split('T')[0]; document.getElementById('st-to').value=to.toISOString().split('T')[0]; run(); };
+  document.getElementById('st-preset-ano').onclick=()=>{ const d=new Date(); const from=new Date(d.getFullYear(),0,1); const to=new Date(d.getFullYear(),11,31); document.getElementById('st-from').value=from.toISOString().split('T')[0]; document.getElementById('st-to').value=to.toISOString().split('T')[0]; run(); };
   run();
 }
 
@@ -3655,8 +3501,8 @@ function toast(msg,color="#10b981"){
   setTimeout(()=>el.style.opacity="0",3500);
 }
 
-// Arranque seguro (sin signOut forzado)
-window.onload=()=>{ /* Build: CEO_READY_20260408_073115 */ };
+// Arranque seguro (GitHub) — Build LOGIN_FIX_20260408_074010
+window.onload=()=>{};
 </script>
 </body>
 </html>
