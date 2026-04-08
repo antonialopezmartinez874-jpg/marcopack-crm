@@ -261,13 +261,52 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 .bar-fill{height:100%;border-radius:5px;display:flex;align-items:center;padding-left:6px;transition:width .5s}
 .bar-val{color:white;font-size:10px;font-weight:700;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.3)}
 
-/* ===== MAPA ===== */
-.mapa-wrap{position:relative;max-width:700px;margin:0 auto}
-.mapa-wrap svg{width:100%;height:auto}
-.prov-circle{cursor:pointer;transition:r .2s}
-.mapa-tooltip{position:absolute;background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius-sm);padding:9px 13px;font-size:12px;pointer-events:none;
-  z-index:10;display:none;white-space:nowrap;box-shadow:var(--shadow);color:var(--text)}
+/* ===== MAPA PROFESIONAL ===== */
+.mapa-shell{display:grid;grid-template-columns:1fr 260px;gap:16px;align-items:start}
+@media(max-width:900px){.mapa-shell{grid-template-columns:1fr}}
+.mapa-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+@media(max-width:700px){.mapa-kpis{grid-template-columns:repeat(2,1fr)}}
+.mapa-kpi{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-sm);transition:all .2s}
+.mapa-kpi:hover{box-shadow:var(--shadow);transform:translateY(-2px)}
+.mapa-kpi-val{font-size:24px;font-weight:900;letter-spacing:-.5px;line-height:1}
+.mapa-kpi-lbl{color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-top:4px}
+.mapa-kpi-sub{font-size:11px;font-weight:600;margin-top:3px}
+.mapa-filtros{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:14px;
+  background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 12px}
+.mapa-fbtn{border:1.5px solid var(--border);background:var(--surface);color:var(--text2);
+  border-radius:8px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;
+  font-family:inherit;transition:all .15s;white-space:nowrap}
+.mapa-fbtn:hover,.mapa-fbtn.active{background:var(--accent);color:white;border-color:var(--accent)}
+.mapa-fbtn.f-ganada.active{background:#10b981;border-color:#10b981}
+.mapa-fbtn.f-pendiente.active{background:#f59e0b;border-color:#f59e0b}
+.mapa-fbtn.f-seguimiento.active{background:#3b82f6;border-color:#3b82f6}
+.mapa-fbtn.f-perdida.active{background:#ef4444;border-color:#ef4444}
+.mapa-svg-wrap{position:relative;background:var(--surface);border:1px solid var(--border);
+  border-radius:16px;box-shadow:var(--shadow-sm);overflow:hidden}
+.mapa-svg-wrap svg{display:block;width:100%;height:auto}
+.mapa-bubble{cursor:pointer;transition:transform .15s,filter .15s}
+.mapa-bubble:hover{filter:brightness(1.15)}
+.mapa-tip{position:fixed;background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:12px 15px;font-size:12px;pointer-events:none;
+  z-index:9999;display:none;min-width:180px;box-shadow:var(--shadow-lg);color:var(--text)}
+.mapa-leyenda{display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+  margin-top:10px;padding:8px 12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)}
+.mapa-ranking{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  padding:14px;box-shadow:var(--shadow-sm);position:sticky;top:80px}
+.mapa-rank-item{display:flex;align-items:center;gap:8px;padding:8px 0;
+  border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s;
+  border-radius:6px;padding:7px 8px;margin-bottom:2px}
+.mapa-rank-item:last-child{border-bottom:none}
+.mapa-rank-item:hover{background:var(--accent-light)}
+.mapa-rank-num{font-size:11px;font-weight:900;color:white;border-radius:5px;
+  min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.mapa-rank-bar{height:4px;border-radius:3px;margin-top:3px;transition:width .3s}
+.mapa-detalle{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  padding:18px;margin-top:14px;box-shadow:var(--shadow-sm);display:none}
+.mapa-detalle-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0}
+.mapa-metrica{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center}
+.mapa-metrica-val{font-size:20px;font-weight:900;letter-spacing:-.3px}
+.mapa-metrica-lbl{color:var(--text3);font-size:10px;font-weight:700;margin-top:2px}
 
 /* ===== LLAMADAS ===== */
 .llamada-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
@@ -526,7 +565,24 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
     <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">v2.0_STABLE_20260408</b></div>
   </div>
 </div></div>
-  <div id="vista-mapa" style="display:none;padding:16px 20px 24px"><h3 style="color:var(--accent);margin-bottom:16px">🗺️ Mapa de ofertas por provincia</h3><div id="mapa-container"></div></div>
+  <div id="vista-mapa" style="display:none;padding:16px 20px 28px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px">
+      <div>
+        <h3 style="color:var(--accent);font-size:17px;font-weight:900;letter-spacing:-.2px">🗺️ Mapa comercial de España</h3>
+        <div style="color:var(--text3);font-size:12px;margin-top:2px">Distribución geográfica de ofertas · Clic en burbuja para ver detalle</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select id="mapa-metrica-sel" onchange="renderMapa()" style="background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--text);font-family:inherit;font-weight:600">
+          <option value="count">Nº de ofertas</option>
+          <option value="importe">Importe total</option>
+          <option value="ganadas">Ofertas ganadas</option>
+          <option value="winrate">% cierre</option>
+        </select>
+        <button onclick="renderMapa()" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">↻ Actualizar</button>
+      </div>
+    </div>
+    <div id="mapa-container"></div>
+  </div>
   <div id="vista-llamadas" style="display:none;padding:16px 20px 24px"></div>
   <div id="vista-comparativa" style="display:none;padding:16px 20px 24px"></div>
   <div id="vista-alertas" style="display:none;padding:16px 20px 24px"></div>
@@ -1101,8 +1157,22 @@ function guardarTipoPersonalizado(){
 }
 const CE={Pendiente:"#f59e0b","En seguimiento":"#3b82f6",Interesado:"#8b5cf6","Negociación":"#f97316",Ganada:"#10b981",Perdida:"#ef4444",Descartada:"#6b7280"};
 const CG=["#38bdf8","#10b981","#f59e0b","#8b5cf6","#f97316","#ef4444","#06b6d4","#84cc16","#ec4899","#6366f1"];
-// Coordenadas aproximadas de capitales de provincia (lat,lng simplificadas en porcentaje SVG)
-const PROV_POS={"Madrid":[42.5,47],"Barcelona":[79,28],"Valencia":[68,52],"Sevilla":[25,67],"M\u00e1laga":[35,75],"Zaragoza":[62,32],"Murcia":[65,60],"Alicante":[70,57],"La Coru\u00f1a":[10,20],"Bilbao":[52,22],"Granada":[42,70],"C\u00f3rdoba":[33,62],"Valladolid":[38,37],"Palencia":[38,32],"Burgos":[45,28],"Le\u00f3n":[28,28],"Salamanca":[30,43],"\u00c1vila":[35,43],"Segovia":[40,40],"Toledo":[40,52],"C\u00e1ceres":[22,53],"Badajoz":[18,60],"Huelva":[18,68],"C\u00e1diz":[22,76],"Ja\u00e9n":[42,63],"Almer\u00eda":[50,72],"Cuenca":[52,50],"Albacete":[57,57],"Ciudad Real":[40,58],"Guadalajara":[48,43],"Lugo":[18,22],"Ourense":[20,28],"Pontevedra":[14,27],"Zamora":[28,34],"Lleida":[68,28],"Girona":[82,22],"Tarragona":[73,38],"Huesca":[62,26],"Teruel":[58,45],"Navarra":[57,22],"La Rioja":[52,27],"Islas Baleares":[82,53],"Las Palmas":[8,88],"Santa Cruz de Tenerife":[5,88],"Asturias":[28,20],"Cantabria":[38,20],"Vizcaya":[50,20],"Guip\u00fazcoa":[55,20],"\u00c1lava":[52,24],"Castell\u00f3n":[70,46],"Soria":[50,33]};
+// Coordenadas absolutas para viewBox 960×780 — posición real en España
+const PROV_POS={
+  "Madrid":[462,390],"Barcelona":[800,240],"Valencia":[710,445],"Sevilla":[230,575],
+  "Málaga":[320,635],"Zaragoza":[630,255],"Murcia":[672,510],"Alicante":[718,490],
+  "La Coruña":[88,165],"Bilbao":[500,175],"Granada":[400,600],"Córdoba":[300,530],
+  "Valladolid":[350,310],"Palencia":[370,270],"Burgos":[430,235],"León":[255,230],
+  "Salamanca":[270,355],"Ávila":[360,370],"Segovia":[400,340],"Toledo":[415,430],
+  "Cáceres":[200,430],"Badajoz":[165,490],"Huelva":[165,570],"Cádiz":[198,645],
+  "Jaén":[400,545],"Almería":[470,620],"Cuenca":[515,415],"Albacete":[560,480],
+  "Ciudad Real":[385,490],"Guadalajara":[468,360],"Lugo":[155,178],"Ourense":[168,240],
+  "Pontevedra":[118,228],"Zamora":[268,295],"Lleida":[685,240],"Girona":[835,198],
+  "Tarragona":[745,318],"Huesca":[625,210],"Teruel":[598,370],"Navarra":[565,182],
+  "La Rioja":[510,220],"Islas Baleares":[835,460],"Las Palmas":[72,720],
+  "Santa Cruz de Tenerife":[45,720],"Asturias":[265,168],"Cantabria":[368,168],
+  "Vizcaya":[488,172],"Guipúzcoa":[540,168],"Álava":[508,195],"Castellón":[705,388],"Soria":[488,278]
+};
 const DIAS_ALERTA=60; // días sin actividad para generar alerta
 
 // ===== ESTADO =====
@@ -2085,149 +2155,428 @@ function renderEstadisticasCustom(){
   run();
 }
 
-// ===== MAPA =====
-function renderMapa(){
-  const porProv={};
-  const impProv={};
-  const ganProv={};
-  ofertas.forEach(o=>{
-    if(!o.provincia) return;
-    porProv[o.provincia]=(porProv[o.provincia]||0)+1;
-    impProv[o.provincia]=(impProv[o.provincia]||0)+(o.importe||0);
-    if(o.estado==='Ganada') ganProv[o.provincia]=(ganProv[o.provincia]||0)+1;
-  });
-  const max=Math.max(...Object.values(porProv),1);
-  const totalOfertas=Object.values(porProv).reduce((a,b)=>a+b,0);
-  const totalImporte=Object.values(impProv).reduce((a,b)=>a+b,0);
-  const ranking=Object.entries(porProv).sort((a,b)=>b[1]-a[1]).slice(0,10);
+// ===== MAPA PROFESIONAL =====
+let _mapaFiltroEstado = null; // filtro activo de estado en el mapa
 
-  // Paleta de calor: de azul claro a rojo intenso según intensidad
-  function colorProv(n){
-    const t=n/max;
-    if(t===0) return '#cbd5e1';
-    if(t<0.2) return '#93c5fd';
-    if(t<0.4) return '#60a5fa';
-    if(t<0.6) return '#f59e0b';
-    if(t<0.8) return '#f97316';
-    return '#ef4444';
+function renderMapa(){
+  // ── Recopilar datos ──────────────────────────────────────────────
+  const porProv={}, impProv={}, ganProv={}, perdProv={}, segProv={};
+  ofertas.forEach(o=>{
+    const p=o.provincia; if(!p) return;
+    porProv[p]=(porProv[p]||0)+1;
+    impProv[p]=(impProv[p]||0)+(o.importe||0);
+    if(o.estado==='Ganada')    ganProv[p]=(ganProv[p]||0)+1;
+    if(o.estado==='Perdida'||o.estado==='Descartada') perdProv[p]=(perdProv[p]||0)+1;
+    if(o.estado==='En seguimiento') segProv[p]=(segProv[p]||0)+1;
+  });
+
+  // Métrica activa (selector en el header)
+  const metricaSel = document.getElementById('mapa-metrica-sel');
+  const metrica = metricaSel ? metricaSel.value : 'count';
+
+  function valorProv(p){
+    if(metrica==='importe')  return impProv[p]||0;
+    if(metrica==='ganadas')  return ganProv[p]||0;
+    if(metrica==='winrate'){
+      const c=(ganProv[p]||0)+(perdProv[p]||0);
+      return c>0 ? Math.round((ganProv[p]||0)/c*100) : 0;
+    }
+    return porProv[p]||0;
+  }
+  function fmtValor(v){
+    if(metrica==='importe') return Math.round(v).toLocaleString('es-ES')+' €';
+    if(metrica==='winrate') return v+'%';
+    return v;
+  }
+  function labelMetrica(){
+    return {count:'Ofertas',importe:'Importe',ganadas:'Ganadas',winrate:'% Cierre'}[metrica];
   }
 
-  // Círculos del mapa
-  let circulos='';
+  const valores = Object.keys(PROV_POS).map(p=>valorProv(p)).filter(v=>v>0);
+  const maxVal  = Math.max(...valores, 1);
+  const totalOfertas  = Object.values(porProv).reduce((a,b)=>a+b,0);
+  const totalImporte  = Object.values(impProv).reduce((a,b)=>a+b,0);
+  const totalGanadas  = Object.values(ganProv).reduce((a,b)=>a+b,0);
+  const totalPerdidas = Object.values(perdProv).reduce((a,b)=>a+b,0);
+  const winRateGlobal = (totalGanadas+totalPerdidas)>0
+    ? Math.round(totalGanadas/(totalGanadas+totalPerdidas)*100) : 0;
+
+  // ── Paleta de calor continua ─────────────────────────────────────
+  function heatColor(v){
+    const t = v / maxVal;
+    if(t===0) return '#e2e8f0';
+    // interpolación azul → verde → naranja → rojo
+    if(t<0.25) return `hsl(${210+t*4*(-30)},${60+t*4*20}%,${70-t*4*10}%)`;
+    if(t<0.5)  return `hsl(${150-(t-.25)*4*60},70%,${52-t*4}%)`;
+    if(t<0.75) return `hsl(${30-(t-.5)*4*20},85%,${52-(t-.5)*4*6}%)`;
+    return `hsl(${10-(t-.75)*4*10},90%,${46-(t-.75)*4*4}%)`;
+  }
+
+  // ── Filtro activo de estado ──────────────────────────────────────
+  // Aplicar filtro visual si hay uno activo
+  function ofertasFiltradas(prov){
+    return ofertas.filter(o=>{
+      if(o.provincia!==prov) return false;
+      if(!_mapaFiltroEstado) return true;
+      if(_mapaFiltroEstado==='Perdida') return o.estado==='Perdida'||o.estado==='Descartada';
+      return o.estado===_mapaFiltroEstado;
+    });
+  }
+
+  // ── Burbujas SVG ─────────────────────────────────────────────────
+  let burbujas='';
   Object.entries(PROV_POS).forEach(([prov,[x,y]])=>{
-    const n=porProv[prov]||0;
-    const imp=impProv[prov]||0;
-    const gan=ganProv[prov]||0;
-    const r=n===0?0:Math.max(4, 4+Math.sqrt(n/max)*22);
-    const col=colorProv(n);
-    const wonPct=n>0?Math.round(gan/n*100):0;
-    if(n===0){
-      circulos+=`<circle cx="${x}%" cy="${y}%" r="2.5" fill="#e2e8f0" stroke="#c7d2e0" stroke-width="0.5" opacity="0.6"/>`;
-    } else {
-      circulos+=`<g class="prov-g" onclick="filtrarProv('${prov}')" style="cursor:pointer">
-        <circle cx="${x}%" cy="${y}%" r="${r}" fill="${col}" fill-opacity="0.82" stroke="white" stroke-width="1.5"
-          onmouseenter="showMapaTip(event,'${prov}',${n},${imp},${gan})" onmouseleave="hideMapaTip()"/>
-        <text x="${x}%" y="${y}%" text-anchor="middle" dominant-baseline="middle" font-size="${r>10?9:7}" font-weight="800" fill="white" pointer-events="none">${n}</text>
-      </g>`;
+    const n  = porProv[prov]||0;
+    const v  = valorProv(prov);
+    const imp= impProv[prov]||0;
+    const gan= ganProv[prov]||0;
+    const wr = (gan+(perdProv[prov]||0))>0
+      ? Math.round(gan/(gan+(perdProv[prov]||0))*100) : 0;
+    const col= v>0 ? heatColor(v) : '#dde8fa';
+    const r  = v===0 ? 2.2 : Math.max(3.5, 3.5 + Math.sqrt(v/maxVal)*18);
+    const fs = r>9?8:r>6?7:6;
+    // Dim si hay filtro activo y esta provincia no tiene datos del filtro
+    const dimmed = _mapaFiltroEstado && ofertasFiltradas(prov).length===0;
+    const opacity= dimmed ? 0.2 : 1;
+
+    if(v===0 && !n){
+      burbujas+=`<circle cx="${x}" cy="${y}" r="2" fill="#e8edf5" stroke="#d1d9ec" stroke-width="0.3" opacity="0.5"/>`;
+      return;
     }
+    burbujas+=`
+      <g class="mapa-bubble" onclick="mapaClickProv('${prov.replace(/'/g,"\\'")}',${n},${imp},${gan},${wr})" opacity="${opacity}"
+         onmouseenter="mapaShowTip(event,'${prov.replace(/'/g,"\\'")}',${n},${imp},${gan},${wr},'${col}')"
+         onmouseleave="mapaHideTip()">
+        <circle cx="${x}" cy="${y}" r="${r+1.5}" fill="${col}" opacity="0.15"/>
+        <circle cx="${x}" cy="${y}" r="${r}" fill="${col}" stroke="white" stroke-width="1.2"/>
+        ${v>0?`<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle"
+          font-size="${fs}" font-weight="900" fill="white" pointer-events="none"
+          style="text-shadow:0 1px 2px rgba(0,0,0,.3)">${metrica==='importe'?'€':metrica==='winrate'?wr+'%':v}</text>`:''}
+      </g>`;
   });
 
-  // Ranking lateral
-  const rankingHTML=ranking.map(([prov,n],i)=>{
-    const imp=impProv[prov]||0;
-    const gan=ganProv[prov]||0;
-    const pct=Math.round(n/max*100);
-    const col=colorProv(n);
-    return `<div onclick="filtrarProv('${prov}')" style="cursor:pointer;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);margin-bottom:6px;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 4px 14px rgba(21,101,192,.15)'" onmouseout="this.style.boxShadow='none'">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-        <span style="background:${col};color:white;border-radius:5px;padding:1px 7px;font-size:11px;font-weight:900;min-width:22px;text-align:center">${i+1}</span>
-        <span style="color:var(--text);font-size:12px;font-weight:700;flex:1">${prov}</span>
-        <span style="color:var(--accent);font-size:13px;font-weight:900">${n}</span>
-      </div>
-      <div style="height:5px;background:var(--surface2);border-radius:4px;overflow:hidden;margin-bottom:3px"><div style="width:${pct}%;height:100%;background:${col};border-radius:4px"></div></div>
-      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3)">
-        <span>${Math.round(imp).toLocaleString('es-ES')} €</span>
-        <span style="color:#10b981;font-weight:700">${gan} ganada${gan!==1?'s':''}</span>
-      </div>
-    </div>`;
+  // ── Ranking lateral ──────────────────────────────────────────────
+  const ranking = Object.entries(porProv)
+    .sort((a,b)=>valorProv(b[0])-valorProv(a[0]))
+    .slice(0,12);
+
+  const rankingHTML = ranking.map(([prov],i)=>{
+    const n  = porProv[prov]||0;
+    const v  = valorProv(prov);
+    const imp= impProv[prov]||0;
+    const gan= ganProv[prov]||0;
+    const col= heatColor(v);
+    const pct= Math.round(v/maxVal*100);
+    const medal= i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+    return `
+      <div class="mapa-rank-item" onclick="mapaClickProv('${prov.replace(/'/g,"\\'")}',${n},${imp},${gan},0)"
+           title="Clic para ver detalle de ${prov}">
+        <div class="mapa-rank-num" style="background:${col}">${medal||i+1}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${prov}</span>
+            <span style="font-size:12px;font-weight:900;color:var(--accent);margin-left:4px;flex-shrink:0">${fmtValor(v)}</span>
+          </div>
+          <div style="background:var(--surface2);border-radius:3px;height:4px;margin-top:4px;overflow:hidden">
+            <div class="mapa-rank-bar" style="width:${pct}%;background:${col}"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:3px">
+            <span style="font-size:10px;color:var(--text3)">${n} oferta${n!==1?'s':''}</span>
+            <span style="font-size:10px;color:#10b981;font-weight:700">${gan} ✓</span>
+          </div>
+        </div>
+      </div>`;
   }).join('');
 
-  // Filtro por estado en el mapa
-  const estadoFiltroHTML=`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
-    <span style="color:var(--text3);font-size:11px;font-weight:700">Filtrar:</span>
-    <button onclick="filtrarProv(null)" class="sb-btn ghost" style="padding:5px 10px;font-size:11px">🗺️ Todo</button>
-    ${['Pendiente','En seguimiento','Ganada','Perdida'].map(est=>`<button onclick="filtrarMapaEstado('${est}')" class="sb-btn ghost" style="padding:5px 10px;font-size:11px">${est}</button>`).join('')}
-  </div>`;
+  // ── Botones de filtro ────────────────────────────────────────────
+  const filtros=[
+    {label:'Todas',val:null,cls:''},
+    {label:'● Pendiente',val:'Pendiente',cls:'f-pendiente'},
+    {label:'● En seguimiento',val:'En seguimiento',cls:'f-seguimiento'},
+    {label:'● Ganadas',val:'Ganada',cls:'f-ganada'},
+    {label:'● Perdidas',val:'Perdida',cls:'f-perdida'},
+  ];
+  const filtrosHTML=filtros.map(f=>`
+    <button class="mapa-fbtn ${f.cls} ${_mapaFiltroEstado===f.val?'active':''}"
+      onclick="mapaSetFiltro(${f.val===null?'null':"'"+f.val+"'"})">
+      ${f.label}
+    </button>`).join('');
 
+  // ── HTML principal ───────────────────────────────────────────────
   document.getElementById('mapa-container').innerHTML=`
-    <div style="display:flex;gap:14px;flex-wrap:wrap">
-      <!-- MAPA -->
-      <div style="flex:1;min-width:320px">
-        <!-- KPIs rápidos -->
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center">
-            <div style="color:var(--accent);font-size:22px;font-weight:900">${totalOfertas}</div>
-            <div style="color:var(--text3);font-size:10px;font-weight:700">OFERTAS</div>
-          </div>
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center">
-            <div style="color:#10b981;font-size:16px;font-weight:900">${Math.round(totalImporte).toLocaleString('es-ES')} €</div>
-            <div style="color:var(--text3);font-size:10px;font-weight:700">IMPORTE</div>
-          </div>
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center">
-            <div style="color:var(--purple);font-size:22px;font-weight:900">${Object.keys(porProv).length}</div>
-            <div style="color:var(--text3);font-size:10px;font-weight:700">PROVINCIAS</div>
-          </div>
-        </div>
-        ${estadoFiltroHTML}
-        <!-- Mapa SVG -->
-        <div class="mapa-wrap" style="position:relative">
-          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"
-            style="width:100%;height:auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-sm)">
+    <!-- KPIs ejecutivos -->
+    <div class="mapa-kpis">
+      <div class="mapa-kpi">
+        <div class="mapa-kpi-val" style="color:var(--accent)">${totalOfertas}</div>
+        <div class="mapa-kpi-lbl">Total ofertas</div>
+        <div class="mapa-kpi-sub" style="color:var(--text3)">${Object.keys(porProv).length} provincias activas</div>
+      </div>
+      <div class="mapa-kpi">
+        <div class="mapa-kpi-val" style="color:#10b981;font-size:18px">${Math.round(totalImporte).toLocaleString('es-ES')} €</div>
+        <div class="mapa-kpi-lbl">Importe pipeline</div>
+        <div class="mapa-kpi-sub" style="color:#10b981">${totalGanadas} ganadas</div>
+      </div>
+      <div class="mapa-kpi">
+        <div class="mapa-kpi-val" style="color:var(--purple)">${winRateGlobal}%</div>
+        <div class="mapa-kpi-lbl">Tasa de cierre</div>
+        <div class="mapa-kpi-sub" style="color:var(--text3)">${totalPerdidas} perdidas</div>
+      </div>
+      <div class="mapa-kpi">
+        <div class="mapa-kpi-val" style="color:#f59e0b">${totalOfertas>0?Math.round(totalImporte/totalOfertas).toLocaleString('es-ES'):0} €</div>
+        <div class="mapa-kpi-lbl">Ticket medio</div>
+        <div class="mapa-kpi-sub" style="color:var(--text3)">por oferta</div>
+      </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="mapa-filtros">
+      <span style="color:var(--text3);font-size:11px;font-weight:800;margin-right:4px">FILTRAR POR ESTADO:</span>
+      ${filtrosHTML}
+      ${_mapaFiltroEstado?`<span style="margin-left:auto;font-size:11px;color:var(--text3)">Mostrando: <b style="color:var(--accent)">${_mapaFiltroEstado}</b></span>`:''}
+    </div>
+
+    <!-- Layout principal: mapa + ranking -->
+    <div class="mapa-shell">
+      <!-- Mapa SVG -->
+      <div>
+        <div class="mapa-svg-wrap">
+          <svg viewBox="0 0 960 780" xmlns="http://www.w3.org/2000/svg">
             <defs>
-              <radialGradient id="bgGrad" cx="50%" cy="50%" r="70%">
+              <linearGradient id="mapaFondo" x1="0" y1="0" x2="1" y2="1">
                 <stop offset="0%" stop-color="#f0f6ff"/>
-                <stop offset="100%" stop-color="#e8effe"/>
-              </radialGradient>
+                <stop offset="100%" stop-color="#e8eeff"/>
+              </linearGradient>
+              <filter id="burbSombra">
+                <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.18"/>
+              </filter>
             </defs>
-            <rect width="100" height="100" fill="url(#bgGrad)"/>
-            <!-- Silueta simplificada España continental -->
-            <path d="M14,30 Q10,20 18,18 Q30,14 42,16 Q60,14 72,18 Q82,22 84,30 Q88,36 86,44 Q88,52 84,58 Q82,66 76,70 Q72,76 68,78 Q60,82 52,80 Q44,84 38,80 Q30,76 26,72 Q18,68 14,60 Q10,52 12,44 Q12,36 14,30 Z" fill="#dde8fa" stroke="#b8ccee" stroke-width="0.5" opacity="0.5"/>
-            ${circulos}
+            <rect width="960" height="780" fill="url(#mapaFondo)"/>
+
+            <!-- Cuadrícula sutil -->
+            <g stroke="#dde8fa" stroke-width="0.5" opacity="0.6">
+              ${Array.from({length:10},(_,i)=>`<line x1="${i*100}" y1="0" x2="${i*100}" y2="780"/>`).join('')}
+              ${Array.from({length:8},(_,i)=>`<line x1="0" y1="${i*100}" x2="960" y2="${i*100}"/>`).join('')}
+            </g>
+
+            <!-- Silueta de España continental más fiel -->
+            <path d="
+              M 85,175  Q 75,145 95,130 Q 130,110 175,105
+              Q 230,98  285,95  Q 340,90  395,88
+              Q 450,86  510,88  Q 570,90  625,98
+              Q 680,106 720,118 Q 760,130 790,148
+              Q 820,166 835,188 Q 848,210 845,235
+              Q 842,260 838,285 Q 834,315 838,340
+              Q 842,368 840,392 Q 838,418 828,440
+              Q 815,465 795,482 Q 770,500 745,515
+              Q 715,530 685,540 Q 650,550 615,555
+              Q 575,558 535,556 Q 495,554 455,550
+              Q 412,546 372,538 Q 328,528 290,512
+              Q 252,495 222,474 Q 192,452 172,425
+              Q 150,396 138,365 Q 126,334 118,300
+              Q 110,266 98,236 Q 88,210 85,175 Z
+            " fill="#dde8fa" stroke="#b8ccee" stroke-width="1.5" opacity="0.55"/>
+
+            <!-- Portugal (contorno) -->
+            <path d="M 85,175 Q 75,200 72,230 Q 68,265 72,300 Q 76,335 82,365
+              Q 88,395 100,418 Q 115,442 138,465 L 138,365 Q 126,334 118,300
+              Q 110,266 98,236 Q 88,210 85,175 Z"
+              fill="#d4e0f5" stroke="#a8bde0" stroke-width="1" opacity="0.4"/>
+
+            <!-- Etiqueta de mar -->
+            <text x="50" y="580" font-size="13" fill="#93a8cc" opacity="0.6" font-style="italic">Mar Atlántico</text>
+            <text x="820" y="620" font-size="13" fill="#93a8cc" opacity="0.6" font-style="italic">Mar Mediterráneo</text>
+            <text x="440" y="72" font-size="13" fill="#93a8cc" opacity="0.6" font-style="italic">Pirineos</text>
+
+            <!-- Burbujas de provincias -->
+            <g filter="url(#burbSombra)">
+              ${burbujas}
+            </g>
+
+            <!-- Brújula decorativa -->
+            <g transform="translate(900,720)">
+              <circle r="22" fill="var(--surface)" stroke="var(--border)" stroke-width="1.5" opacity="0.9"/>
+              <text text-anchor="middle" y="-10" font-size="9" fill="var(--text3)" font-weight="700">N</text>
+              <text text-anchor="middle" y="16"  font-size="9" fill="var(--text3)">S</text>
+              <text x="-12" y="4" font-size="9" fill="var(--text3)">O</text>
+              <text x="8"  y="4" font-size="9" fill="var(--text3)">E</text>
+              <path d="M0,-14 L3,0 L0,-2 L-3,0 Z" fill="var(--accent)" opacity="0.8"/>
+              <path d="M0,14  L3,0 L0,2  L-3,0 Z" fill="var(--text3)" opacity="0.5"/>
+            </g>
           </svg>
-          <div class="mapa-tooltip" id="mapa-tip"></div>
         </div>
-        <!-- Leyenda -->
-        <div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap">
-          <span style="color:var(--text3);font-size:10px;font-weight:700">Intensidad:</span>
-          ${[['Baja','#93c5fd'],['Media','#f59e0b'],['Alta','#f97316'],['Muy alta','#ef4444']].map(([l,c])=>`<span style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text2)"><span style="width:12px;height:12px;background:${c};border-radius:3px;display:inline-block"></span>${l}</span>`).join('')}
-          <span style="color:var(--text3);font-size:10px;margin-left:6px">· Clic en círculo → filtrar tabla</span>
+
+        <!-- Leyenda de calor -->
+        <div class="mapa-leyenda">
+          <span style="color:var(--text3);font-size:10px;font-weight:800">INTENSIDAD (${labelMetrica()}):</span>
+          <div style="display:flex;align-items:center;gap:3px">
+            ${['#93c5fd','#60a5fa','#34d399','#f59e0b','#f97316','#ef4444'].map((c,i)=>
+              `<div style="width:${18+i*4}px;height:12px;background:${c};border-radius:2px" title="${['Muy baja','Baja','Media','Alta','Muy alta','Máxima'][i]}"></div>`
+            ).join('')}
+            <span style="color:var(--text3);font-size:10px;margin-left:4px">Bajo → Alto</span>
+          </div>
+          <span style="color:var(--text3);font-size:10px;margin-left:auto">Tamaño burbuja = valor relativo · Clic = detalle</span>
+        </div>
+
+        <!-- Panel de detalle de provincia (aparece al clicar) -->
+        <div class="mapa-detalle" id="mapa-detalle-panel">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div id="mapa-detalle-titulo" style="font-size:15px;font-weight:900;color:var(--accent)"></div>
+            <div style="display:flex;gap:6px">
+              <button id="mapa-detalle-ir" onclick="" style="background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;border:none;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">
+                Ver ofertas →
+              </button>
+              <button onclick="document.getElementById('mapa-detalle-panel').style.display='none'"
+                style="background:var(--surface2);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:6px 10px;font-size:13px;cursor:pointer">✕</button>
+            </div>
+          </div>
+          <div class="mapa-detalle-grid" id="mapa-detalle-metricas"></div>
+          <div id="mapa-detalle-estado-bars"></div>
         </div>
       </div>
-      <!-- RANKING -->
-      <div style="width:220px;flex-shrink:0">
-        <div style="color:var(--accent);font-size:12px;font-weight:900;margin-bottom:10px">🏆 Top 10 provincias</div>
-        <div style="max-height:480px;overflow-y:auto;padding-right:4px">${rankingHTML}</div>
+
+      <!-- Panel lateral de ranking -->
+      <div class="mapa-ranking">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="color:var(--accent);font-size:13px;font-weight:900">🏆 Ranking</div>
+          <div style="color:var(--text3);font-size:10px;font-weight:700">${labelMetrica()}</div>
+        </div>
+        ${ranking.length===0
+          ? `<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px 0">Sin datos</div>`
+          : rankingHTML}
+        ${ranking.length>0?`
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+          <button onclick="filtrarProv(null);setVista('tabla')"
+            style="width:100%;background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;
+            border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">
+            📋 Ver todas las ofertas
+          </button>
+        </div>`:''}
       </div>
+    </div>
+
+    <!-- Tooltip flotante -->
+    <div class="mapa-tip" id="mapa-tip"></div>
+  `;
+}
+
+// ── Tooltip al hover ──────────────────────────────────────────────
+function mapaShowTip(e, prov, n, imp, gan, wr, col){
+  const t=document.getElementById('mapa-tip');
+  if(!t) return;
+  const perd=(ofertas.filter(o=>o.provincia===prov&&(o.estado==='Perdida'||o.estado==='Descartada'))).length;
+  const pipeline=imp - (ofertas.filter(o=>o.provincia===prov&&o.estado==='Ganada').reduce((s,o)=>s+(o.importe||0),0));
+  t.innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <div style="width:10px;height:10px;background:${col};border-radius:3px;flex-shrink:0"></div>
+      <strong style="color:var(--accent);font-size:14px">${prov}</strong>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:11px">
+      <span style="color:var(--text3)">Ofertas</span><span style="font-weight:700;color:var(--text)">${n}</span>
+      <span style="color:var(--text3)">Importe</span><span style="font-weight:700;color:#10b981">${Math.round(imp).toLocaleString('es-ES')} €</span>
+      <span style="color:var(--text3)">Ganadas</span><span style="font-weight:700;color:#10b981">${gan}</span>
+      <span style="color:var(--text3)">Perdidas</span><span style="font-weight:700;color:#ef4444">${perd}</span>
+      <span style="color:var(--text3)">% Cierre</span><span style="font-weight:700;color:var(--purple)">${wr}%</span>
+    </div>
+    <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);color:var(--text3);font-size:10px">
+      Clic para ver detalle completo
     </div>`;
+  t.style.display='block';
+  t.style.left=(e.clientX+16)+'px';
+  t.style.top=(e.clientY-10)+'px';
 }
-function showMapaTip(e,prov,n,imp,gan){
-  const t=document.getElementById("mapa-tip");
-  const winRate=n>0?Math.round(gan/n*100):0;
-  t.innerHTML=`<strong style="color:var(--accent);font-size:13px">${prov}</strong><br>
-    <span style="color:var(--text2)">${n} oferta${n!==1?'s':''}</span><br>
-    <span style="color:#10b981;font-weight:700">${Math.round(imp).toLocaleString('es-ES')} €</span><br>
-    <span style="color:var(--purple)">Ganadas: ${gan} (${winRate}%)</span><br>
-    <span style="color:var(--text3);font-size:10px">Clic para filtrar tabla</span>`;
-  t.style.display="block";t.style.left=(e.offsetX+14)+"px";t.style.top=(e.offsetY-10)+"px";
+function mapaHideTip(){
+  const t=document.getElementById('mapa-tip');
+  if(t) t.style.display='none';
 }
-function hideMapaTip(){document.getElementById("mapa-tip").style.display="none";}
-function filtrarMapaEstado(estado){
-  try{
-    const sel=document.getElementById('f-est');
-    if(sel) sel.value=estado;
-  }catch(_){}
-  setVista('tabla');
+
+// ── Detalle al clic en provincia ─────────────────────────────────
+function mapaClickProv(prov, n, imp, gan, wr){
+  mapaHideTip();
+  const panel=document.getElementById('mapa-detalle-panel');
+  if(!panel) return;
+
+  const ofsProv=ofertas.filter(o=>o.provincia===prov);
+  const totalImp=ofsProv.reduce((s,o)=>s+(o.importe||0),0);
+  const ganadas=ofsProv.filter(o=>o.estado==='Ganada');
+  const impGanado=ganadas.reduce((s,o)=>s+(o.importe||0),0);
+  const perdidas=ofsProv.filter(o=>o.estado==='Perdida'||o.estado==='Descartada');
+  const activas=ofsProv.filter(o=>!['Ganada','Perdida','Descartada'].includes(o.estado));
+  const ticket=n>0?Math.round(totalImp/n):0;
+  const wrReal=(ganadas.length+perdidas.length)>0
+    ? Math.round(ganadas.length/(ganadas.length+perdidas.length)*100) : 0;
+
+  document.getElementById('mapa-detalle-titulo').textContent=`📍 ${prov}`;
+  document.getElementById('mapa-detalle-ir').onclick=()=>{ filtrarProv(prov); };
+
+  // Métricas
+  document.getElementById('mapa-detalle-metricas').innerHTML=`
+    <div class="mapa-metrica">
+      <div class="mapa-metrica-val" style="color:var(--accent)">${n}</div>
+      <div class="mapa-metrica-lbl">Total ofertas</div>
+    </div>
+    <div class="mapa-metrica">
+      <div class="mapa-metrica-val" style="color:#10b981;font-size:16px">${Math.round(totalImp).toLocaleString('es-ES')} €</div>
+      <div class="mapa-metrica-lbl">Importe total</div>
+    </div>
+    <div class="mapa-metrica">
+      <div class="mapa-metrica-val" style="color:var(--purple)">${wrReal}%</div>
+      <div class="mapa-metrica-lbl">Tasa cierre</div>
+    </div>
+    <div class="mapa-metrica">
+      <div class="mapa-metrica-val" style="color:#10b981">${ganadas.length}</div>
+      <div class="mapa-metrica-lbl">Ganadas · ${Math.round(impGanado).toLocaleString('es-ES')} €</div>
+    </div>
+    <div class="mapa-metrica">
+      <div class="mapa-metrica-val" style="color:#f59e0b">${activas.length}</div>
+      <div class="mapa-metrica-lbl">En pipeline</div>
+    </div>
+    <div class="mapa-metrica">
+      <div class="mapa-metrica-val" style="color:var(--text2);font-size:16px">${ticket.toLocaleString('es-ES')} €</div>
+      <div class="mapa-metrica-lbl">Ticket medio</div>
+    </div>`;
+
+  // Barras de estado
+  const estados=[
+    ['Ganada','#10b981',ganadas.length],
+    ['En seguimiento','#3b82f6',activas.filter(o=>o.estado==='En seguimiento').length],
+    ['Pendiente','#f59e0b',activas.filter(o=>o.estado==='Pendiente').length],
+    ['Negociación','#f97316',activas.filter(o=>o.estado==='Negociación').length],
+    ['Perdida/Descartada','#ef4444',perdidas.length],
+  ].filter(([,, v])=>v>0);
+
+  const maxEst=Math.max(...estados.map(e=>e[2]),1);
+  document.getElementById('mapa-detalle-estado-bars').innerHTML=
+    estados.length===0?'':
+    `<div style="margin-top:4px">
+      <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase;margin-bottom:8px">Distribución por estado</div>
+      ${estados.map(([est,col,v])=>`
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="font-size:11px;color:var(--text2);min-width:130px;font-weight:600">${est}</span>
+          <div style="flex:1;background:var(--surface2);border-radius:4px;height:8px;overflow:hidden">
+            <div style="width:${Math.round(v/maxEst*100)}%;height:100%;background:${col};border-radius:4px;transition:width .4s"></div>
+          </div>
+          <span style="font-size:11px;font-weight:900;color:${col};min-width:20px;text-align:right">${v}</span>
+        </div>`).join('')}
+    </div>`;
+
+  panel.style.display='block';
+  panel.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
+
+// ── Filtro de estado en el mapa ───────────────────────────────────
+function mapaSetFiltro(estado){
+  _mapaFiltroEstado = estado;
+  renderMapa();
+}
+
+// ── Tooltip: ocultar al mover fuera del SVG ───────────────────────
+document.addEventListener('mousemove', e=>{
+  const tip=document.getElementById('mapa-tip');
+  if(tip && tip.style.display==='block'){
+    tip.style.left=(e.clientX+16)+'px';
+    tip.style.top=(e.clientY-10)+'px';
+  }
+});
 function filtrarProv(prov){
   try{
     if(prov===null){
