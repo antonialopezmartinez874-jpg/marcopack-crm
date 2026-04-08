@@ -916,7 +916,9 @@ auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
 const MSAL_AUTHORITY  = "https://login.microsoftonline.com/common";
 const MSAL_SCOPES     = ["Files.ReadWrite", "User.Read"];
 const ONEDRIVE_FOLDER = "CRM_Marcopack";
-const OD_CONFIG_KEY   = "crm_msal_client_id";
+const OD_CONFIG_KEY      = "crm_msal_client_id";
+const OD_SHARED_LINK_KEY  = "crm_od_shared_link";
+const OD_SHARED_CACHE_KEY = "crm_od_shared_cache";
 
 function getClientId(){ return localStorage.getItem(OD_CONFIG_KEY)||""; }
 function setClientId(id){ localStorage.setItem(OD_CONFIG_KEY, id.trim()); msalInstance=null; msalToken=null; }
@@ -3418,6 +3420,40 @@ async function guardarNombre(){
     document.getElementById("uname").textContent=nombre;
     toast("✅ Nombre actualizado","#10b981");
   }catch(e){toast("❌ Error: "+e.message,"#ef4444");}
+}
+
+
+async function cambiarPassword(){
+  const pass1=document.getElementById('mc-pass1')?.value||'';
+  const pass2=document.getElementById('mc-pass2')?.value||'';
+  if(!pass1||!pass2){toast('⚠️ Rellena los dos campos de contraseña','#f59e0b');return;}
+  if(pass1!==pass2){toast('⚠️ Las contraseñas no coinciden','#f59e0b');return;}
+  if(pass1.length<6){toast('⚠️ Mínimo 6 caracteres','#f59e0b');return;}
+  try{
+    await currentUser.updatePassword(pass1);
+    toast('✅ Contraseña actualizada correctamente','#10b981');
+    const p1=document.getElementById('mc-pass1'); if(p1) p1.value='';
+    const p2=document.getElementById('mc-pass2'); if(p2) p2.value='';
+  }catch(e){
+    if(e.code==='auth/requires-recent-login'){
+      toast('⚠️ Por seguridad, cierra sesión, vuelve a entrar y cambia la contraseña.','#f59e0b');
+    } else {
+      toast('❌ Error: '+e.message,'#ef4444');
+    }
+  }
+}
+
+async function reclamarAdmin(){
+  if(!currentUser||!currentProfile){toast('⚠️ Sin sesión activa','#f59e0b');return;}
+  if(!confirm('¿Convertirte en Administrador?\nTendrás acceso a gestión de usuarios y configuración del sistema.'))return;
+  try{
+    await db.collection('usuarios').doc(currentUser.uid).set({rol:'admin'},{merge:true});
+    currentProfile.rol='admin';
+    toast('✅ Ahora eres Administrador','#10b981');
+    const navAdmin=document.getElementById('nav-admin');
+    if(navAdmin) navAdmin.style.display='block';
+    abrirMiCuenta();
+  }catch(e){toast('❌ Error: '+e.message,'#ef4444');}
 }
 
 // ===== ADMIN =====
