@@ -8,16 +8,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js">
 
-// ===== RESCATE: si hay un error JS, mostrarlo en login para no quedarse en blanco =====
+// ===== RESCATE: si hay un error JS, mostrarlo y no quedarse en blanco =====
 window.addEventListener('error', (ev)=>{
   try{
     const msg = (ev && ev.message) ? ev.message : 'Error desconocido';
     const el = document.getElementById('login-error');
-    if(el){
-      el.textContent = '❌ Error de carga: ' + msg + ' (abre F12→Console para detalle)';
-      el.style.display='block';
-    }
-    // asegurar que al menos se vea el login
+    if(el){ el.textContent = '❌ Error de carga: ' + msg + ' (Build CEO_READY_20260408_073115)'; el.style.display='block'; }
     const app=document.getElementById('app');
     const login=document.getElementById('login-screen');
     const setup=document.getElementById('setup-screen');
@@ -545,6 +541,8 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
     <div id="st-pane-custom" style="display:none">
       <div id="stats-builder"></div>
     </div>
+
+    <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">CEO_READY_20260408_073115</b></div>
   </div>
 </div></div>
   <div id="vista-mapa" style="display:none;padding:16px 20px 24px"><h3 style="color:var(--accent);margin-bottom:16px">🗺️ Mapa de ofertas por provincia</h3><div id="mapa-container"></div></div>
@@ -904,6 +902,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 // ===== FIREBASE =====
 const firebaseConfig={apiKey:"AIzaSyB4kJsqEtQ0ypOIL4LyY9rhTBpcY_mxhnI",authDomain:"machinecrm-61b34.firebaseapp.com",projectId:"machinecrm-61b34",storageBucket:"machinecrm-61b34.firebasestorage.app",messagingSenderId:"686919580495",appId:"1:686919580495:web:019fa5682054bb089a633a"};
 firebase.initializeApp(firebaseConfig);
+console.log('[Marcopack CRM] Build CEO_READY_20260408_073115');
 const auth=firebase.auth(),db=firebase.firestore();
 
 // ===== SEGURIDAD: No recordar sesión entre visitas =====
@@ -1107,7 +1106,6 @@ auth.onAuthStateChanged(async user=>{
     document.getElementById("urol").textContent=currentProfile.rol;
     if(currentProfile.rol==="admin")document.getElementById("nav-admin").style.display="block";
     poblarSelects();escucharOfertas();
-  // Asegurar vista inicial estable (GitHub Pages incluido)
   setTimeout(()=>{ try{ setVista('dashboard'); }catch(_){ } }, 50);
 
   }else{
@@ -1783,8 +1781,6 @@ function statsVal(o, dim){
   if(dim==='estado') return t(o.estado);
   if(dim==='responsable') return t(o.responsableNombre);
   if(dim==='tipoMaquina') return t(o.tipoMaquina);
-  if(dim==='motivoPerdida') return t(o.motivoPerdida);
-  if(dim==='competidor') return t(o.competidor);
   if(dim==='mes'){ const d=statsGetDate(o,'fechaOferta'); return d?statsFmtYM(d):'—'; }
   if(dim==='anio'){ const d=statsGetDate(o,'fechaOferta'); return d?String(d.getFullYear()):'—'; }
   return t(o[dim]);
@@ -1804,7 +1800,6 @@ function statsTab(which){
   else renderEstadisticasResumen();
 }
 
-// Wrapper que mantiene el comportamiento antiguo (Resumen) y añade Personalizado
 function renderEstadisticas(){
   const which = localStorage.getItem(STATS_TAB_KEY) || 'resumen';
   statsTab(which);
@@ -1832,7 +1827,7 @@ function renderEstadisticasCustom(){
     <div class="sb-wrap">
       <div class="sb-panel">
         <h3>🎛️ Estadística personalizada</h3>
-        <div class="sb-mini">Crea tus propias estadísticas por <b>empresa</b>, <b>provincia</b>, <b>tipo máquina</b>, etc. y filtra por <b>mes/año</b> o por rango de fechas.</div>
+        <div class="sb-mini">Elige dimensión, métrica y un rango de fechas (mes/año concretos). Exporta a CSV si quieres.</div>
 
         <div class="sb-grid" style="margin-top:12px">
           <div class="field"><label>Conjunto</label>
@@ -1863,13 +1858,11 @@ function renderEstadisticasCustom(){
               <option value="estado">Estado</option>
               <option value="tipoMaquina">Tipo máquina</option>
               <option value="pais">País</option>
-              <option value="motivoPerdida">Motivo pérdida</option>
-              <option value="competidor">Competidor</option>
               <option value="mes">Mes (fecha oferta)</option>
               <option value="anio">Año (fecha oferta)</option>
             </select>
           </div>
-          <div class="field"><label>2ª dimensión</label>
+          <div class="field"><label>2ª dimensión (pivot)</label>
             <select id="st-dim2">
               <option value="">— Ninguna —</option>
               <option value="provincia">Provincia</option>
@@ -1959,15 +1952,28 @@ function renderEstadisticasCustom(){
     const esc=(x)=>{const s=String(x??''); return /[",
 ]/.test(s)?('"'+s.replace(/"/g,'""')+'"'):s;};
     const lines=[headers.map(esc).join(',')];
-    exp.rows.forEach(r=>lines.push(headers.map(h=>esc(r[h])).join(',')));
-    const blob=new Blob([lines.join('
-')],{type:'text/csv;charset=utf-8;'});
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download=`Marcopack_stats_${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a); a.click(); a.remove();
-    toast('✅ CSV descargado','#10b981');
+    exp.rows.forEach(r=>lines.append(''));
   };
+
+  function setExport(headers, rows){
+    window.__statsLastExport = {headers, rows};
+    // sobrescribe descarga
+    window.statsDownloadCSV = function(){
+      const exp=window.__statsLastExport;
+      if(!exp || !exp.rows) return toast('⚠️ No hay datos para exportar','#f59e0b');
+      const esc=(x)=>{const s=String(x??''); return /[",
+]/.test(s)?('"'+s.replace(/"/g,'""')+'"'):s;};
+      const lines=[exp.headers.map(esc).join(',')];
+      exp.rows.forEach(r=>lines.push(exp.headers.map(h=>esc(r[h])).join(',')));
+      const blob=new Blob([lines.join('
+')],{type:'text/csv;charset=utf-8;'});
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=`Marcopack_stats_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+      toast('✅ CSV descargado','#10b981');
+    };
+  }
 
   function run(){
     const s=collect();
@@ -1981,7 +1987,6 @@ function renderEstadisticasCustom(){
     if(s.scope==='ganadas') rows=rows.filter(o=>o.estado==='Ganada');
     if(s.scope==='perdidas') rows=rows.filter(o=>o.estado==='Perdida' || o.estado==='Descartada');
 
-    // Si no hay rango, no excluyas por no tener fecha en ese campo
     rows = rows.filter(o=>{
       const d=statsGetDate(o, s.dateField);
       if(!d){ return (!from && !to); }
@@ -2043,9 +2048,8 @@ function renderEstadisticasCustom(){
         </div>
         <div class="sb-actions" style="margin-top:12px"><button class="sb-btn ghost" onclick="statsDownloadCSV()">⬇️ CSV</button></div>
       `;
-
       const exportRows=labels.map((lab,i)=>({periodo:lab, valor:values[i]}));
-      window.__statsLastExport={headers:['periodo','valor'], rows: exportRows};
+      setExport(['periodo','valor'], exportRows);
       document.getElementById('st-table').innerHTML=`
         <h4>📋 Tabla</h4>
         <table class="sb-table"><thead><tr><th>Periodo</th><th>${metricLabel}</th></tr></thead>
@@ -2073,10 +2077,6 @@ function renderEstadisticasCustom(){
       rowTotals.sort((a,b)=>s.sortDir==='asc'?a.total-b.total:b.total-a.total);
       const showRows=rowTotals.slice(0,s.topN).map(x=>x.r);
 
-      document.getElementById('st-chart').innerHTML=`
-        <h4>🧩 Pivot — ${metricLabel}</h4>
-        <div class="sb-actions" style="margin-top:12px"><button class="sb-btn ghost" onclick="statsDownloadCSV()">⬇️ CSV</button></div>`;
-
       const headers=[s.dim1, ...colsK, 'total'];
       const exportRows=[];
       showRows.forEach(r=>{
@@ -2085,7 +2085,11 @@ function renderEstadisticasCustom(){
         obj.total=metricAgg(colsK.flatMap(c=>map[r][c]||[]));
         exportRows.push(obj);
       });
-      window.__statsLastExport={headers, rows: exportRows};
+      setExport(headers, exportRows);
+
+      document.getElementById('st-chart').innerHTML=`
+        <h4>🧩 Pivot — ${metricLabel}</h4>
+        <div class="sb-actions" style="margin-top:12px"><button class="sb-btn ghost" onclick="statsDownloadCSV()">⬇️ CSV</button></div>`;
 
       const headCols=colsK.map(c=>`<th>${c}</th>`).join('');
       const body=showRows.map(r=>{
@@ -2093,7 +2097,6 @@ function renderEstadisticasCustom(){
         const tot=metricAgg(colsK.flatMap(c=>map[r][c]||[]));
         return `<tr><td><b>${r}</b></td>${tds}<td><b>${formatMetric(tot, s.metric)}</b></td></tr>`;
       }).join('');
-
       document.getElementById('st-table').innerHTML=`
         <h4>📋 Tabla pivot</h4>
         <div style="overflow:auto">
@@ -2102,7 +2105,7 @@ function renderEstadisticasCustom(){
       return;
     }
 
-    // Grouped bars
+    // Grouped
     const bucket={};
     rows.forEach(o=>{ const k=statsVal(o, s.dim1); (bucket[k]=bucket[k]||[]).push(o); });
     const items=Object.entries(bucket).map(([k,list])=>({label:k,value:metricAgg(list),count:list.length,imp:list.reduce((a,o)=>a+(o.importe||0),0)}));
@@ -2122,7 +2125,8 @@ function renderEstadisticasCustom(){
       }).join('')}</div>
       <div class="sb-actions" style="margin-top:12px"><button class="sb-btn ghost" onclick="statsDownloadCSV()">⬇️ CSV</button></div>`;
 
-    window.__statsLastExport={headers:[s.dim1,'valor','count','importe'], rows: shown.map(it=>({[s.dim1]:it.label, valor:it.value, count:it.count, importe:it.imp}))};
+    const exportRows=shown.map(it=>({[s.dim1]:it.label, valor:it.value, count:it.count, importe:it.imp}));
+    setExport([s.dim1,'valor','count','importe'], exportRows);
 
     document.getElementById('st-table').innerHTML=`
       <h4>📋 Tabla</h4>
@@ -2149,7 +2153,6 @@ function renderEstadisticasCustom(){
     document.getElementById('st-to').value=to.toISOString().split('T')[0];
     run();
   };
-
   run();
 }
 
@@ -3652,12 +3655,8 @@ function toast(msg,color="#10b981"){
   setTimeout(()=>el.style.opacity="0",3500);
 }
 
-// Arranque seguro
-window.onload=()=>{
-  // Si hay sesión válida, onAuthStateChanged mostrará la app.
-  // Si no, se queda en login.
-  // Nunca forzamos signOut aquí (evita bucles/errores en GitHub Pages).
-};
+// Arranque seguro (sin signOut forzado)
+window.onload=()=>{ /* Build: CEO_READY_20260408_073115 */ };
 </script>
 </body>
 </html>
