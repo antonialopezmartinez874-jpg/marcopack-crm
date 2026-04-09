@@ -1667,13 +1667,19 @@ function escucharOfertas(){
   });
 }
 
+// ===== HELPER FECHA LOCAL (evita desfase UTC+1/UTC+2 en España) =====
+function fechaLocal(d){
+  d=d||new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+
 // ===== STATS =====
 function getFechaManana(){
   const d=new Date();d.setDate(d.getDate()+1);
-  return d.toISOString().split("T")[0];
+  return fechaLocal(d);
 }
 function renderStats(){
-  const hoy=new Date().toISOString().split("T")[0];
+  const hoy=fechaLocal();
   const manana=getFechaManana();
   // Recordatorios vencidos o que vencen mañana (preaviso 1 día)
   const venc=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado)).length;
@@ -1720,7 +1726,7 @@ function mostrarBannerRecordatorios(){
   const banner=document.getElementById("banner-recordatorios");
   if(!banner)return;
   // Si el usuario ya lo cerró hoy, no volver a mostrarlo hasta mañana
-  const hoyStr=new Date().toISOString().split("T")[0];
+  const hoyStr=fechaLocal();
   if(bannerCerradoEn===hoyStr){banner.style.display="none";return;}
   const hoy=hoyStr;
   const manana=getFechaManana();
@@ -1750,7 +1756,7 @@ function mostrarBannerRecordatorios(){
 function cerrarBannerRecordatorios(){
   const banner=document.getElementById("banner-recordatorios");
   if(banner)banner.style.display="none";
-  bannerCerradoEn=new Date().toISOString().split("T")[0]; // no volver a mostrar hoy
+  bannerCerradoEn=fechaLocal(); // no volver a mostrar hoy
 }
 
 // ===== FILTRAR =====
@@ -1893,7 +1899,7 @@ function renderVista(){
 // ===== DASHBOARD EJECUTIVO =====
 function renderDashboard(){
   const hoy=new Date();
-  const hoyStr=hoy.toISOString().split("T")[0];
+  const hoyStr=fechaLocal(hoy);
   const gan=ofertas.filter(o=>o.estado==="Ganada");
   const pend=ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado));
   const total=ofertas.reduce((s,o)=>s+(o.importe||0),0);
@@ -1982,7 +1988,7 @@ function renderDashboard(){
 
 // ===== TABLA =====
 function renderTabla(){
-  const hoy=new Date().toISOString().split("T")[0];
+  const hoy=fechaLocal();
   const hoyCmp=new Date();
   const rows=getFiltradas();
   const tbody=document.getElementById("tbody");
@@ -2940,8 +2946,8 @@ async function llBorrarHistorialIds(ids){
 let llBusqueda="";
 
 function renderLlamadas(){
-  const hoy=new Date().toISOString().split("T")[0];
-  const manana=(()=>{const d=new Date();d.setDate(d.getDate()+1);return d.toISOString().split("T")[0];})();
+  const hoy=fechaLocal();
+  const manana=getFechaManana();
   const activas=ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado));
 
   // Filtro de búsqueda
@@ -3086,7 +3092,7 @@ function renderLlamadas(){
     for(let i=0;i<totalCeldas;i++){
       const diaOffset=i-diaInicioSem;
       const fecha=new Date(llCalAnioActual,llCalMesActual,diaOffset+1);
-      const fechaStr=fecha.toISOString().split("T")[0];
+      const fechaStr=fechaLocal(fecha);
       const esOtroMes=diaOffset<0||diaOffset>=ultimoDia.getDate();
       const esHoy=fechaStr===hoy;
       const esSel=fechaStr===llCalDiaSel;
@@ -3432,7 +3438,7 @@ async function borrarRecordatorio(ofertaId, empresa){
 async function borrarTodosRecordatorios(){
   const rol=currentProfile?.rol;
   if(rol!=="admin"&&rol!=="comercial"){toast("⚠️ Sin permisos para borrar recordatorios","#f59e0b");return;}
-  const hoy=new Date().toISOString().split("T")[0];
+  const hoy=fechaLocal();
   const vencidos=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado));
   if(!vencidos.length){toast("ℹ️ No hay recordatorios vencidos","#3b82f6");return;}
   if(!confirm(`¿Borrar los ${vencidos.length} recordatorios vencidos? Las ofertas seguirán existiendo.`))return;
@@ -3533,7 +3539,7 @@ function llCalSelDia(fechaStr){
 
 // ===== ALERTAS =====
 function renderAlertas(){
-  const hoy=new Date().toISOString().split("T")[0];
+  const hoy=fechaLocal();
   const manana=getFechaManana();
   const estados_cerrados=["Ganada","Perdida","Descartada"];
   const venc=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!estados_cerrados.includes(o.estado));
@@ -3664,7 +3670,7 @@ function renderAlertas(){
     for(let i=0;i<totalCeldas;i++){
       const diaOffset=i-diaInicioSem;
       const fecha=new Date(calAnioActual,calMesActual,diaOffset+1);
-      const fechaStr=fecha.toISOString().split("T")[0];
+      const fechaStr=fechaLocal(fecha);
       const esOtroMes=diaOffset<0||diaOffset>=ultimoDia.getDate();
       const esHoy=fechaStr===hoy;
       const esSel=fechaStr===calDiaSel;
@@ -3972,7 +3978,7 @@ async function ejecutarImport(datos){
 // ===== DETALLE =====
 function verDetalle(id){
   const o=ofertas.find(x=>x.id===id);if(!o)return;
-  const hoy=new Date().toISOString().split("T")[0];
+  const hoy=fechaLocal();
   const vence=o.fechaRecordatorio&&o.fechaRecordatorio<=hoy;
   const col=CE[o.estado]||"#64748b";
   const puedeEditar=true; // Todos los usuarios pueden editar cualquier oferta
