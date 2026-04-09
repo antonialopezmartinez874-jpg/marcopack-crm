@@ -2938,8 +2938,10 @@ async function llBorrarHistorialIds(ids){
 }
 
 let llBusqueda="";
+
 function renderLlamadas(){
   const hoy=new Date().toISOString().split("T")[0];
+  const manana=(()=>{const d=new Date();d.setDate(d.getDate()+1);return d.toISOString().split("T")[0];})();
   const activas=ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado));
 
   // Filtro de búsqueda
@@ -2957,92 +2959,242 @@ function renderLlamadas(){
   const conLlamadas=filtradas.filter(o=>o.numLlamadas>0).sort((a,b)=>{
     const fa=a.ultimaLlamada||a.fechaOferta||"";
     const fb=b.ultimaLlamada||b.fechaOferta||"";
-    return fa<fb?-1:fa>fb?1:0; // las que llevan más tiempo sin contacto primero
+    return fa<fb?-1:fa>fb?1:0;
   });
+
+  // Ofertas con fecha de recordatorio (para el calendario)
+  const conFechaLl=filtradas.filter(o=>o.fechaRecordatorio);
+
+  // ---- KPI badges ----
+  const vencLl=conFechaLl.filter(o=>o.fechaRecordatorio<=hoy);
+  const mananaLl=conFechaLl.filter(o=>o.fechaRecordatorio===manana);
+  const llKpiBadges=`
+    <span style="background:#fef2f2;border:1px solid #fca5a5;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:var(--red)">🔴 ${vencLl.length} vencidos</span>
+    <span style="background:#fffbeb;border:1px solid #fcd34d;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:#92400e">🟡 ${mananaLl.length} mañana</span>
+    <span style="background:var(--accent-light);border:1px solid #b8d0f5;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:var(--accent)">📞 ${sinLlamar.length} sin llamar</span>`;
+
+  // ---- HELPER: renderizar vista lista de llamadas ----
+  function llHtmlLista(){
+    return `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <!-- Panel izquierdo: Sin llamadas -->
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="color:#ef4444;font-size:12px;font-weight:700">⚠️ PENDIENTES DE PRIMERA LLAMADA</div>
+            <span style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700">${sinLlamar.length}</span>
+          </div>
+          ${sinLlamar.length ? sinLlamar.map(o=>{
+            const urgente=o.fechaRecordatorio&&o.fechaRecordatorio<=hoy;
+            const tel=o.telefonoMovil||o.telefono||"";
+            return `<div class="llamada-item ${urgente?"ll-urgente":"ll-sinllamar"}">
+              <div style="flex:1;min-width:0">
+                <div style="color:var(--text);font-size:13px;font-weight:700;cursor:pointer" onclick="verDetalle('${o.id}')">${o.empresa}</div>
+                <div style="color:var(--text3);font-size:11px;margin-top:2px">${o.contacto||"—"} ${tel?`· <b style="color:var(--text2)">${tel}</b>`:""}</div>
+                <div style="display:flex;gap:6px;align-items:center;margin-top:5px;flex-wrap:wrap">
+                  <span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}55">${o.estado}</span>
+                  <span style="color:var(--text3);font-size:10px">👷 ${(o.responsableNombre||"—").split(" ")[0]}</span>
+                  ${urgente?`<span style="color:var(--orange);font-size:10px;font-weight:700">🔔 Recordatorio vencido</span>`:""}
+                </div>
+              </div>
+              <button class="llamada-btn" onclick="abrirLlamada('${o.id}')">📞 Llamar</button>
+            </div>`;
+          }).join("") : `<div style="color:var(--text3);font-size:13px;text-align:center;padding:30px 10px">✅ Todas las ofertas activas tienen al menos una llamada</div>`}
+        </div>
+        <!-- Panel derecho: Con historial -->
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <input type="checkbox" id="ll-check-all" title="Seleccionar todos"
+                style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent)"
+                onclick="llToggleAllHist(event)"/>
+              <div style="color:var(--accent);font-size:12px;font-weight:700">📋 CON HISTORIAL · MÁS TIEMPO SIN CONTACTO</div>
+              <span style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700">${conLlamadas.length}</span>
+            </div>
+            <button id="ll-btn-borrar-sel" onclick="llBorrarHistorialSeleccion()"
+              style="display:none;align-items:center;gap:5px;background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer">
+              🗑 Borrar historial (<span id="ll-sel-count"></span>)
+            </button>
+          </div>
+          <div style="color:var(--text3);font-size:11px;margin-bottom:8px">ℹ️ Borrar historial elimina los contadores de llamadas, no la oferta.</div>
+          ${conLlamadas.length ? conLlamadas.map(o=>{
+            const tel=o.telefonoMovil||o.telefono||"";
+            const diasSinContacto=o.ultimaLlamada?Math.floor((new Date()-new Date(o.ultimaLlamada))/(1000*60*60*24)):null;
+            const urgente=o.fechaRecordatorio&&o.fechaRecordatorio<=hoy;
+            const seleccionado=llHistSel.has(o.id);
+            return `<div class="llamada-item ${urgente?"ll-urgente":""}" style="${seleccionado?"outline:2px solid var(--accent);outline-offset:-2px":""}">
+              <input type="checkbox" class="ll-hist-check" data-id="${o.id}"
+                ${seleccionado?"checked":""}
+                onclick="llToggleHist(event,'${o.id}')"
+                style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent);flex-shrink:0;margin-right:2px"/>
+              <div style="flex:1;min-width:0">
+                <div style="color:var(--text);font-size:13px;font-weight:700;cursor:pointer" onclick="verDetalle('${o.id}')">${o.empresa}</div>
+                <div style="color:var(--text3);font-size:11px;margin-top:2px">${o.contacto||"—"} ${tel?`· <b style="color:var(--text2)">${tel}</b>`:""}</div>
+                <div style="color:var(--accent);font-size:11px;margin-top:3px">
+                  📞 ${o.numLlamadas||0} llamada${(o.numLlamadas||0)!==1?"s":""}
+                  ${diasSinContacto!==null?`· <span style="color:${diasSinContacto>30?"var(--red)":diasSinContacto>14?"var(--orange)":"var(--text2)"};font-weight:600">${diasSinContacto}d sin contacto</span>`:""}
+                </div>
+                ${o.ultimoResultado?`<div style="color:var(--text2);font-size:11px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">💬 ${o.ultimoResultado}</div>`:""}
+                <div style="display:flex;gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap">
+                  <span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}55">${o.estado}</span>
+                  <span style="color:var(--text3);font-size:10px">👷 ${(o.responsableNombre||"—").split(" ")[0]}</span>
+                  ${urgente?`<span style="color:var(--orange);font-size:10px;font-weight:700">🔔 Recordatorio vencido</span>`:""}
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+                <button class="llamada-btn" onclick="abrirLlamada('${o.id}')">+ Llamada</button>
+                <button onclick="event.stopPropagation();llBorrarHistorialOferta('${o.id}','${(o.empresa||'').replace(/'/g,'')}')" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">🗑 Borrar</button>
+              </div>
+            </div>`;
+          }).join("") : `<div style="color:var(--text3);font-size:13px;text-align:center;padding:30px 10px">Aún no hay llamadas registradas</div>`}
+        </div>
+      </div>`;
+  }
+
+  // ---- HELPER: renderizar el calendario mensual de llamadas ----
+  function llHtmlCalendario(){
+    const MESES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+    const DIAS_SEM=["L","M","X","J","V","S","D"];
+
+    // Construir mapa fecha→ofertas (sólo con fechaRecordatorio)
+    const mapaFecha={};
+    conFechaLl.forEach(o=>{
+      if(!mapaFecha[o.fechaRecordatorio])mapaFecha[o.fechaRecordatorio]=[];
+      mapaFecha[o.fechaRecordatorio].push(o);
+    });
+
+    const primerDia=new Date(llCalAnioActual,llCalMesActual,1);
+    const ultimoDia=new Date(llCalAnioActual,llCalMesActual+1,0);
+    let diaInicioSem=primerDia.getDay()-1; if(diaInicioSem<0)diaInicioSem=6;
+    const totalCeldas=Math.ceil((diaInicioSem+ultimoDia.getDate())/7)*7;
+
+    // Sidebar
+    let ofertasSidebar=[];
+    let tituloSidebar="";
+    if(llCalDiaSel){
+      ofertasSidebar=mapaFecha[llCalDiaSel]||[];
+      const dFmt=new Date(llCalDiaSel+"T12:00:00").toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"});
+      tituloSidebar=dFmt.charAt(0).toUpperCase()+dFmt.slice(1);
+    } else {
+      const prefijo=`${llCalAnioActual}-${String(llCalMesActual+1).padStart(2,"0")}`;
+      ofertasSidebar=conFechaLl.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio.startsWith(prefijo))
+        .sort((a,b)=>a.fechaRecordatorio.localeCompare(b.fechaRecordatorio));
+      tituloSidebar=`${MESES[llCalMesActual]} ${llCalAnioActual}`;
+    }
+
+    // Celdas
+    let celdasHtml="";
+    for(let i=0;i<totalCeldas;i++){
+      const diaOffset=i-diaInicioSem;
+      const fecha=new Date(llCalAnioActual,llCalMesActual,diaOffset+1);
+      const fechaStr=fecha.toISOString().split("T")[0];
+      const esOtroMes=diaOffset<0||diaOffset>=ultimoDia.getDate();
+      const esHoy=fechaStr===hoy;
+      const esSel=fechaStr===llCalDiaSel;
+      const evDia=mapaFecha[fechaStr]||[];
+      const hayVencidos=evDia.some(o=>fechaStr<=hoy);
+
+      let clasesCelda="cal-celda";
+      if(esOtroMes)clasesCelda+=" otro-mes";
+      if(esHoy)clasesCelda+=" es-hoy";
+      if(esSel)clasesCelda+=" tiene-eventos es-hoy";
+      else if(hayVencidos)clasesCelda+=" tiene-vencidos";
+      else if(evDia.length)clasesCelda+=" tiene-eventos";
+
+      const numDia=fecha.getDate();
+      let eventosHtml="";
+      evDia.slice(0,2).forEach(o=>{
+        const tipo=o.fechaRecordatorio<hoy?"ev-vencido":o.fechaRecordatorio===hoy?"ev-hoy":"ev-futuro";
+        eventosHtml+=`<div class="cal-evento ${tipo}" onclick="event.stopPropagation();verDetalle('${o.id}')" title="${o.empresa}">${o.empresa}</div>`;
+      });
+      if(evDia.length>2) eventosHtml+=`<div class="cal-evento ev-mas">+${evDia.length-2} más</div>`;
+
+      celdasHtml+=`<div class="${clasesCelda}" onclick="llCalSelDia('${fechaStr}')">
+        <div class="cal-num">${numDia}</div>
+        ${eventosHtml}
+      </div>`;
+    }
+
+    // Sidebar items
+    const sidebarItems=ofertasSidebar.length
+      ? ofertasSidebar.map(o=>{
+          const esVenc=o.fechaRecordatorio<=hoy;
+          const esManana=o.fechaRecordatorio===manana;
+          const clase=esVenc?"vencido":esManana?"hoy":"";
+          const fechaFmt=llCalDiaSel?"":new Date(o.fechaRecordatorio+"T12:00:00").toLocaleDateString("es-ES",{day:"numeric",month:"short"});
+          const diasSinContacto=o.ultimaLlamada?Math.floor((new Date()-new Date(o.ultimaLlamada))/(1000*60*60*24)):null;
+          return `<div class="cal-ev-item ${clase}" onclick="verDetalle('${o.id}')">
+            <div class="cal-ev-empresa">${o.empresa}</div>
+            <div class="cal-ev-meta">
+              ${!llCalDiaSel?`<span style="font-weight:700;color:${esVenc?"var(--red)":esManana?"#f97316":"var(--accent)"}">📅 ${fechaFmt}</span> · `:""}
+              👷 ${(o.responsableNombre||"—").split(" ")[0]}
+              ${diasSinContacto!==null?`· <span style="color:${diasSinContacto>30?"var(--red)":diasSinContacto>14?"var(--orange)":"var(--text2)"};font-weight:600">${diasSinContacto}d sin contacto</span>`:""}
+              <br><span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}44;font-size:10px;padding:1px 7px">${o.estado}</span>
+              ${o.numLlamadas?`<span style="color:var(--accent);font-size:10px;font-weight:600"> · 📞 ${o.numLlamadas}</span>`:""}
+            </div>
+            <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap">
+              <button onclick="event.stopPropagation();abrirLlamada('${o.id}')" style="background:linear-gradient(135deg,#0a7c5c,#0d9966);color:white;border:none;border-radius:6px;padding:3px 9px;font-size:10px;font-weight:700;cursor:pointer">📞 Llamar</button>
+            </div>
+          </div>`;
+        }).join("")
+      : `<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px 0">
+          ${llCalDiaSel?"Sin recordatorios este día":"Sin recordatorios en este mes"}
+        </div>`;
+
+    return `<div class="cal-shell">
+      <div>
+        <div class="cal-grid">
+          <div class="cal-dias-semana">
+            ${DIAS_SEM.map((d,i)=>`<div class="cal-dia-hdr${i>=5?" fin-semana":""}">${d}</div>`).join("")}
+          </div>
+          <div class="cal-cuerpo">${celdasHtml}</div>
+        </div>
+        <div class="cal-legend" style="margin-top:10px">
+          <div class="cal-leg-item"><div class="cal-leg-dot" style="background:#ef4444"></div>Vencido</div>
+          <div class="cal-leg-item"><div class="cal-leg-dot" style="background:#f97316"></div>Hoy</div>
+          <div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--accent)"></div>Próximo</div>
+          <div class="cal-leg-item" style="margin-left:auto;color:var(--text3);font-size:10px">Clic en un día para filtrar · Clic en evento para abrir oferta</div>
+        </div>
+      </div>
+      <div class="cal-sidebar">
+        <h4>📋 ${tituloSidebar}</h4>
+        ${llCalDiaSel?`<div class="cal-dia-sel">${new Date(llCalDiaSel+"T12:00:00").toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</div>
+        <button onclick="llCalSelDia('${llCalDiaSel}')" style="background:transparent;border:none;color:var(--text3);font-size:11px;cursor:pointer;margin-bottom:8px;font-family:inherit">← Ver mes completo</button>`:""}
+        <div style="max-height:460px;overflow-y:auto;padding-right:2px">${sidebarItems}</div>
+        ${!llCalDiaSel&&ofertasSidebar.length?`<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:var(--text3);text-align:center">${ofertasSidebar.length} recordatorio${ofertasSidebar.length!==1?"s":""} este mes</div>`:""}
+      </div>
+    </div>`;
+  }
+
+  // ---- Navegación del calendario de llamadas ----
+  const llCalNavHtml=llCalVistaActual==="calendario"?`
+    <div class="cal-nav">
+      <button class="cal-nav-btn" onclick="llCalNavegar(-1)">‹</button>
+      <div class="cal-mes-titulo">${["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][llCalMesActual]} ${llCalAnioActual}</div>
+      <button class="cal-nav-btn" onclick="llCalNavegar(1)">›</button>
+      <button class="cal-hoy-btn" onclick="llCalIrHoy()">Hoy</button>
+    </div>`:"";
 
   document.getElementById("vista-llamadas").innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
-      <h3 style="color:var(--accent)">📞 Seguimiento de llamadas</h3>
-      <div style="display:flex;align-items:center;gap:8px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <h3 style="color:var(--accent);margin:0;font-size:17px;font-weight:900">📞 Seguimiento de Llamadas</h3>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${llKpiBadges}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <input type="text" placeholder="🔍 Buscar empresa, contacto o responsable..."
           value="${llBusqueda}"
           oninput="llBusqueda=this.value;renderLlamadas()"
-          style="background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text);font-size:12px;min-width:260px;font-family:inherit"/>
+          style="background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text);font-size:12px;min-width:220px;font-family:inherit"/>
         ${llBusqueda?`<button onclick="llBusqueda='';renderLlamadas()" style="background:transparent;border:1px solid #fca5a5;color:var(--red);border-radius:7px;padding:6px 11px;font-size:12px;cursor:pointer">✕</button>`:""}
+        ${llCalNavHtml}
+        <div class="cal-view-tabs">
+          <button class="cal-view-tab${llCalVistaActual==="calendario"?" active":""}" onclick="llCalSetVista('calendario')">📅 Calendario</button>
+          <button class="cal-view-tab${llCalVistaActual==="lista"?" active":""}" onclick="llCalSetVista('lista')">📋 Lista</button>
+        </div>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-      <!-- Panel izquierdo: Sin llamadas -->
-      <div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-          <div style="color:#ef4444;font-size:12px;font-weight:700">⚠️ PENDIENTES DE PRIMERA LLAMADA</div>
-          <span style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700">${sinLlamar.length}</span>
-        </div>
-        ${sinLlamar.length ? sinLlamar.map(o=>{
-          const urgente=o.fechaRecordatorio&&o.fechaRecordatorio<=hoy;
-          const tel=o.telefonoMovil||o.telefono||"";
-          return `<div class="llamada-item ${urgente?"ll-urgente":"ll-sinllamar"}">
-            <div style="flex:1;min-width:0">
-              <div style="color:var(--text);font-size:13px;font-weight:700;cursor:pointer" onclick="verDetalle('${o.id}')">${o.empresa}</div>
-              <div style="color:var(--text3);font-size:11px;margin-top:2px">${o.contacto||"—"} ${tel?`· <b style="color:var(--text2)">${tel}</b>`:""}</div>
-              <div style="display:flex;gap:6px;align-items:center;margin-top:5px;flex-wrap:wrap">
-                <span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}55">${o.estado}</span>
-                <span style="color:var(--text3);font-size:10px">👷 ${(o.responsableNombre||"—").split(" ")[0]}</span>
-                ${urgente?`<span style="color:var(--orange);font-size:10px;font-weight:700">🔔 Recordatorio vencido</span>`:""}
-              </div>
-            </div>
-            <button class="llamada-btn" onclick="abrirLlamada('${o.id}')">📞 Llamar</button>
-          </div>`;
-        }).join("") : `<div style="color:var(--text3);font-size:13px;text-align:center;padding:30px 10px">✅ Todas las ofertas activas tienen al menos una llamada</div>`}
-      </div>
-
-      <!-- Panel derecho: Con historial -->
-      <div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px">
-          <div style="display:flex;align-items:center;gap:8px">
-            <input type="checkbox" id="ll-check-all" title="Seleccionar todos"
-              style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent)"
-              onclick="llToggleAllHist(event)"/>
-            <div style="color:var(--accent);font-size:12px;font-weight:700">📋 CON HISTORIAL · MÁS TIEMPO SIN CONTACTO</div>
-            <span style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700">${conLlamadas.length}</span>
-          </div>
-          <button id="ll-btn-borrar-sel" onclick="llBorrarHistorialSeleccion()"
-            style="display:none;align-items:center;gap:5px;background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer">
-            🗑 Borrar historial (<span id="ll-sel-count"></span>)
-          </button>
-        </div>
-        <div style="color:var(--text3);font-size:11px;margin-bottom:8px">ℹ️ Borrar historial elimina los contadores de llamadas, no la oferta.</div>
-        ${conLlamadas.length ? conLlamadas.map(o=>{
-          const tel=o.telefonoMovil||o.telefono||"";
-          const diasSinContacto=o.ultimaLlamada?Math.floor((new Date()-new Date(o.ultimaLlamada))/(1000*60*60*24)):null;
-          const urgente=o.fechaRecordatorio&&o.fechaRecordatorio<=hoy;
-          const seleccionado=llHistSel.has(o.id);
-          return `<div class="llamada-item ${urgente?"ll-urgente":""}" style="${seleccionado?"outline:2px solid var(--accent);outline-offset:-2px":""}">
-            <input type="checkbox" class="ll-hist-check" data-id="${o.id}"
-              ${seleccionado?"checked":""}
-              onclick="llToggleHist(event,'${o.id}')"
-              style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent);flex-shrink:0;margin-right:2px"/>
-            <div style="flex:1;min-width:0">
-              <div style="color:var(--text);font-size:13px;font-weight:700;cursor:pointer" onclick="verDetalle('${o.id}')">${o.empresa}</div>
-              <div style="color:var(--text3);font-size:11px;margin-top:2px">${o.contacto||"—"} ${tel?`· <b style="color:var(--text2)">${tel}</b>`:""}</div>
-              <div style="color:var(--accent);font-size:11px;margin-top:3px">
-                📞 ${o.numLlamadas||0} llamada${(o.numLlamadas||0)!==1?"s":""}
-                ${diasSinContacto!==null?`· <span style="color:${diasSinContacto>30?"var(--red)":diasSinContacto>14?"var(--orange)":"var(--text2)"};font-weight:600">${diasSinContacto}d sin contacto</span>`:""}
-              </div>
-              ${o.ultimoResultado?`<div style="color:var(--text2);font-size:11px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">💬 ${o.ultimoResultado}</div>`:""}
-              <div style="display:flex;gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap">
-                <span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}55">${o.estado}</span>
-                <span style="color:var(--text3);font-size:10px">👷 ${(o.responsableNombre||"—").split(" ")[0]}</span>
-                ${urgente?`<span style="color:var(--orange);font-size:10px;font-weight:700">🔔 Recordatorio vencido</span>`:""}
-              </div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
-              <button class="llamada-btn" onclick="abrirLlamada('${o.id}')">+ Llamada</button>
-              <button onclick="event.stopPropagation();llBorrarHistorialOferta('${o.id}','${(o.empresa||'').replace(/'/g,'')}')" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">🗑 Borrar</button>
-            </div>
-          </div>`;
-        }).join("") : `<div style="color:var(--text3);font-size:13px;text-align:center;padding:30px 10px">Aún no hay llamadas registradas</div>`}
-      </div>
+    <div id="llamadas-contenido">
+      ${llCalVistaActual==="calendario"?llHtmlCalendario():llHtmlLista()}
     </div>`;
 }
 
@@ -3334,9 +3486,13 @@ Las ofertas seguirán existiendo.`)) return;
 }
 
 
-// ===== CALENDARIO — Estado global =====
+// ===== CALENDARIO ALERTAS — Estado global =====
 let calMesActual=new Date().getMonth(), calAnioActual=new Date().getFullYear();
 let calDiaSel=null, calVistaActual='calendario'; // 'calendario' | 'lista'
+
+// ===== CALENDARIO LLAMADAS — Estado global =====
+let llCalMesActual=new Date().getMonth(), llCalAnioActual=new Date().getFullYear();
+let llCalDiaSel=null, llCalVistaActual='calendario'; // 'calendario' | 'lista'
 
 function calNavegar(delta){
   calMesActual+=delta;
@@ -3354,6 +3510,25 @@ function calSetVista(v){ calVistaActual=v; renderAlertas(); }
 function calSelDia(fechaStr){
   calDiaSel=(calDiaSel===fechaStr)?null:fechaStr;
   renderAlertas();
+}
+
+// ===== NAVEGACIÓN CALENDARIO LLAMADAS =====
+function llCalNavegar(delta){
+  llCalMesActual+=delta;
+  if(llCalMesActual>11){llCalMesActual=0;llCalAnioActual++;}
+  if(llCalMesActual<0){llCalMesActual=11;llCalAnioActual--;}
+  renderLlamadas();
+}
+function llCalIrHoy(){
+  const hoy=new Date();
+  llCalMesActual=hoy.getMonth(); llCalAnioActual=hoy.getFullYear();
+  llCalDiaSel=null;
+  renderLlamadas();
+}
+function llCalSetVista(v){ llCalVistaActual=v; renderLlamadas(); }
+function llCalSelDia(fechaStr){
+  llCalDiaSel=(llCalDiaSel===fechaStr)?null:fechaStr;
+  renderLlamadas();
 }
 
 // ===== ALERTAS =====
