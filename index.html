@@ -339,6 +339,62 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
   border-radius:var(--radius);padding:13px 17px;margin-bottom:9px;cursor:pointer;
   box-shadow:var(--shadow-sm);transition:all .15s}
 .alerta-item:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
+/* ===== CALENDARIO PROFESIONAL ===== */
+.cal-shell{display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start}
+@media(max-width:960px){.cal-shell{grid-template-columns:1fr}}
+.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px}
+.cal-nav{display:flex;align-items:center;gap:10px}
+.cal-nav-btn{background:var(--surface);border:1.5px solid var(--border);color:var(--text2);
+  border-radius:var(--radius-sm);width:34px;height:34px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:16px;transition:all .15s;font-weight:700}
+.cal-nav-btn:hover{background:var(--accent-light);border-color:var(--accent);color:var(--accent)}
+.cal-mes-titulo{font-size:17px;font-weight:800;color:var(--text);letter-spacing:-.3px;min-width:180px;text-align:center}
+.cal-hoy-btn{background:var(--accent-light);color:var(--accent);border:1.5px solid #b8d0f5;
+  border-radius:var(--radius-sm);padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;font-family:inherit}
+.cal-hoy-btn:hover{background:var(--accent);color:white}
+.cal-grid{background:var(--surface);border:1.5px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--shadow-sm)}
+.cal-dias-semana{display:grid;grid-template-columns:repeat(7,1fr);background:var(--surface2);border-bottom:2px solid var(--border)}
+.cal-dia-hdr{padding:10px 4px;text-align:center;font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.08em}
+.cal-dia-hdr.fin-semana{color:var(--accent)}
+.cal-cuerpo{display:grid;grid-template-columns:repeat(7,1fr)}
+.cal-celda{min-height:88px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);
+  padding:6px 5px 5px;cursor:pointer;transition:background .12s;position:relative;overflow:hidden}
+.cal-celda:nth-child(7n){border-right:none}
+.cal-celda:hover{background:var(--accent-light)}
+.cal-celda.otro-mes{background:var(--surface2)}
+.cal-celda.otro-mes .cal-num{color:var(--border2)}
+.cal-celda.es-hoy{background:linear-gradient(135deg,#e8f0ff,#eef4ff)}
+.cal-celda.es-hoy .cal-num{background:var(--accent);color:white;border-radius:50%;width:24px;height:24px;
+  display:flex;align-items:center;justify-content:center;font-weight:900}
+.cal-celda.tiene-eventos{border-bottom:2px solid var(--accent)}
+.cal-celda.tiene-vencidos{border-bottom:2px solid var(--red)}
+.cal-num{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:4px;width:24px;height:24px;display:flex;align-items:center;justify-content:center}
+.cal-evento{font-size:9.5px;font-weight:700;border-radius:4px;padding:2px 5px;margin-bottom:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;line-height:1.4;transition:filter .12s}
+.cal-evento:hover{filter:brightness(.9)}
+.cal-evento.ev-vencido{background:#fef2f2;color:#b91c1c;border-left:3px solid #ef4444}
+.cal-evento.ev-hoy{background:#fff7ed;color:#c2490b;border-left:3px solid #f97316}
+.cal-evento.ev-futuro{background:var(--accent-light);color:var(--accent);border-left:3px solid var(--accent)}
+.cal-evento.ev-mas{background:var(--surface2);color:var(--text3);border:1px solid var(--border);text-align:center}
+.cal-sidebar{background:var(--surface);border:1.5px solid var(--border);border-radius:16px;padding:18px;box-shadow:var(--shadow-sm);position:sticky;top:80px}
+.cal-sidebar h4{color:var(--accent);font-size:13px;font-weight:800;margin-bottom:12px;letter-spacing:-.1px}
+.cal-dia-sel{background:var(--accent-light);border:1.5px solid #b8d0f5;border-radius:var(--radius-sm);
+  padding:8px 12px;margin-bottom:12px;font-size:12px;font-weight:700;color:var(--accent);text-align:center}
+.cal-ev-item{background:var(--surface2);border:1px solid var(--border);border-radius:10px;
+  padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:all .15s;border-left:3px solid var(--accent)}
+.cal-ev-item:hover{box-shadow:var(--shadow-sm);transform:translateX(2px)}
+.cal-ev-item.vencido{border-left-color:var(--red);background:#fff9f9}
+.cal-ev-item.hoy{border-left-color:#f97316;background:#fffbf5}
+.cal-ev-empresa{font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px}
+.cal-ev-meta{font-size:11px;color:var(--text3);line-height:1.5}
+.cal-legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+.cal-leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);font-weight:600}
+.cal-leg-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.cal-view-tabs{display:flex;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:3px}
+.cal-view-tab{padding:5px 14px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;border:none;
+  background:transparent;color:var(--text3);font-family:inherit;transition:all .15s}
+.cal-view-tab.active{background:var(--surface);color:var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+
 
 /* ===== PDF ===== */
 .pdf-section{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;margin-bottom:14px;box-shadow:var(--shadow-sm)}
@@ -536,7 +592,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
   <!-- VISTAS -->
   <div id="vista-dashboard" style="display:none"></div>
   <div id="vista-tabla" style="display:none">
-    <div style="padding:8px 24px 0;display:flex;align-items:center;gap:8px" id="barra-seleccion" style="display:none">
+    <div style="padding:8px 24px 0;display:flex;align-items:center;gap:8px" id="barra-seleccion">
       <span id="seleccion-count" style="font-size:12px;color:var(--text3);font-weight:600"></span>
       <button id="btn-borrar-sel" onclick="borrarSeleccionadas()" style="display:none;background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer">🗑 Eliminar seleccionadas</button>
     </div>
@@ -579,7 +635,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       <div id="stats-builder"></div>
     </div>
 
-    <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">v2.0_STABLE_20260408</b></div>
+    <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">v3.1_STABLE_20260409</b></div>
   </div>
 </div></div>
   <div id="vista-mapa" style="display:none;padding:16px 20px 28px">
@@ -827,7 +883,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 // ===== FIREBASE =====
 const firebaseConfig={apiKey:"AIzaSyB4kJsqEtQ0ypOIL4LyY9rhTBpcY_mxhnI",authDomain:"machinecrm-61b34.firebaseapp.com",projectId:"machinecrm-61b34",storageBucket:"machinecrm-61b34.firebasestorage.app",messagingSenderId:"686919580495",appId:"1:686919580495:web:019fa5682054bb089a633a"};
 firebase.initializeApp(firebaseConfig);
-console.log('[Marcopack CRM] v3.0 — Build estable');
+console.log('[Marcopack CRM] v3.1 — Build estable');
 const auth=firebase.auth(),db=firebase.firestore();
 
 // ===== SEGURIDAD: Sesión solo dura mientras la pestaña está abierta =====
@@ -1317,6 +1373,13 @@ auth.onAuthStateChanged(async user=>{
       if(ur) ur.textContent=currentProfile.rol||'comercial';
       const navAdmin=document.getElementById("nav-admin");
       if(navAdmin) navAdmin.style.display=(currentProfile.rol==="admin")?"block":"none";
+      // Ocultar botones de escritura para rol lectura
+      const btnAdd=document.querySelector('.btn-add');
+      const btnImport=document.querySelector('.btn-import');
+      if(currentProfile.rol==="lectura"){
+        if(btnAdd) btnAdd.style.display="none";
+        if(btnImport) btnImport.style.display="none";
+      }
 
       poblarSelects();
       escucharOfertas();
@@ -2829,6 +2892,8 @@ Las ofertas NO se eliminan.`)) return;
   await llBorrarHistorialIds(ids);
 }
 async function llBorrarHistorialIds(ids){
+  const rol=currentProfile?.rol;
+  if(rol!=="admin"&&rol!=="comercial"){toast("⚠️ Sin permisos para borrar historial de llamadas","#f59e0b");return;}
   const btn=document.getElementById('ll-btn-borrar-sel');
   if(btn){btn.disabled=true; btn.textContent='🗑 Borrando...';}
   try{
@@ -3201,6 +3266,8 @@ function renderComparativa(){
 
 // ===== BORRAR RECORDATORIOS =====
 async function borrarRecordatorio(ofertaId, empresa){
+  const rol=currentProfile?.rol;
+  if(rol!=="admin"&&rol!=="comercial"){toast("⚠️ Sin permisos para borrar recordatorios","#f59e0b");return;}
   if(!confirm(`¿Borrar el recordatorio de "${empresa}"? La oferta seguirá existiendo.`))return;
   try{
     await db.collection("ofertas").doc(ofertaId).update({fechaRecordatorio:firebase.firestore.FieldValue.delete()});
@@ -3211,6 +3278,8 @@ async function borrarRecordatorio(ofertaId, empresa){
 }
 
 async function borrarTodosRecordatorios(){
+  const rol=currentProfile?.rol;
+  if(rol!=="admin"&&rol!=="comercial"){toast("⚠️ Sin permisos para borrar recordatorios","#f59e0b");return;}
   const hoy=new Date().toISOString().split("T")[0];
   const vencidos=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado));
   if(!vencidos.length){toast("ℹ️ No hay recordatorios vencidos","#3b82f6");return;}
@@ -3244,6 +3313,8 @@ function recToggleAll(ev){
   recUpdateToolbar();
 }
 async function borrarRecordatoriosSeleccionados(){
+  const rol=currentProfile?.rol;
+  if(rol!=="admin"&&rol!=="comercial"){toast("⚠️ Sin permisos para borrar recordatorios","#f59e0b");return;}
   const ids=[...recSel];
   if(!ids.length) return;
   if(!confirm(`¿Borrar ${ids.length} recordatorio${ids.length!==1?'s':''} seleccionado${ids.length!==1?'s':''}?
@@ -3263,33 +3334,52 @@ Las ofertas seguirán existiendo.`)) return;
 }
 
 
+// ===== CALENDARIO — Estado global =====
+let calMesActual=new Date().getMonth(), calAnioActual=new Date().getFullYear();
+let calDiaSel=null, calVistaActual='calendario'; // 'calendario' | 'lista'
+
+function calNavegar(delta){
+  calMesActual+=delta;
+  if(calMesActual>11){calMesActual=0;calAnioActual++;}
+  if(calMesActual<0){calMesActual=11;calAnioActual--;}
+  renderAlertas();
+}
+function calIrHoy(){
+  const hoy=new Date();
+  calMesActual=hoy.getMonth(); calAnioActual=hoy.getFullYear();
+  calDiaSel=null;
+  renderAlertas();
+}
+function calSetVista(v){ calVistaActual=v; renderAlertas(); }
+function calSelDia(fechaStr){
+  calDiaSel=(calDiaSel===fechaStr)?null:fechaStr;
+  renderAlertas();
+}
+
 // ===== ALERTAS =====
 function renderAlertas(){
   const hoy=new Date().toISOString().split("T")[0];
   const manana=getFechaManana();
   const estados_cerrados=["Ganada","Perdida","Descartada"];
-  // 1) Vencidos (fecha <= hoy)
   const venc=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!estados_cerrados.includes(o.estado));
-  // 2) Mañana (preaviso)
   const proxManana=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio===manana&&!estados_cerrados.includes(o.estado));
-  // 3) Inactividad
   const inact=getAlertasInactivas();
+  // Todos los recordatorios activos con fecha
+  const conFecha=ofertas.filter(o=>o.fechaRecordatorio&&!estados_cerrados.includes(o.estado));
 
-  // Helper para renderizar una tarjeta de alerta de recordatorio
-  function tarjetaRecordatorio(o, estilo){
+  // ---- HELPER: tarjeta de alerta ----
+  function tarjetaRecordatorio(o,estilo){
     const fechaFmt=new Date(o.fechaRecordatorio+"T12:00:00").toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"});
     const tel=o.telefonoMovil||o.telefono||"—";
     return `<div class="alerta-item" style="${estilo}" onclick="verDetalle('${o.id}')">
- <div onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-  <input type="checkbox" class="rec-check" data-id="${o.id}" onclick="recToggle(event,'${o.id}')" style="accent-color:var(--accent);cursor:pointer;width:15px;height:15px"/>
-  <span style="color:var(--text3);font-size:11px;font-weight:800">Seleccionar</span>
- </div>
+      <div onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <input type="checkbox" class="rec-check" data-id="${o.id}" onclick="recToggle(event,'${o.id}')" style="accent-color:var(--accent);cursor:pointer;width:15px;height:15px"/>
+        <span style="color:var(--text3);font-size:11px;font-weight:800">Seleccionar</span>
+      </div>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:14px;margin-bottom:2px">${o.empresa}</div>
-          <div style="color:var(--text3);font-size:12px;margin-bottom:4px">
-            👤 ${o.contacto||"—"} &nbsp;·&nbsp; 📞 ${tel} &nbsp;·&nbsp; 👷 ${(o.responsableNombre||"—").split(" ")[0]}
-          </div>
+          <div style="color:var(--text3);font-size:12px;margin-bottom:4px">👤 ${o.contacto||"—"} &nbsp;·&nbsp; 📞 ${tel} &nbsp;·&nbsp; 👷 ${(o.responsableNombre||"—").split(" ")[0]}</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
             <span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}55">${o.estado}</span>
             <span style="font-size:11px;color:var(--text3)">📅 ${fechaFmt}</span>
@@ -3297,21 +3387,18 @@ function renderAlertas(){
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
-          <button class="llamada-btn" onclick="event.stopPropagation();abrirLlamada('${o.id}')">📞 Registrar llamada</button>
+          <button class="llamada-btn" onclick="event.stopPropagation();abrirLlamada('${o.id}')">📞 Llamar</button>
           <button onclick="event.stopPropagation();editarOferta('${o.id}')" style="background:var(--accent-light);color:var(--accent);border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">✏️ Editar</button>
-          <button onclick="event.stopPropagation();borrarRecordatorio('${o.id}','${o.empresa}')" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">🗑 Borrar recordatorio</button>
+          <button onclick="event.stopPropagation();borrarRecordatorio('${o.id}','${o.empresa}')" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">🗑 Borrar</button>
         </div>
       </div>
     </div>`;
   }
 
-  document.getElementById("vista-alertas").innerHTML=`
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-      <h3 style="color:#fb923c;margin:0">🔔 Centro de Alertas</h3>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <span style="background:#fef2f2;border:1px solid #fca5a5;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:var(--red)">🔴 Vencidos: ${venc.length}</span>
-        <span style="background:#fffbeb;border:1px solid #fcd34d;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:#92400e">🟡 Mañana: ${proxManana.length}</span>
-        <span style="background:#fff7ed;border:1px solid #fed7aa;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:#c2490b">⚠️ Inactivos: ${inact.length}</span>
+  // ---- HELPER: renderizar vista lista (original mejorada) ----
+  function htmlLista(){
+    return `
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
         ${(venc.length+proxManana.length)>0?`<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:var(--text2);font-weight:600">
           <input type="checkbox" id="rec-check-all" onclick="recToggleAll(event)" style="width:14px;height:14px;accent-color:var(--accent);cursor:pointer"/> Seleccionar todos
         </label>`:""}
@@ -3319,56 +3406,203 @@ function renderAlertas(){
           style="display:none;background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:20px;padding:4px 13px;font-size:12px;font-weight:700;cursor:pointer">
           🗑 Borrar seleccionados (<span id="rec-sel-count"></span>)
         </button>
-        ${venc.length>0?`<button onclick="borrarTodosRecordatorios()" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:20px;padding:4px 13px;font-size:12px;font-weight:700;cursor:pointer">🗑 Limpiar todos los vencidos</button>`:""}
+        ${venc.length>0?`<button onclick="borrarTodosRecordatorios()" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:20px;padding:4px 13px;font-size:12px;font-weight:700;cursor:pointer">🗑 Limpiar vencidos</button>`:""}
+      </div>
+      ${venc.length?`<div style="margin-bottom:22px">
+        <div style="color:var(--red);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;gap:7px">
+          <span style="width:8px;height:8px;border-radius:50%;background:var(--red);display:inline-block"></span>
+          Recordatorios vencidos — atención inmediata (${venc.length})
+        </div>
+        ${venc.map(o=>tarjetaRecordatorio(o,"border-left-color:var(--red)!important")).join("")}
+      </div>`:""}
+      ${proxManana.length?`<div style="margin-bottom:22px">
+        <div style="color:#d97706;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;gap:7px">
+          <span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block"></span>
+          Preaviso — recordatorios para mañana (${proxManana.length})
+        </div>
+        ${proxManana.map(o=>tarjetaRecordatorio(o,"border-left-color:#f59e0b!important;background:#fffbeb")).join("")}
+      </div>`:""}
+      ${inact.length?`<div style="margin-bottom:22px">
+        <div style="color:#c2490b;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;gap:7px">
+          <span style="width:8px;height:8px;border-radius:50%;background:#f97316;display:inline-block"></span>
+          Sin actividad más de ${DIAS_ALERTA} días (${inact.length})
+        </div>
+        ${inact.map(o=>{
+          const ultima=o.fechaUltimaActividad?.toDate?o.fechaUltimaActividad.toDate():o.creadoEn?.toDate?o.creadoEn.toDate():null;
+          const dias=ultima?Math.floor((new Date()-ultima)/(864e5)):"?";
+          return `<div class="alerta-item" onclick="verDetalle('${o.id}')">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+              <div style="flex:1">
+                <div style="color:#c2490b;font-weight:700;font-size:14px;margin-bottom:2px">${o.empresa}</div>
+                <div style="color:var(--text3);font-size:12px">📍 ${o.provincia||"—"} &nbsp;·&nbsp; 👷 ${(o.responsableNombre||"—").split(" ")[0]} &nbsp;·&nbsp; <span style="color:#f97316;font-weight:600">${dias} días sin actividad</span></div>
+                <div style="margin-top:4px"><span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}55">${o.estado}</span></div>
+              </div>
+              <button class="llamada-btn" onclick="event.stopPropagation();abrirLlamada('${o.id}')">📞 Llamar</button>
+            </div>
+          </div>`;
+        }).join("")}
+      </div>`:""}
+      ${venc.length===0&&proxManana.length===0&&inact.length===0?`
+      <div style="text-align:center;padding:60px 20px">
+        <div style="font-size:48px;margin-bottom:12px">✅</div>
+        <div style="color:#10b981;font-size:18px;font-weight:700">¡Sin alertas pendientes!</div>
+        <div style="color:var(--text3);font-size:13px;margin-top:6px">Todo el seguimiento está al día.</div>
+      </div>`:""}`;
+  }
+
+  // ---- HELPER: renderizar el calendario mensual ----
+  function htmlCalendario(){
+    const MESES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+    const DIAS_SEM=["L","M","X","J","V","S","D"];
+
+    // Construir mapa fecha→ofertas
+    const mapaFecha={};
+    conFecha.forEach(o=>{
+      if(!mapaFecha[o.fechaRecordatorio])mapaFecha[o.fechaRecordatorio]=[];
+      mapaFecha[o.fechaRecordatorio].push(o);
+    });
+
+    // Primer y último día del mes
+    const primerDia=new Date(calAnioActual,calMesActual,1);
+    const ultimoDia=new Date(calAnioActual,calMesActual+1,0);
+    // Lunes=0 ... Domingo=6
+    let diaInicioSem=primerDia.getDay()-1; if(diaInicioSem<0)diaInicioSem=6;
+    const totalCeldas=Math.ceil((diaInicioSem+ultimoDia.getDate())/7)*7;
+
+    // Sidebar: ofertas del día seleccionado o del mes completo
+    let ofertasSidebar=[];
+    let tituloSidebar="";
+    if(calDiaSel){
+      ofertasSidebar=mapaFecha[calDiaSel]||[];
+      const dFmt=new Date(calDiaSel+"T12:00:00").toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"});
+      tituloSidebar=dFmt.charAt(0).toUpperCase()+dFmt.slice(1);
+    } else {
+      // Todas las del mes visible
+      const prefijo=`${calAnioActual}-${String(calMesActual+1).padStart(2,"0")}`;
+      ofertasSidebar=conFecha.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio.startsWith(prefijo))
+        .sort((a,b)=>a.fechaRecordatorio.localeCompare(b.fechaRecordatorio));
+      tituloSidebar=`${MESES[calMesActual]} ${calAnioActual}`;
+    }
+
+    // Celdas del calendario
+    let celdasHtml="";
+    for(let i=0;i<totalCeldas;i++){
+      const diaOffset=i-diaInicioSem;
+      const fecha=new Date(calAnioActual,calMesActual,diaOffset+1);
+      const fechaStr=fecha.toISOString().split("T")[0];
+      const esOtroMes=diaOffset<0||diaOffset>=ultimoDia.getDate();
+      const esHoy=fechaStr===hoy;
+      const esSel=fechaStr===calDiaSel;
+      const evDia=mapaFecha[fechaStr]||[];
+      const hayVencidos=evDia.some(o=>fechaStr<=hoy);
+      const hayFuturos=evDia.some(o=>fechaStr>hoy);
+
+      let clasesCelda="cal-celda";
+      if(esOtroMes)clasesCelda+=" otro-mes";
+      if(esHoy)clasesCelda+=" es-hoy";
+      if(esSel)clasesCelda+=" tiene-eventos";
+      else if(hayVencidos)clasesCelda+=" tiene-vencidos";
+      else if(evDia.length)clasesCelda+=" tiene-eventos";
+      if(esSel)clasesCelda+=" es-hoy"; // resaltar seleccionado
+
+      const numDia=fecha.getDate();
+      let eventosHtml="";
+      const maxVisible=2;
+      evDia.slice(0,maxVisible).forEach(o=>{
+        const tipo=o.fechaRecordatorio<hoy?"ev-vencido":o.fechaRecordatorio===hoy?"ev-hoy":"ev-futuro";
+        eventosHtml+=`<div class="cal-evento ${tipo}" onclick="event.stopPropagation();verDetalle('${o.id}')" title="${o.empresa}">${o.empresa}</div>`;
+      });
+      if(evDia.length>maxVisible){
+        eventosHtml+=`<div class="cal-evento ev-mas">+${evDia.length-maxVisible} más</div>`;
+      }
+
+      celdasHtml+=`<div class="${clasesCelda}" onclick="calSelDia('${fechaStr}')">
+        <div class="cal-num">${numDia}</div>
+        ${eventosHtml}
+      </div>`;
+    }
+
+    // Sidebar items
+    const sidebarItems=ofertasSidebar.length
+      ? ofertasSidebar.map(o=>{
+          const esVenc=o.fechaRecordatorio<=hoy;
+          const esManana=o.fechaRecordatorio===manana;
+          const clase=esVenc?"vencido":esManana?"hoy":"";
+          const fechaFmt=calDiaSel?"":new Date(o.fechaRecordatorio+"T12:00:00").toLocaleDateString("es-ES",{day:"numeric",month:"short"});
+          return `<div class="cal-ev-item ${clase}" onclick="verDetalle('${o.id}')">
+            <div class="cal-ev-empresa">${o.empresa}</div>
+            <div class="cal-ev-meta">
+              ${!calDiaSel?`<span style="font-weight:700;color:${esVenc?"var(--red)":esManana?"#f97316":"var(--accent)"}">📅 ${fechaFmt}</span> · `:""}
+              👷 ${(o.responsableNombre||"—").split(" ")[0]}<br>
+              <span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}44;font-size:10px;padding:1px 7px">${o.estado}</span>
+              ${o.importe?`<span style="color:#10b981;font-weight:600;font-size:10px"> · ${o.importe.toLocaleString("es-ES")} €</span>`:""}
+            </div>
+            <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap">
+              <button onclick="event.stopPropagation();abrirLlamada('${o.id}')" style="background:linear-gradient(135deg,#0a7c5c,#0d9966);color:white;border:none;border-radius:6px;padding:3px 9px;font-size:10px;font-weight:700;cursor:pointer">📞 Llamar</button>
+              <button onclick="event.stopPropagation();borrarRecordatorio('${o.id}','${o.empresa}')" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:6px;padding:3px 9px;font-size:10px;font-weight:700;cursor:pointer">🗑 Borrar</button>
+            </div>
+          </div>`;
+        }).join("")
+      : `<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px 0">
+          ${calDiaSel?"Sin recordatorios este día":"Sin recordatorios en este mes"}
+        </div>`;
+
+    return `<div class="cal-shell">
+      <div>
+        <div class="cal-grid">
+          <div class="cal-dias-semana">
+            ${DIAS_SEM.map((d,i)=>`<div class="cal-dia-hdr${i>=5?" fin-semana":""}">${d}</div>`).join("")}
+          </div>
+          <div class="cal-cuerpo">${celdasHtml}</div>
+        </div>
+        <div class="cal-legend" style="margin-top:10px">
+          <div class="cal-leg-item"><div class="cal-leg-dot" style="background:#ef4444"></div>Vencido</div>
+          <div class="cal-leg-item"><div class="cal-leg-dot" style="background:#f97316"></div>Hoy</div>
+          <div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--accent)"></div>Próximo</div>
+          <div class="cal-leg-item" style="margin-left:auto;color:var(--text3);font-size:10px">Clic en un día para filtrar · Clic en evento para abrir oferta</div>
+        </div>
+      </div>
+      <div class="cal-sidebar">
+        <h4>📋 ${tituloSidebar}</h4>
+        ${calDiaSel?`<div class="cal-dia-sel">${new Date(calDiaSel+"T12:00:00").toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</div>
+        <button onclick="calSelDia('${calDiaSel}')" style="background:transparent;border:none;color:var(--text3);font-size:11px;cursor:pointer;margin-bottom:8px;font-family:inherit">← Ver mes completo</button>`:""}
+        <div style="max-height:460px;overflow-y:auto;padding-right:2px">${sidebarItems}</div>
+        ${!calDiaSel&&ofertasSidebar.length?`<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:var(--text3);text-align:center">${ofertasSidebar.length} recordatorio${ofertasSidebar.length!==1?"s":""} este mes</div>`:""}
+      </div>
+    </div>`;
+  }
+
+  // ---- RENDER PRINCIPAL ----
+  const kpiBadges=`
+    <span style="background:#fef2f2;border:1px solid #fca5a5;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:var(--red)">🔴 ${venc.length} vencidos</span>
+    <span style="background:#fffbeb;border:1px solid #fcd34d;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:#92400e">🟡 ${proxManana.length} mañana</span>
+    <span style="background:#fff7ed;border:1px solid #fed7aa;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:#c2490b">⚠️ ${inact.length} inactivos</span>`;
+
+  const calNavHtml=calVistaActual==="calendario"?`
+    <div class="cal-nav">
+      <button class="cal-nav-btn" onclick="calNavegar(-1)">‹</button>
+      <div class="cal-mes-titulo">${["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][calMesActual]} ${calAnioActual}</div>
+      <button class="cal-nav-btn" onclick="calNavegar(1)">›</button>
+      <button class="cal-hoy-btn" onclick="calIrHoy()">Hoy</button>
+    </div>`:"";
+
+  document.getElementById("vista-alertas").innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <h3 style="color:#fb923c;margin:0;font-size:17px;font-weight:900">🔔 Centro de Alertas</h3>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${kpiBadges}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        ${calNavHtml}
+        <div class="cal-view-tabs">
+          <button class="cal-view-tab${calVistaActual==="calendario"?" active":""}" onclick="calSetVista('calendario')">📅 Calendario</button>
+          <button class="cal-view-tab${calVistaActual==="lista"?" active":""}" onclick="calSetVista('lista')">📋 Lista</button>
+        </div>
       </div>
     </div>
-
-    ${venc.length?`
-    <div style="margin-bottom:22px">
-      <div style="color:var(--red);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;gap:7px">
-        <span style="width:8px;height:8px;border-radius:50%;background:var(--red);display:inline-block"></span>
-        Recordatorios vencidos — requieren atención inmediata (${venc.length})
-      </div>
-      ${venc.map(o=>tarjetaRecordatorio(o,"border-left-color:var(--red)!important")).join("")}
-    </div>`:""}
-
-    ${proxManana.length?`
-    <div style="margin-bottom:22px">
-      <div style="color:#d97706;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;gap:7px">
-        <span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block"></span>
-        Preaviso — recordatorios para mañana (${proxManana.length})
-      </div>
-      ${proxManana.map(o=>tarjetaRecordatorio(o,"border-left-color:#f59e0b!important;background:#fffbeb")).join("")}
-    </div>`:""}
-
-    ${inact.length?`
-    <div style="margin-bottom:22px">
-      <div style="color:#c2490b;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;gap:7px">
-        <span style="width:8px;height:8px;border-radius:50%;background:#f97316;display:inline-block"></span>
-        Sin actividad más de ${DIAS_ALERTA} días (${inact.length})
-      </div>
-      ${inact.map(o=>{
-        const ultima=o.fechaUltimaActividad?.toDate?o.fechaUltimaActividad.toDate():o.creadoEn?.toDate?o.creadoEn.toDate():null;
-        const dias=ultima?Math.floor((new Date()-ultima)/(864e5)):"?";
-        return `<div class="alerta-item" onclick="verDetalle('${o.id}')">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-            <div style="flex:1">
-              <div style="color:#c2490b;font-weight:700;font-size:14px;margin-bottom:2px">${o.empresa}</div>
-              <div style="color:var(--text3);font-size:12px">📍 ${o.provincia||"—"} &nbsp;·&nbsp; 👷 ${(o.responsableNombre||"—").split(" ")[0]} &nbsp;·&nbsp; <span style="color:#f97316;font-weight:600">${dias} días sin actividad</span></div>
-              <div style="margin-top:4px"><span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}55">${o.estado}</span></div>
-            </div>
-            <button class="llamada-btn" onclick="event.stopPropagation();abrirLlamada('${o.id}')">📞 Llamar</button>
-          </div>
-        </div>`;
-      }).join("")}
-    </div>`:""}
-
-    ${venc.length===0&&proxManana.length===0&&inact.length===0?`
-    <div style="text-align:center;padding:60px 20px">
-      <div style="font-size:48px;margin-bottom:12px">✅</div>
-      <div style="color:#10b981;font-size:18px;font-weight:700">¡Sin alertas pendientes!</div>
-      <div style="color:var(--text3);font-size:13px;margin-top:6px">Todo el seguimiento está al día.</div>
-    </div>`:""}`;
+    <div id="alertas-contenido">
+      ${calVistaActual==="calendario"?htmlCalendario():htmlLista()}
+    </div>`;
 }
 
 // ===== HISTORIAL =====
@@ -3424,6 +3658,8 @@ async function cargarHistorial(){
 }
 
 async function borrarRegistroHistorial(id){
+  const rol=currentProfile?.rol;
+  if(rol!=="admin"&&rol!=="comercial"){toast("⚠️ Sin permisos para borrar registros","#f59e0b");return;}
   if(!confirm("¿Borrar este registro del historial?"))return;
   try{
     await db.collection("historial").doc(id).delete();
@@ -3433,6 +3669,8 @@ async function borrarRegistroHistorial(id){
 }
 
 async function borrarLlamadasAntiguas(dias){
+  const rol=currentProfile?.rol;
+  if(rol!=="admin"&&rol!=="comercial"){toast("⚠️ Sin permisos para borrar registros","#f59e0b");return;}
   const limite=new Date();
   limite.setDate(limite.getDate()-dias);
   if(!confirm(`¿Borrar todos los registros de llamadas con más de ${dias} días? Esta acción no se puede deshacer.`))return;
@@ -3455,6 +3693,7 @@ async function borrarLlamadasAntiguas(dias){
 }
 
 async function borrarHistorialTodo(){
+  if(currentProfile?.rol!=="admin"){toast("⚠️ Solo los administradores pueden limpiar todo el historial","#f59e0b");return;}
   if(!confirm("⚠️ ¿Borrar TODO el historial de cambios y llamadas? Esta acción es irreversible."))return;
   if(!confirm("Confirmación final — esto borrará todos los registros. ¿Seguro?"))return;
   const snap=await db.collection("historial").limit(500).get();
@@ -3592,6 +3831,7 @@ function generarNumero(){
   return `OF-${year}-${String(max+1).padStart(3,"0")}`;
 }
 function abrirModal(o){
+  if(currentProfile?.rol==="lectura"){toast("⚠️ Tu rol es de solo lectura. No puedes crear ni editar ofertas.","#f59e0b");return;}
   archivosTemp=o?.archivos||[];editandoId=o?.id||null;
   document.getElementById("modal-title").textContent=o?"✏️ Editar Oferta":"➕ Nueva Oferta";
   document.getElementById("f-num").value=o?.numeroOferta||generarNumero();
@@ -3711,6 +3951,7 @@ function renderArchivosDetalle(archivos){
 }
 async function guardarOferta(){
   if(!currentUser){ toast("⚠️ Sesión caducada. Por favor vuelve a iniciar sesión.","#f59e0b"); return; }
+  if(currentProfile?.rol==="lectura"){ toast("⚠️ Tu rol es de solo lectura. No puedes guardar cambios.","#f59e0b"); return; }
   const empresa=document.getElementById("f-empresa").value.trim();
   if(!empresa){toast("⚠️ El nombre de empresa es obligatorio","#f59e0b");return;}
   const estadoNuevo=document.getElementById("f-est-form").value;
@@ -4188,7 +4429,12 @@ async function cambiarPassword(){
 
 async function reclamarAdmin(){
   if(!currentUser||!currentProfile){toast('⚠️ Sin sesión activa','#f59e0b');return;}
-  if(!confirm('¿Convertirte en Administrador?\nTendrás acceso a gestión de usuarios y configuración del sistema.'))return;
+  // Solo permitir si no hay ningún admin en el sistema (caso de emergencia)
+  try{
+    const snap=await db.collection('usuarios').where('rol','==','admin').limit(1).get();
+    if(!snap.empty){toast('⚠️ Ya existe al menos un administrador. Contacta con él para cambiar tu rol.','#f59e0b');return;}
+  }catch(e){}
+  if(!confirm('¿Convertirte en Administrador?\nSolo se permite si no hay ningún admin en el sistema.'))return;
   try{
     await db.collection('usuarios').doc(currentUser.uid).set({rol:'admin'},{merge:true});
     currentProfile.rol='admin';
