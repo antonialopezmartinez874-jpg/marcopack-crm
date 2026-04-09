@@ -3087,13 +3087,24 @@ function renderLlamadas(){
       tituloSidebar=`${MESES[llCalMesActual]} ${llCalAnioActual}`;
     }
 
-    // Celdas
+    // Celdas — aritmética pura sin objetos Date para evitar desfases UTC
     let celdasHtml="";
+    const _llDiasMesAnt=new Date(llCalAnioActual,llCalMesActual,0).getDate();
     for(let i=0;i<totalCeldas;i++){
       const diaOffset=i-diaInicioSem;
-      const fecha=new Date(llCalAnioActual,llCalMesActual,diaOffset+1);
-      const fechaStr=fechaLocal(fecha);
       const esOtroMes=diaOffset<0||diaOffset>=ultimoDia.getDate();
+      let _a=llCalAnioActual,_m=llCalMesActual+1,_d;
+      if(diaOffset<0){
+        _d=_llDiasMesAnt+diaOffset+1;
+        _m=llCalMesActual===0?12:llCalMesActual;
+        _a=llCalMesActual===0?llCalAnioActual-1:llCalAnioActual;
+      } else if(diaOffset>=ultimoDia.getDate()){
+        _d=diaOffset-ultimoDia.getDate()+1;
+        _m=llCalMesActual===11?1:llCalMesActual+2;
+        _a=llCalMesActual===11?llCalAnioActual+1:llCalAnioActual;
+      } else { _d=diaOffset+1; }
+      const fechaStr=_a+"-"+String(_m).padStart(2,"0")+"-"+String(_d).padStart(2,"0");
+      const numDia=_d;
       const esHoy=fechaStr===hoy;
       const esSel=fechaStr===llCalDiaSel;
       const evDia=mapaFecha[fechaStr]||[];
@@ -3105,8 +3116,6 @@ function renderLlamadas(){
       if(esSel)clasesCelda+=" tiene-eventos es-hoy";
       else if(hayVencidos)clasesCelda+=" tiene-vencidos";
       else if(evDia.length)clasesCelda+=" tiene-eventos";
-
-      const numDia=fecha.getDate();
       let eventosHtml="";
       evDia.slice(0,2).forEach(o=>{
         const tipo=o.fechaRecordatorio<hoy?"ev-vencido":o.fechaRecordatorio===hoy?"ev-hoy":"ev-futuro";
@@ -3665,13 +3674,24 @@ function renderAlertas(){
       tituloSidebar=`${MESES[calMesActual]} ${calAnioActual}`;
     }
 
-    // Celdas del calendario
+    // Celdas del calendario — aritmética pura sin objetos Date para evitar desfases UTC
     let celdasHtml="";
+    const _diasMesAnt=new Date(calAnioActual,calMesActual,0).getDate();
     for(let i=0;i<totalCeldas;i++){
       const diaOffset=i-diaInicioSem;
-      const fecha=new Date(calAnioActual,calMesActual,diaOffset+1);
-      const fechaStr=fechaLocal(fecha);
       const esOtroMes=diaOffset<0||diaOffset>=ultimoDia.getDate();
+      let _a=calAnioActual,_m=calMesActual+1,_d;
+      if(diaOffset<0){
+        _d=_diasMesAnt+diaOffset+1;
+        _m=calMesActual===0?12:calMesActual;
+        _a=calMesActual===0?calAnioActual-1:calAnioActual;
+      } else if(diaOffset>=ultimoDia.getDate()){
+        _d=diaOffset-ultimoDia.getDate()+1;
+        _m=calMesActual===11?1:calMesActual+2;
+        _a=calMesActual===11?calAnioActual+1:calAnioActual;
+      } else { _d=diaOffset+1; }
+      const fechaStr=_a+"-"+String(_m).padStart(2,"0")+"-"+String(_d).padStart(2,"0");
+      const numDia=_d;
       const esHoy=fechaStr===hoy;
       const esSel=fechaStr===calDiaSel;
       const evDia=mapaFecha[fechaStr]||[];
@@ -3684,9 +3704,7 @@ function renderAlertas(){
       if(esSel)clasesCelda+=" tiene-eventos";
       else if(hayVencidos)clasesCelda+=" tiene-vencidos";
       else if(evDia.length)clasesCelda+=" tiene-eventos";
-      if(esSel)clasesCelda+=" es-hoy"; // resaltar seleccionado
-
-      const numDia=fecha.getDate();
+      if(esSel)clasesCelda+=" es-hoy";
       let eventosHtml="";
       const maxVisible=2;
       evDia.slice(0,maxVisible).forEach(o=>{
