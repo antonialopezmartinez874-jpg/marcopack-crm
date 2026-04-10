@@ -11,6 +11,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
 <!-- Leaflet — mapa geográfico real -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -636,7 +637,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       <div id="stats-builder"></div>
     </div>
 
-    <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">v3.2_CHART_PAGINACION</b></div>
+    <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">v3.3_IMPORT_WORD</b></div>
   </div>
 </div></div>
   <div id="vista-mapa" style="display:none;padding:16px 20px 28px">
@@ -680,6 +681,20 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
   <div class="modal">
     <button class="modal-close" onclick="cerrarModal()">✕</button>
     <h2 id="modal-title">Nueva Oferta</h2>
+
+    <!-- ===== IMPORTAR DESDE WORD ===== -->
+    <div id="import-word-panel" style="background:var(--accent-light);border:1.5px dashed var(--accent);border-radius:10px;padding:11px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:12px;font-weight:700;color:var(--accent)">📄 Importar datos desde Word</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">Adjunta tu documento de oferta y se rellenarán los campos automáticamente</div>
+      </div>
+      <label style="display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:white;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:12px;font-weight:700;white-space:nowrap;flex-shrink:0">
+        📂 Seleccionar Word
+        <input type="file" accept=".doc,.docx" onchange="importarDesdeWord(event)" style="display:none"/>
+      </label>
+      <div id="import-word-status" style="width:100%;font-size:11px;color:var(--text3);display:none"></div>
+    </div>
+
     <div style="display:grid;gap:12px">
       <div class="grid2">
         <div class="field"><label>Nº Oferta <span style="color:var(--text3);font-size:10px;font-weight:400">(editable)</span></label><input id="f-num" style="color:var(--text);" placeholder="Ej: OF-2026-001" title="Se genera automáticamente pero puedes editarlo"/></div>
@@ -4263,10 +4278,211 @@ function generarNumero(){
   const max=ofertas.reduce((m,o)=>{const n=parseInt((o.numeroOferta||"").split("-")[2])||0;return n>m?n:m;},0);
   return `OF-${year}-${String(max+1).padStart(3,"0")}`;
 }
+
+// ===== IMPORTAR DESDE WORD =====
+async function importarDesdeWord(event){
+  const file=event.target.files[0];
+  event.target.value="";
+  if(!file) return;
+
+  const statusEl=document.getElementById("import-word-status");
+  if(statusEl){statusEl.style.display="block";statusEl.innerHTML='⏳ Leyendo documento Word...';}
+
+  try{
+    // Leer el .docx con mammoth (ya disponible en el CRM vía npm cdn)
+    const arrayBuffer=await file.arrayBuffer();
+    let textoPlano="";
+
+    // Usar mammoth si está disponible, si no usar FileReader como fallback
+    if(typeof mammoth!=="undefined"){
+      const result=await mammoth.extractRawText({arrayBuffer});
+      textoPlano=result.value||"";
+    } else {
+      // Fallback: leer como texto (funciona para .doc más simples)
+      const decoder=new TextDecoder("utf-8","ignore");
+      textoPlano=decoder.decode(arrayBuffer);
+    }
+
+    if(!textoPlano.trim()){
+      if(statusEl) statusEl.innerHTML='⚠️ No se pudo leer el documento. Prueba con formato .docx';
+      return;
+    }
+
+    // ── Extraer campos ──
+    const datos=_extraerCamposWord(textoPlano);
+
+    // ── Rellenar formulario (sin tocar nº oferta ni tipo máquina) ──
+    let camposRellenados=0;
+
+    function _set(id, val){
+      if(!val) return;
+      const el=document.getElementById(id);
+      if(el){ el.value=val; camposRellenados++; }
+    }
+
+    if(datos.empresa)    _set("f-empresa",   datos.empresa);
+    if(datos.contacto)   _set("f-contacto",  datos.contacto);
+    if(datos.telefono)   _set("f-tel",        datos.telefono);
+    if(datos.movil)      _set("f-movil",      datos.movil);
+    if(datos.email)      _set("f-email",      datos.email);
+    if(datos.referencia) _set("f-referencia", datos.referencia);
+    if(datos.descripcion)_set("f-desc",       datos.descripcion);
+    if(datos.fecha)      _set("f-fecha",      datos.fecha);
+
+    // Provincia: buscar en el select
+    if(datos.provincia){
+      const sel=document.getElementById("f-prov-form");
+      if(sel){
+        const opts=[...sel.options];
+        const match=opts.find(op=>op.value.toLowerCase()===datos.provincia.toLowerCase())
+          || opts.find(op=>op.value.toLowerCase().includes(datos.provincia.toLowerCase()))
+          || opts.find(op=>datos.provincia.toLowerCase().includes(op.value.toLowerCase()));
+        if(match){ sel.value=match.value; camposRellenados++; }
+      }
+    }
+
+    // Tipo máquina → vacío siempre (decisión del usuario)
+    // document.getElementById("f-tipo").value = "";  // ya vacío por defecto
+
+    if(camposRellenados===0){
+      if(statusEl) statusEl.innerHTML='⚠️ No se reconoció la estructura del documento. Rellena los campos a mano.';
+      return;
+    }
+
+    // Resumen de lo encontrado
+    const resumen=[];
+    if(datos.empresa)    resumen.push("empresa");
+    if(datos.contacto)   resumen.push("contacto");
+    if(datos.telefono||datos.movil) resumen.push("teléfono");
+    if(datos.email)      resumen.push("email");
+    if(datos.provincia)  resumen.push("provincia");
+    if(datos.referencia) resumen.push("referencia");
+    if(datos.fecha)      resumen.push("fecha");
+
+    if(statusEl) statusEl.innerHTML=`✅ Importado correctamente: <strong style="color:var(--accent)">${resumen.join(", ")}</strong>. Revisa y completa el tipo de máquina e importe.`;
+    toast("✅ Datos importados desde Word","#10b981");
+
+  }catch(e){
+    console.error("[ImportWord]",e);
+    if(statusEl) statusEl.innerHTML='❌ Error al leer el archivo: '+e.message;
+    toast("❌ Error al leer el Word: "+e.message,"#ef4444");
+  }
+}
+
+function _extraerCamposWord(texto){
+  // Normalizar saltos de línea y espacios múltiples
+  const t=texto.replace(/\r\n/g,"\n").replace(/\r/g,"\n");
+  const lineas=t.split("\n").map(l=>l.trim()).filter(Boolean);
+
+  const datos={};
+
+  // Helper: buscar valor después de una etiqueta en la misma línea o en la siguiente
+  function buscar(patron, opciones={}){
+    const {multilinea=false, maxLineas=3}=opciones;
+    for(let i=0;i<lineas.length;i++){
+      const linea=lineas[i];
+      const match=linea.match(patron);
+      if(match){
+        // Valor en la misma línea después de ":"
+        const resto=linea.replace(patron,"").replace(/^[\s:]+/,"").trim();
+        if(resto && resto.length>1) return resto;
+        // Valor en la siguiente línea(s)
+        const partes=[];
+        for(let j=i+1;j<Math.min(i+1+maxLineas,lineas.length);j++){
+          const sig=lineas[j].trim();
+          if(!sig) break;
+          // Parar si la siguiente línea parece ser otra etiqueta
+          if(/^(EMPRESA|DIRECCIÓN|ATENCIÓN|TLF|FAX|E-MAIL|EMAIL|REFERENCIA|Nº OFERTA|EQUIPO|DESCRIPCIÓN|ESTIMADO|SEGÚN)/i.test(sig)) break;
+          partes.push(sig);
+          if(!multilinea) break;
+        }
+        if(partes.length) return partes.join(" ").trim();
+      }
+    }
+    return "";
+  }
+
+  // ── EMPRESA ──
+  datos.empresa = buscar(/^EMPRESA\s*[:.]?\s*/i, {multilinea:true, maxLineas:4});
+
+  // ── CONTACTO / ATENCIÓN ──
+  let atencion = buscar(/^ATEN[CÇ]IÓN\s*[:.]?\s*/i) || buscar(/^ATENCI[ÓO]N\s*[:.]?\s*/i) || buscar(/^A\/A\s*[:.]?\s*/i);
+  // Limpiar "Sr." / "Sra." y quedarse solo con el nombre
+  if(atencion) atencion=atencion.replace(/^(Sr\.?|Sra\.?|D\.?|Dña\.?)\s*/i,"").trim();
+  // Si la línea tiene teléfono pegado (ej: "Manuel 673 24 99 00"), separar
+  if(atencion){
+    const mTel=atencion.match(/^(.+?)\s+(\d[\d\s]{8,})$/);
+    if(mTel){
+      atencion=mTel[1].trim();
+      if(!datos.movil) datos.movil=mTel[2].replace(/\s+/g,"");
+    }
+  }
+  datos.contacto=atencion;
+
+  // ── TELÉFONO FIJO ──
+  let tlf=buscar(/^TLF\s*[:.]?\s*/i) || buscar(/^TEL[EÉ]FONO\s*[:.]?\s*/i) || buscar(/^TELF\s*[:.]?\s*/i);
+  if(tlf) datos.telefono=tlf.replace(/\s+/g,"").replace(/[^\d+]/g,"");
+
+  // ── MÓVIL — buscar número que empiece por 6 o 7 (móviles españoles) ──
+  if(!datos.movil){
+    for(const linea of lineas){
+      const m=linea.match(/\b([67]\d{2}[\s.-]?\d{2}[\s.-]?\d{2}[\s.-]?\d{2})\b/);
+      if(m){ datos.movil=m[1].replace(/[\s.-]/g,""); break; }
+    }
+  }
+
+  // ── EMAIL ──
+  for(const linea of lineas){
+    const m=linea.match(/([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/);
+    if(m){ datos.email=m[1]; break; }
+  }
+
+  // ── PROVINCIA — buscar en la dirección ──
+  const PROVINCIAS_ES=["Álava","Albacete","Alicante","Almería","Asturias","Ávila","Badajoz","Barcelona","Burgos","Cáceres","Cádiz","Cantabria","Castellón","Ciudad Real","Córdoba","Cuenca","Girona","Granada","Guadalajara","Guipúzcoa","Huelva","Huesca","Jaén","La Rioja","Las Palmas","León","Lleida","Lugo","Madrid","Málaga","Murcia","Navarra","Ourense","Palencia","Pontevedra","Salamanca","Segovia","Sevilla","Soria","Tarragona","Santa Cruz de Tenerife","Teruel","Toledo","Valencia","Valladolid","Vizcaya","Zamora","Zaragoza"];
+  const textoNorm=texto.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+  for(const prov of PROVINCIAS_ES){
+    const provNorm=prov.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+    if(textoNorm.includes(provNorm)){ datos.provincia=prov; break; }
+  }
+
+  // ── REFERENCIA ──
+  datos.referencia = buscar(/^REFERENCIA\s*[:.]?\s*/i) || buscar(/^REF\s*[:.]?\s*/i);
+
+  // ── FECHA — buscar formato dd/mm/yyyy o dd-mm-yyyy ──
+  for(const linea of lineas){
+    const m=linea.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/);
+    if(m){
+      const [,d,mo,y]=m;
+      datos.fecha=`${y}-${mo.padStart(2,"0")}-${d.padStart(2,"0")}`;
+      break;
+    }
+  }
+
+  // ── DESCRIPCIÓN — coger el bloque "EQUIPO SOLICITADO" o "DESCRIPCIÓN" ──
+  for(let i=0;i<lineas.length;i++){
+    if(/EQUIPO SOLICITADO|DESCRIPCI[ÓO]N DEL EQUIPO/i.test(lineas[i])){
+      const partes=[];
+      for(let j=i+1;j<Math.min(i+6,lineas.length);j++){
+        const sig=lineas[j].trim();
+        if(!sig||/^(DESCRIPCI[ÓO]N|PRECIO|IMPORTE|CONDICIONES|PLAZO|FORMA DE PAGO)/i.test(sig)) break;
+        partes.push(sig);
+      }
+      if(partes.length) datos.descripcion=partes.join(" ").trim();
+      break;
+    }
+  }
+
+  return datos;
+}
 function abrirModal(o){
   if(currentProfile?.rol==="lectura"){toast("⚠️ Tu rol es de solo lectura. No puedes crear ni editar ofertas.","#f59e0b");return;}
   archivosTemp=o?.archivos||[];editandoId=o?.id||null;
   document.getElementById("modal-title").textContent=o?"✏️ Editar Oferta":"➕ Nueva Oferta";
+  // Mostrar panel Word solo en nueva oferta, no al editar
+  const wordPanel=document.getElementById("import-word-panel");
+  if(wordPanel) wordPanel.style.display=o?"none":"flex";
+  const wordStatus=document.getElementById("import-word-status");
+  if(wordStatus){wordStatus.style.display="none";wordStatus.textContent="";}
   document.getElementById("f-num").value=o?.numeroOferta||generarNumero();
   document.getElementById("f-fecha").value=o?.fechaOferta||new Date().toISOString().split("T")[0];
   document.getElementById("f-empresa").value=o?.empresa||"";
