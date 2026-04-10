@@ -10,6 +10,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <!-- Leaflet — mapa geográfico real -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -563,7 +564,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
   </div>
 
   <div class="filters" id="filtros-barra">
-    <input type="text" id="busqueda" placeholder="🔍 Buscar empresa, contacto, nº oferta..." oninput="renderVista()"/>
+    <input type="text" id="busqueda" placeholder="🔍 Buscar empresa, contacto, nº oferta..." oninput="paginaActual=1;renderVista()"/>
     <!-- Filtro Provincias -->
     <div style="position:relative;display:inline-block" id="prov-dropdown-wrap">
       <button onclick="toggleProvDropdown()" id="prov-btn" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px;cursor:pointer;min-width:150px;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:6px">
@@ -584,8 +585,8 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
         <div id="pais-options"></div>
       </div>
     </div>
-    <select id="f-est" onchange="renderVista()"><option value="">Todos los estados</option></select>
-    <select id="f-resp" onchange="renderVista()"><option value="">Todos los responsables</option></select>
+    <select id="f-est" onchange="paginaActual=1;renderVista()"><option value="">Todos los estados</option></select>
+    <select id="f-resp" onchange="paginaActual=1;renderVista()"><option value="">Todos los responsables</option></select>
     <button class="btn-clear" onclick="limpiarFiltros()">✕ Limpiar</button>
   </div>
 
@@ -635,7 +636,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       <div id="stats-builder"></div>
     </div>
 
-    <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">v3.1_STABLE_20260409</b></div>
+    <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">v3.2_CHART_PAGINACION</b></div>
   </div>
 </div></div>
   <div id="vista-mapa" style="display:none;padding:16px 20px 28px">
@@ -880,6 +881,26 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 <div id="toast"></div>
 
 <script>
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  MARCOPACK CRM — index.html                                  ║
+// ║  Build: v3.2_CHART_PAGINACION                                ║
+// ║                                                              ║
+// ║  SECCIONES:                                                  ║
+// ║  [1] FIREBASE + ONEDRIVE          línea ~884                 ║
+// ║  [2] CONSTANTES + CATÁLOGO        línea ~1051                ║
+// ║  [3] ESTADO + PAGINACIÓN          línea ~1342                ║
+// ║  [4] AUTH + SELECTS + AC          línea ~1352                ║
+// ║  [5] TIEMPO REAL + FILTROS        línea ~1652                ║
+// ║  [6] VISTAS + DASHBOARD           línea ~1881                ║
+// ║  [7] TABLA + PAGINACIÓN           línea ~2143                ║
+// ║  [8] ESTADÍSTICAS                 línea ~2241                ║
+// ║  [9] MAPA LEAFLET                 línea ~2548                ║
+// ║  [10] LLAMADAS + ALERTAS          línea ~3079                ║
+// ║  [11] HISTORIAL + EXPORTAR        línea ~4021                ║
+// ║  [12] MODAL OFERTA + DETALLE      línea ~4210                ║
+// ║  [13] MI CUENTA + ADMIN           línea ~4462                ║
+// ╚══════════════════════════════════════════════════════════════╝
+
 // ===== FIREBASE =====
 const firebaseConfig={apiKey:"AIzaSyB4kJsqEtQ0ypOIL4LyY9rhTBpcY_mxhnI",authDomain:"machinecrm-61b34.firebaseapp.com",projectId:"machinecrm-61b34",storageBucket:"machinecrm-61b34.firebasestorage.app",messagingSenderId:"686919580495",appId:"1:686919580495:web:019fa5682054bb089a633a"};
 firebase.initializeApp(firebaseConfig);
@@ -1344,6 +1365,10 @@ let ofertas=[],ordenCampo="fechaOferta",ordenDir="desc";
 let vistaActual="dashboard",archivosTemp=[],editandoId=null,llamadaOfertaId=null;
 let _ofertasUnsub=null; // Referencia al listener de Firestore para cancelarlo en logout
 
+// ===== PAGINACIÓN — TABLA =====
+const PAGINACION_POR_PAGINA=50;
+let paginaActual=1;
+
 // ===== AUTH =====
 auth.onAuthStateChanged(async user=>{
   try{
@@ -1534,6 +1559,7 @@ function toggleProvincia(p){
   else provinciasSeleccionadas.add(p);
   renderProvOpciones(document.getElementById("prov-search").value);
   actualizarLabelProv();
+  paginaActual=1;
   renderVista();
 }
 function actualizarLabelProv(){
@@ -1787,9 +1813,10 @@ function limpiarFiltros(){
   actualizarLabelPais();
   renderProvOpciones();
   renderPaisOpciones();
+  paginaActual=1;
   renderVista();
 }
-function sortBy(c){ordenDir=ordenCampo===c&&ordenDir==="asc"?"desc":"asc";ordenCampo=c;renderVista();}
+function sortBy(c){ordenDir=ordenCampo===c&&ordenDir==="asc"?"desc":"asc";ordenCampo=c;paginaActual=1;renderVista();}
 
 // ===== SELECCIÓN MÚLTIPLE Y BORRADO =====
 let ofertasSeleccionadas=new Set();
@@ -1849,6 +1876,7 @@ function togglePais(p){
   else paisesSeleccionados.add(p);
   renderPaisOpciones(document.getElementById("pais-search").value);
   actualizarLabelPais();
+  paginaActual=1;
   renderVista();
 }
 function actualizarLabelPais(){
@@ -1896,13 +1924,22 @@ function renderVista(){
   else if(vistaActual==="estadistas")renderEstadisticas();
 }
 
-// ===== DASHBOARD EJECUTIVO =====
+// ===== DASHBOARD EJECUTIVO — Chart.js =====
+// Referencias a instancias Chart.js activas (para destruirlas antes de redibujar)
+let _chartEmbudo=null, _chartMensual=null, _chartEstados=null, _chartResp=null;
+
+function _destroyCharts(){
+  [_chartEmbudo,_chartMensual,_chartEstados,_chartResp].forEach(c=>{try{if(c)c.destroy();}catch(_){}});
+  _chartEmbudo=_chartMensual=_chartEstados=_chartResp=null;
+}
+
 function renderDashboard(){
+  _destroyCharts();
   const hoy=new Date();
   const hoyStr=fechaLocal(hoy);
   const gan=ofertas.filter(o=>o.estado==="Ganada");
+  const perd=ofertas.filter(o=>o.estado==="Perdida"||o.estado==="Descartada");
   const pend=ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado));
-  const total=ofertas.reduce((s,o)=>s+(o.importe||0),0);
   const totalGan=gan.reduce((s,o)=>s+(o.importe||0),0);
   const totalPipeline=pend.reduce((s,o)=>s+(o.importe||0),0);
   const tasa=ofertas.length?Math.round(gan.length/ofertas.length*100):0;
@@ -1910,96 +1947,246 @@ function renderDashboard(){
   const mananaStr=getFechaManana();
   const proxManana=ofertas.filter(o=>o.fechaRecordatorio===mananaStr&&!["Ganada","Perdida","Descartada"].includes(o.estado));
   const alertasInact=getAlertasInactivas();
- const sinSeg=pend.filter(o=>!o.fechaRecordatorio && !o.proximaAccion && !o.fechaProximaAccion).length;
-
-  // Últimas 5 ofertas
+  const sinSeg=pend.filter(o=>!o.fechaRecordatorio&&!o.proximaAccion&&!o.fechaProximaAccion).length;
   const ultimas=ofertas.slice(0,5);
-  // Top 3 comerciales por ganadas
+
+  // ── Datos gráfica mensual (últimos 8 meses) ──
+  const porMesCount={}, porMesImporte={};
+  ofertas.forEach(o=>{
+    if(o.fechaOferta){
+      const m=o.fechaOferta.substring(0,7);
+      porMesCount[m]=(porMesCount[m]||0)+1;
+      porMesImporte[m]=(porMesImporte[m]||0)+(o.importe||0);
+    }
+  });
+  const mesesLabels=Object.keys(porMesCount).sort().slice(-8);
+  const mesesCount=mesesLabels.map(m=>porMesCount[m]||0);
+  const mesesImporte=mesesLabels.map(m=>Math.round((porMesImporte[m]||0)));
+  const mesesFmt=mesesLabels.map(m=>{ const [y,mo]=m.split("-"); return mo+"/"+y.slice(2); });
+
+  // ── Datos embudo ──
+  const estadosEmbudo=ESTADOS.filter(e=>!["Ganada","Perdida","Descartada"].includes(e));
+  const embудоCounts=estadosEmbudo.map(e=>pend.filter(o=>o.estado===e).length);
+  const embudoColores=estadosEmbudo.map(e=>CE[e]||"#64748b");
+
+  // ── Datos distribución por estado (doughnut) ──
+  const estadosDoughnut=ESTADOS.filter(e=>(ofertas.filter(o=>o.estado===e).length)>0);
+  const doughnutCounts=estadosDoughnut.map(e=>ofertas.filter(o=>o.estado===e).length);
+  const doughnutColores=estadosDoughnut.map(e=>CE[e]||"#64748b");
+
+  // ── Top comerciales ──
   const porResp={};
   gan.forEach(o=>{if(o.responsableNombre)porResp[o.responsableNombre]=(porResp[o.responsableNombre]||0)+1;});
-  const topResp=Object.entries(porResp).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  const topResp=Object.entries(porResp).sort((a,b)=>b[1]-a[1]).slice(0,5);
 
   document.getElementById("vista-dashboard").innerHTML=`
   <div class="dashboard">
+
+    <!-- ── KPIs ── -->
     <div class="dash-grid">
-      <div class="dash-kpi"><div class="val" style="color:var(--accent)">${ofertas.length}</div><div class="lbl">Total ofertas</div><div class="sub" style="color:var(--text3)">${pend.length} activas en pipeline · ${sinSeg} sin seguimiento</div></div>
-      <div class="dash-kpi"><div class="val" style="color:#10b981">${tasa}%</div><div class="lbl">Tasa de cierre</div><div class="sub" style="color:#10b981">${gan.length} ofertas ganadas</div></div>
-      <div class="dash-kpi"><div class="val" style="color:#34d399">${totalGan.toLocaleString("es-ES")} €</div><div class="lbl">Ingresos cerrados</div><div class="sub" style="color:var(--text3)">Pipeline: ${totalPipeline.toLocaleString("es-ES")} €</div></div>
-      <div class="dash-kpi" style="${(venc.length+proxManana.length)>0?'border-color:#f97316':''};cursor:pointer" onclick="setVista('alertas')">
+      <div class="dash-kpi">
+        <div class="val" style="color:var(--accent)">${ofertas.length}</div>
+        <div class="lbl">Total ofertas</div>
+        <div class="sub" style="color:var(--text3)">${pend.length} activas · ${sinSeg} sin seguimiento</div>
+      </div>
+      <div class="dash-kpi">
+        <div class="val" style="color:#10b981">${tasa}%</div>
+        <div class="lbl">Tasa de cierre</div>
+        <div class="sub" style="color:#10b981">${gan.length} ganadas · ${perd.length} perdidas</div>
+      </div>
+      <div class="dash-kpi">
+        <div class="val" style="color:#34d399;font-size:${totalGan>999999?'20':'30'}px">${totalGan.toLocaleString("es-ES")} €</div>
+        <div class="lbl">Ingresos cerrados</div>
+        <div class="sub" style="color:var(--text3)">Pipeline: ${totalPipeline.toLocaleString("es-ES")} €</div>
+      </div>
+      <div class="dash-kpi" style="${(venc.length+proxManana.length)>0?'border-color:#f97316;':''};cursor:pointer" onclick="setVista('alertas')">
         <div class="val" style="color:#fb923c">${venc.length}</div>
         <div class="lbl">Recordatorios vencidos</div>
-        ${proxManana.length>0?`<div class="sub" style="color:#f59e0b;font-weight:700">⏰ ${proxManana.length} para mañana</div>`:`<div class="sub" style="color:#ef4444">${alertasInact.length} sin actividad +${DIAS_ALERTA}d</div>`}
+        ${proxManana.length>0
+          ?`<div class="sub" style="color:#f59e0b;font-weight:700">⏰ ${proxManana.length} para mañana</div>`
+          :`<div class="sub" style="color:#ef4444">${alertasInact.length} sin actividad +${DIAS_ALERTA}d</div>`}
       </div>
     </div>
-    <div class="charts-grid">
+
+    <!-- ── Fila 1: Gráfica mensual (ancho completo) ── -->
+    <div class="charts-grid" style="grid-template-columns:1fr;margin-bottom:14px">
       <div class="chart-card">
-        <h3>🕐 Últimas ofertas</h3>
-        ${ultimas.map(o=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #1e3a5f;cursor:pointer" onclick="verDetalle('${o.id}')">
-          <div><div style="color:var(--text);font-size:12px;font-weight:600">${o.empresa}</div><div style="color:var(--text3);font-size:11px">${o.provincia||""} · ${o.tipoMaquina||""}</div></div>
-          <span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}55;font-size:10px">${o.estado}</span>
-        </div>`).join("")}
+        <h3>📈 Evolución mensual — ofertas e importe</h3>
+        <div style="position:relative;height:200px">
+          <canvas id="chart-mensual"></canvas>
+        </div>
       </div>
+    </div>
+
+    <!-- ── Fila 2: Embudo + Doughnut + Últimas ofertas ── -->
+    <div class="charts-grid" style="grid-template-columns:1fr 1fr 1fr">
       <div class="chart-card">
-        <h3>🏆 Top comerciales (ofertas ganadas)</h3>
-        ${topResp.length?topResp.map(([n,v],i)=>`<div class="bar-row">
-          <div class="bar-label">${["🥇","🥈","🥉"][i]} ${n}</div>
-          <div class="bar-track"><div class="bar-fill" style="width:${Math.round(v/topResp[0][1]*100)}%;background:${CG[i]}"><span class="bar-val">${v} ganadas</span></div></div>
-        </div>`).join(""):`<div style="color:var(--text3);font-size:13px">Sin datos aún</div>`}
-        <div style="margin-top:16px">
-          <h3 style="color:var(--accent);font-size:13px;margin-bottom:10px">📊 Pipeline por estado</h3>
-          ${ESTADOS.filter(e=>!["Ganada","Perdida","Descartada"].includes(e)).map(e=>{
-            const n=pend.filter(o=>o.estado===e).length;
-            return n>0?`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px"><span style="color:${CE[e]}">${e}</span><span style="color:var(--text);font-weight:600">${n}</span></div>`:"";
-          }).join("")}
+        <h3>🎯 Embudo de ventas (pipeline activo)</h3>
+        <div style="position:relative;height:190px">
+          <canvas id="chart-embudo"></canvas>
         </div>
       </div>
       <div class="chart-card">
-        <h3>⚡ Alertas pendientes</h3>
-        ${venc.slice(0,3).map(o=>`<div style="background:var(--orange-bg);border:1px solid #fbd0b0;border-radius:8px;padding:8px 12px;margin-bottom:6px;cursor:pointer;font-size:12px" onclick="verDetalle('${o.id}')">
-          <div style="color:#fb923c;font-weight:600">🔔 ${o.empresa}</div>
-          <div style="color:var(--text3)">Recordatorio: ${new Date(o.fechaRecordatorio).toLocaleDateString("es-ES")}</div>
-        </div>`).join("")}
-        ${alertasInact.slice(0,2).map(o=>`<div style="background:var(--red-bg);border:1px solid #fca5a5;border-radius:8px;padding:8px 12px;margin-bottom:6px;cursor:pointer;font-size:12px" onclick="verDetalle('${o.id}')">
-          <div style="color:#ef4444;font-weight:600">⚠️ ${o.empresa}</div>
-          <div style="color:var(--text3)">Sin actividad +${DIAS_ALERTA} días</div>
-        </div>`).join("")}
-        ${venc.length===0&&alertasInact.length===0?`<div style="color:var(--text3);font-size:13px">✅ Sin alertas pendientes</div>`:""}
-        <button onclick="setVista('alertas')" style="background:transparent;border:1px solid var(--border);color:var(--text3);border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer;margin-top:8px">Ver todas →</button>
+        <h3>🍩 Distribución por estado</h3>
+        <div style="position:relative;height:190px">
+          <canvas id="chart-estados"></canvas>
+        </div>
       </div>
       <div class="chart-card">
-        <h3>📈 Resumen mensual</h3>
-        ${(()=>{
-          const porMes={};
-          ofertas.forEach(o=>{if(o.fechaOferta){const m=o.fechaOferta.substring(0,7);porMes[m]=(porMes[m]||0)+1;}});
-          const meses=Object.entries(porMes).sort((a,b)=>a[0].localeCompare(b[0])).slice(-6);
-          const maxV=meses.length?Math.max(...meses.map(([,v])=>v)):1;
-          return `<div style="display:flex;align-items:flex-end;gap:6px;height:100px">
-            ${meses.map(([mes,val])=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">
-              <div style="font-size:9px;color:var(--accent);font-weight:700">${val}</div>
-              <div style="width:100%;background:linear-gradient(180deg,var(--accent),var(--accent2));border-radius:3px 3px 0 0;height:${Math.round(val/maxV*70)+10}px"></div>
-              <div style="font-size:9px;color:var(--text3)">${mes.substring(5)}</div>
-            </div>`).join("")}
-          </div>`;
-        })()}
+        <h3>🕐 Últimas ofertas</h3>
+        ${ultimas.map(o=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="verDetalle('${o.id}')">
+            <div>
+              <div style="color:var(--text);font-size:12px;font-weight:600">${o.empresa}</div>
+              <div style="color:var(--text3);font-size:10px">${o.provincia||""} · ${o.tipoMaquina||""}</div>
+            </div>
+            <span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}55;font-size:10px">${o.estado}</span>
+          </div>`).join("")}
       </div>
     </div>
+
+    <!-- ── Fila 3: Top comerciales + Alertas ── -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>🏆 Top comerciales (ofertas ganadas)</h3>
+        <div style="position:relative;height:180px">
+          <canvas id="chart-resp"></canvas>
+        </div>
+        ${topResp.length===0?`<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px">Sin datos aún</div>`:""}
+      </div>
+      <div class="chart-card">
+        <h3>⚡ Alertas pendientes</h3>
+        ${venc.slice(0,3).map(o=>`
+          <div style="background:var(--orange-bg);border:1px solid #fbd0b0;border-radius:8px;padding:8px 12px;margin-bottom:6px;cursor:pointer;font-size:12px" onclick="verDetalle('${o.id}')">
+            <div style="color:#fb923c;font-weight:600">🔔 ${o.empresa}</div>
+            <div style="color:var(--text3)">Recordatorio: ${new Date(o.fechaRecordatorio).toLocaleDateString("es-ES")}</div>
+          </div>`).join("")}
+        ${alertasInact.slice(0,2).map(o=>`
+          <div style="background:var(--red-bg);border:1px solid #fca5a5;border-radius:8px;padding:8px 12px;margin-bottom:6px;cursor:pointer;font-size:12px" onclick="verDetalle('${o.id}')">
+            <div style="color:#ef4444;font-weight:600">⚠️ ${o.empresa}</div>
+            <div style="color:var(--text3)">Sin actividad +${DIAS_ALERTA} días</div>
+          </div>`).join("")}
+        ${venc.length===0&&alertasInact.length===0
+          ?`<div style="color:#10b981;font-size:13px;text-align:center;padding:20px">✅ Sin alertas pendientes</div>`:""}
+        <button onclick="setVista('alertas')" style="background:transparent;border:1px solid var(--border);color:var(--text3);border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer;margin-top:8px;width:100%">Ver todas las alertas →</button>
+      </div>
+    </div>
+
   </div>`;
+
+  // ── Inicializar Chart.js tras render del DOM ──
+  requestAnimationFrame(()=>{
+    const fontColor="#4a5880";
+    const gridColor="rgba(100,120,180,0.1)";
+    Chart.defaults.font.family="'Plus Jakarta Sans',sans-serif";
+
+    // Gráfica mensual — línea (ofertas) + barras (importe)
+    const ctxM=document.getElementById("chart-mensual");
+    if(ctxM&&mesesLabels.length){
+      _chartMensual=new Chart(ctxM,{
+        data:{
+          labels:mesesFmt,
+          datasets:[
+            {type:"bar",label:"Importe (€)",data:mesesImporte,backgroundColor:"rgba(21,101,192,0.18)",borderColor:"#1565c0",borderWidth:1.5,borderRadius:4,yAxisID:"y2",order:2},
+            {type:"line",label:"Nº Ofertas",data:mesesCount,borderColor:"#10b981",backgroundColor:"rgba(16,185,129,0.1)",borderWidth:2.5,pointRadius:4,pointBackgroundColor:"#10b981",tension:0.35,fill:true,yAxisID:"y1",order:1}
+          ]
+        },
+        options:{
+          responsive:true,maintainAspectRatio:false,
+          interaction:{mode:"index",intersect:false},
+          plugins:{
+            legend:{labels:{color:fontColor,font:{size:11},boxWidth:12}},
+            tooltip:{callbacks:{label:ctx=>ctx.dataset.label+": "+(ctx.dataset.yAxisID==="y2"?ctx.parsed.y.toLocaleString("es-ES")+" €":ctx.parsed.y)}}
+          },
+          scales:{
+            x:{ticks:{color:fontColor,font:{size:10}},grid:{color:gridColor}},
+            y1:{type:"linear",position:"left",ticks:{color:"#10b981",font:{size:10}},grid:{color:gridColor},title:{display:true,text:"Ofertas",color:"#10b981",font:{size:10}}},
+            y2:{type:"linear",position:"right",ticks:{color:"#1565c0",font:{size:10},callback:v=>v>=1000?Math.round(v/1000)+"k €":v+" €"},grid:{drawOnChartArea:false},title:{display:true,text:"Importe",color:"#1565c0",font:{size:10}}}
+          }
+        }
+      });
+    }
+
+    // Embudo — barras horizontales pipeline activo
+    const ctxE=document.getElementById("chart-embudo");
+    if(ctxE&&embудоCounts.some(v=>v>0)){
+      _chartEmbudo=new Chart(ctxE,{
+        type:"bar",
+        data:{labels:estadosEmbudo,datasets:[{data:embудоCounts,backgroundColor:embudoColores.map(c=>c+"44"),borderColor:embudoColores,borderWidth:2,borderRadius:4}]},
+        options:{
+          indexAxis:"y",responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>" "+ctx.parsed.x+" ofertas"}}},
+          scales:{x:{ticks:{color:fontColor,font:{size:10},precision:0},grid:{color:gridColor}},y:{ticks:{color:fontColor,font:{size:11}},grid:{display:false}}}
+        }
+      });
+    } else if(ctxE){
+      const ctx2=ctxE.getContext("2d");
+      ctx2.fillStyle=fontColor;ctx2.font="13px Plus Jakarta Sans";
+      ctx2.textAlign="center";ctx2.fillText("Sin ofertas activas en pipeline",ctxE.width/2,ctxE.height/2);
+    }
+
+    // Doughnut — distribución por estado
+    const ctxD=document.getElementById("chart-estados");
+    if(ctxD&&doughnutCounts.some(v=>v>0)){
+      _chartEstados=new Chart(ctxD,{
+        type:"doughnut",
+        data:{labels:estadosDoughnut,datasets:[{data:doughnutCounts,backgroundColor:doughnutColores.map(c=>c+"bb"),borderColor:doughnutColores,borderWidth:2}]},
+        options:{
+          responsive:true,maintainAspectRatio:false,cutout:"60%",
+          plugins:{
+            legend:{position:"right",labels:{color:fontColor,font:{size:10},boxWidth:10,padding:8}},
+            tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${ctx.parsed} (${ofertas.length?Math.round(ctx.parsed/ofertas.length*100):0}%)`}}
+          }
+        }
+      });
+    }
+
+    // Top comerciales — barras horizontales
+    const ctxR=document.getElementById("chart-resp");
+    if(ctxR&&topResp.length){
+      _chartResp=new Chart(ctxR,{
+        type:"bar",
+        data:{
+          labels:topResp.map(([n])=>n.split(" ")[0]),
+          datasets:[{label:"Ganadas",data:topResp.map(([,v])=>v),backgroundColor:CG.slice(0,topResp.length).map(c=>c+"99"),borderColor:CG.slice(0,topResp.length),borderWidth:2,borderRadius:4}]
+        },
+        options:{
+          responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>" "+ctx.parsed.y+" ofertas ganadas"}}},
+          scales:{x:{ticks:{color:fontColor,font:{size:11}},grid:{display:false}},y:{ticks:{color:fontColor,font:{size:10},precision:0},grid:{color:gridColor}}}
+        }
+      });
+    }
+  });
 }
 
-// ===== TABLA =====
+// ===== TABLA CON PAGINACIÓN (50 por página) =====
 function renderTabla(){
   const hoy=fechaLocal();
   const hoyCmp=new Date();
-  const rows=getFiltradas();
+  const todasLasFilas=getFiltradas();
+  const totalRegistros=todasLasFilas.length;
+  const totalPaginas=Math.max(1,Math.ceil(totalRegistros/PAGINACION_POR_PAGINA));
+
+  // Ajustar página actual si se queda fuera de rango (p.ej. al filtrar)
+  if(paginaActual>totalPaginas) paginaActual=1;
+
+  const inicio=(paginaActual-1)*PAGINACION_POR_PAGINA;
+  const fin=Math.min(inicio+PAGINACION_POR_PAGINA,totalRegistros);
+  const rows=todasLasFilas.slice(inicio,fin);
+
   const tbody=document.getElementById("tbody");
-  if(!rows.length){tbody.innerHTML=`<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:40px">No se encontraron ofertas</td></tr>`;return;}
+  if(!rows.length){
+    tbody.innerHTML=`<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:40px">No se encontraron ofertas</td></tr>`;
+    _renderPaginacion(0,0,1,1);
+    return;
+  }
   tbody.innerHTML=rows.map((o,idx)=>{
     const col=CE[o.estado]||"#64748b";
     const vence=o.fechaRecordatorio&&o.fechaRecordatorio<=hoy;
     const ultima=o.fechaUltimaActividad?.toDate?o.fechaUltimaActividad.toDate():o.creadoEn?.toDate?o.creadoEn.toDate():null;
     const diasInact=ultima?Math.floor((hoyCmp-ultima)/(864e5)):null;
     const inactiva=diasInact!==null&&diasInact>=DIAS_ALERTA&&!["Ganada","Perdida","Descartada"].includes(o.estado);
-    const puedeEditar=true; // Todos los usuarios pueden editar cualquier oferta
     const filaColor=idx%2===0?"background:#ffffff":"background:#dde8f8";
     const filaBorde=idx%2!==0?"border-top:1px solid #b8cfe8;border-bottom:1px solid #b8cfe8;":"";
     return `<tr style="--ec:${inactiva?"#ef4444":col};${filaColor};${filaBorde}" onclick="verDetalle('${o.id}')">
@@ -2022,6 +2209,53 @@ function renderTabla(){
       </div></td>
     </tr>`;
   }).join("");
+
+  _renderPaginacion(inicio,fin,totalRegistros,totalPaginas);
+}
+
+function _renderPaginacion(inicio,fin,total,totalPaginas){
+  // Buscar o crear el contenedor de paginación bajo la tabla
+  let pag=document.getElementById("paginacion-bar");
+  if(!pag){
+    pag=document.createElement("div");
+    pag.id="paginacion-bar";
+    const tableWrap=document.querySelector(".table-wrap");
+    if(tableWrap) tableWrap.appendChild(pag);
+  }
+  if(total===0){ pag.innerHTML=""; return; }
+
+  // Números de página a mostrar (máx 5 botones + primera y última)
+  const rango=2; // botones a cada lado de la página actual
+  let pagsBtns=[];
+  for(let p=Math.max(1,paginaActual-rango);p<=Math.min(totalPaginas,paginaActual+rango);p++) pagsBtns.push(p);
+
+  const btnStyle=(activo)=>`background:${activo?"var(--accent)":"var(--surface)"};color:${activo?"white":"var(--text2)"};border:1.5px solid ${activo?"var(--accent)":"var(--border)"};border-radius:var(--radius-sm);padding:5px 10px;font-size:12px;font-weight:${activo?700:600};cursor:pointer;font-family:inherit;min-width:34px;transition:all .15s`;
+  const btnDisabled=`background:var(--surface2);color:var(--text3);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:5px 10px;font-size:12px;cursor:not-allowed;min-width:34px;opacity:.5`;
+
+  pag.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:10px 0 18px">
+      <div style="font-size:12px;color:var(--text3);font-weight:600">
+        Mostrando <strong style="color:var(--text)">${inicio+1}–${fin}</strong> de <strong style="color:var(--text)">${total}</strong> ofertas
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+        <button style="${paginaActual<=1?btnDisabled:btnStyle(false)}" onclick="irPagina(1)" ${paginaActual<=1?'disabled':''} title="Primera página">«</button>
+        <button style="${paginaActual<=1?btnDisabled:btnStyle(false)}" onclick="irPagina(${paginaActual-1})" ${paginaActual<=1?'disabled':''} title="Anterior">‹</button>
+        ${pagsBtns[0]>1?`<span style="color:var(--text3);padding:0 4px">…</span>`:""}
+        ${pagsBtns.map(p=>`<button style="${btnStyle(p===paginaActual)}" onclick="irPagina(${p})">${p}</button>`).join("")}
+        ${pagsBtns[pagsBtns.length-1]<totalPaginas?`<span style="color:var(--text3);padding:0 4px">…</span>`:""}
+        <button style="${paginaActual>=totalPaginas?btnDisabled:btnStyle(false)}" onclick="irPagina(${paginaActual+1})" ${paginaActual>=totalPaginas?'disabled':''} title="Siguiente">›</button>
+        <button style="${paginaActual>=totalPaginas?btnDisabled:btnStyle(false)}" onclick="irPagina(${totalPaginas})" ${paginaActual>=totalPaginas?'disabled':''} title="Última página">»</button>
+        <span style="color:var(--text3);font-size:11px;margin-left:4px">Pág. ${paginaActual}/${totalPaginas}</span>
+      </div>
+    </div>`;
+}
+
+function irPagina(p){
+  paginaActual=p;
+  renderTabla();
+  // Scroll suave al inicio de la tabla
+  const tw=document.querySelector(".table-wrap");
+  if(tw) tw.scrollIntoView({behavior:"smooth",block:"start"});
 }
 
 // ===== ESTADÍSTICAS (RESUMEN) =====
