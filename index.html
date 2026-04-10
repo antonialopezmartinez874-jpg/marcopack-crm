@@ -4289,22 +4289,32 @@ async function importarDesdeWord(event){
   if(statusEl){statusEl.style.display="block";statusEl.innerHTML='⏳ Leyendo documento Word...';}
 
   try{
-    // Leer el .docx con mammoth (ya disponible en el CRM vía npm cdn)
     const arrayBuffer=await file.arrayBuffer();
     let textoPlano="";
+    const esDocx=file.name.toLowerCase().endsWith(".docx");
+    const esDoc=file.name.toLowerCase().endsWith(".doc");
 
-    // Usar mammoth si está disponible, si no usar FileReader como fallback
-    if(typeof mammoth!=="undefined"){
+    if(esDocx && typeof mammoth!=="undefined"){
+      // .docx: mammoth lo lee perfectamente
       const result=await mammoth.extractRawText({arrayBuffer});
       textoPlano=result.value||"";
-    } else {
-      // Fallback: leer como texto (funciona para .doc más simples)
-      const decoder=new TextDecoder("utf-8","ignore");
-      textoPlano=decoder.decode(arrayBuffer);
+    } else if(esDoc){
+      // .doc (Word 97-2003 binario): mammoth NO puede leerlo → extraer texto del binario
+      // Los archivos .doc contienen texto en UTF-16LE con separadores nulos
+      // Estrategia: buscar cadenas de texto legibles en el binario
+      textoPlano=_extraerTextoDOCBinario(arrayBuffer);
+    } else if(typeof mammoth!=="undefined"){
+      // Intentar con mammoth como último recurso
+      try{
+        const result=await mammoth.extractRawText({arrayBuffer});
+        textoPlano=result.value||"";
+      }catch(errMammoth){
+        textoPlano=_extraerTextoDOCBinario(arrayBuffer);
+      }
     }
 
     if(!textoPlano.trim()){
-      if(statusEl) statusEl.innerHTML='⚠️ No se pudo leer el documento. Prueba con formato .docx';
+      if(statusEl) statusEl.innerHTML='⚠️ No se pudo leer el documento. Si es .doc antiguo, guárdalo como .docx desde Word e inténtalo de nuevo.';
       return;
     }
 
@@ -4369,6 +4379,44 @@ async function importarDesdeWord(event){
   }
 }
 
+// ── Parser de .doc binario (Word 97-2003) ──────────────────────────────────
+// Extrae texto legible del ArrayBuffer de un .doc binario
+// Busca cadenas de caracteres imprimibles (ASCII y Latin-1) de longitud > 3
+function _extraerTextoDOCBinario(arrayBuffer){
+  const bytes=new Uint8Array(arrayBuffer);
+  const lineas=[];
+  let actual=[];
+
+  for(let i=0;i<bytes.length;i++){
+    const b=bytes[i];
+    // Caracteres imprimibles ASCII + Latin-1 extendido (acentos, ñ, etc.)
+    if((b>=32 && b<=126)||(b>=160 && b<=255)){
+      actual.push(String.fromCharCode(b));
+    } else if(b===10||b===13||b===9){
+      // Salto de línea o tabulación: separador natural
+      const linea=actual.join("").trim();
+      if(linea.length>3) lineas.push(linea);
+      actual=[];
+    } else {
+      // Carácter no imprimible: actúa como separador
+      const linea=actual.join("").trim();
+      if(linea.length>3) lineas.push(linea);
+      actual=[];
+    }
+  }
+  if(actual.length>3) lineas.push(actual.join("").trim());
+
+  // Eliminar duplicados consecutivos y ruido (cadenas claramente binarias)
+  const filtradas=lineas.filter((l,i,arr)=>{
+    if(l===arr[i-1]) return false; // duplicado consecutivo
+    // Filtrar cadenas con demasiados caracteres no-alfanuméricos (ruido binario)
+    const alfanum=(l.match(/[a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ@\.\-\s]/g)||[]).length;
+    return alfanum/l.length>0.5;
+  });
+
+  return filtradas.join("\n");
+}
+
 function _extraerCamposWord(texto){
   // Normalizar saltos de línea y espacios múltiples
   const t=texto.replace(/\r\n/g,"\n").replace(/\r/g,"\n");
@@ -4404,6 +4452,33 @@ function _extraerCamposWord(texto){
 
   // ── EMPRESA ──
   datos.empresa = buscar(/^EMPRESA\s*[:.]?\s*/i, {multilinea:true, maxLineas:4});
+  // Fallback: en .doc binario el nombre de empresa puede aparecer suelto
+  // Buscar patrón: línea que sigue inmediatamente a "DIRECCIÓN:" o "ATENCIÓN:"
+  // o buscar la palabra "EMPRESA" y coger las siguientes 2 líneas
+  if(!datos.empresa){
+    for(let i=0;i<lineas.length;i++){
+      if(/^EMPRESA/i.test(lineas[i])){
+        // Puede que en el binario "EMPRESA:" y el valor estén en líneas separadas sin ":" claro
+        for(let j=i+1;j<Math.min(i+4,lineas.length);j++){
+          const sig=lineas[j].trim();
+          if(sig && !/^(DIREC|ATEN|TLF|FAX|E-MAIL|REFER|N[ºo])/i.test(sig)){
+            datos.empresa=sig; break;
+          }
+        }
+        if(datos.empresa) break;
+      }
+    }
+  }
+  // Último recurso: buscar líneas que contengan texto en mayúsculas sostenidas
+  // que parezcan un nombre de empresa (entre REFERENCIA y DIRECCIÓN)
+  if(!datos.empresa){
+    const idxRef=lineas.findIndex(l=>/^REFERENCIA/i.test(l));
+    const idxDir=lineas.findIndex(l=>/^DIRECCI[OÓ]N/i.test(l));
+    if(idxRef>=0 && idxDir>idxRef){
+      const candidatos=lineas.slice(idxRef+1,idxDir).filter(l=>l.length>3 && !/^\d+$/.test(l));
+      if(candidatos.length) datos.empresa=candidatos[0];
+    }
+  }
 
   // ── CONTACTO / ATENCIÓN ──
   let atencion = buscar(/^ATEN[CÇ]IÓN\s*[:.]?\s*/i) || buscar(/^ATENCI[ÓO]N\s*[:.]?\s*/i) || buscar(/^A\/A\s*[:.]?\s*/i);
