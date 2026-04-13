@@ -1601,6 +1601,7 @@ function doLogout(){
   if(_ofertasUnsub){ try{ _ofertasUnsub(); }catch(_){} _ofertasUnsub=null; }
   ofertas=[];
   _smartNotifMostrada=false;
+  window._contadorSincronizado=false;
   auth.signOut();
 }
 
@@ -1759,8 +1760,13 @@ function escucharOfertas(){
     nombres.forEach(n=>{fr.add(new Option(n,n));frm.add(new Option(n,n));});
     if(currentProfile?.nombre&&!nombres.includes(currentProfile.nombre))frm.add(new Option(currentProfile.nombre,currentProfile.nombre));
     renderStats();renderVista();
-    // Mostrar notificación inteligente solo la primera vez que llegan los datos
+    // Notificación inteligente solo la primera vez
     mostrarSmartNotif();
+    // Sincronizar contador atómico con el máximo real (una sola vez al inicio)
+    if(!window._contadorSincronizado){
+      window._contadorSincronizado=true;
+      _sincronizarContador();
+    }
   }, err=>{
     // Si Firestore devuelve permission-denied (p.ej. sesión caducada), silenciar
     if(err.code==='permission-denied'||err.code==='unauthenticated'){
@@ -3931,19 +3937,25 @@ function mostrarErrorPermisos(){
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Cualquier usuario autenticado puede leer y escribir ofertas
+    // Ofertas: cualquier usuario autenticado lee y escribe
     match /ofertas/{ofertaId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null;
     }
 
-    // Cualquier usuario autenticado puede leer y escribir historial
+    // Historial: cualquier usuario autenticado
     match /historial/{docId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null;
     }
 
-    // Solo el propio usuario o admin puede leer/escribir su perfil
+    // Contadores atómicos (numeración multi-usuario)
+    match /contadores/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // Usuarios: solo el propio usuario o admin
     match /usuarios/{userId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
@@ -4596,11 +4608,19 @@ function mostrarPrevistaImport(raw){
 async function ejecutarImport(datos){
   document.getElementById("import-progress").style.display="block";
   document.querySelector("#import-body .modal-footer").style.display="none";
-  const maxNum=ofertas.reduce((m,o)=>{const n=parseInt((o.numeroOferta||"").split("-")[2])||0;return n>m?n:m;},0);
+  // Reservar rango de números en una sola transacción atómica
+  const year=new Date().getFullYear();
+  const refCont=db.collection("contadores").doc("ofertas_"+year);
+  let baseNum=0;
+  await db.runTransaction(async tx=>{
+    const doc=await tx.get(refCont);
+    baseNum=doc.exists?(doc.data().ultimo||0):0;
+    tx.set(refCont,{ultimo:baseNum+datos.length,year},{merge:true});
+  });
   let ok=0;
   for(let i=0;i<datos.length;i++){
     const r=datos[i];
-    const num=`OF-${new Date().getFullYear()}-${String(maxNum+i+1).padStart(3,"0")}`;
+    const num=`OF-${year}-${String(baseNum+i+1).padStart(3,"0")}`;
     try{
       const ref=await db.collection("ofertas").add({...r,numeroOferta:num,responsableUid:currentUser.uid,archivos:[],numLlamadas:0,creadoEn:firebase.firestore.FieldValue.serverTimestamp(),actualizadoEn:firebase.firestore.FieldValue.serverTimestamp(),fechaUltimaActividad:firebase.firestore.FieldValue.serverTimestamp(),creadoPor:currentUser.uid,importado:true});
       await db.collection("historial").add({ofertaId:ref.id,numeroOferta:num,empresa:r.empresa,usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,accion:"importada",fecha:firebase.firestore.FieldValue.serverTimestamp()});
@@ -4644,10 +4664,53 @@ function verDetalle(id){
 }
 
 // ===== MODAL OFERTA =====
-function generarNumero(){
-  const year=new Date().getFullYear();
-  const max=ofertas.reduce((m,o)=>{const n=parseInt((o.numeroOferta||"").split("-")[2])||0;return n>m?n:m;},0);
-  return `OF-${year}-${String(max+1).padStart(3,"0")}`;
+// ===== CONTADOR ATÓMICO DE OFERTAS (multi-usuario seguro) =====
+// Usa una transacción de Firestore para garantizar números únicos
+// aunque varios usuarios guarden al mismo tiempo.
+// El documento 'contadores/ofertas' guarda { ultimo: N } por año.
+async function _siguienteNumeroOferta(){
+  const year = new Date().getFullYear();
+  const ref   = db.collection("contadores").doc("ofertas_"+year);
+  let numero;
+  await db.runTransaction(async tx => {
+    const doc = await tx.get(ref);
+    const actual = doc.exists ? (doc.data().ultimo || 0) : 0;
+    numero = actual + 1;
+    tx.set(ref, { ultimo: numero, year }, { merge: true });
+  });
+  return `OF-${year}-${String(numero).padStart(3,"0")}`;
+}
+
+// Sincronizar el contador con el máximo real de la BD
+// (se llama una vez al iniciar sesión para que el contador
+//  no quede desfasado si se importaron ofertas manualmente)
+async function _sincronizarContador(){
+  try{
+    const year = new Date().getFullYear();
+    const prefix = `OF-${year}-`;
+    const max = ofertas.reduce((m,o)=>{
+      if(!o.numeroOferta||!o.numeroOferta.startsWith(prefix)) return m;
+      const n=parseInt(o.numeroOferta.split("-")[2])||0;
+      return n>m?n:m;
+    },0);
+    if(!max) return; // sin ofertas de este año, no tocar
+    const ref = db.collection("contadores").doc("ofertas_"+year);
+    await db.runTransaction(async tx=>{
+      const doc=await tx.get(ref);
+      const actual=doc.exists?(doc.data().ultimo||0):0;
+      if(max>actual) tx.set(ref,{ultimo:max,year},{merge:true});
+    });
+  }catch(e){ console.warn('[CRM] _sincronizarContador:', e.message); }
+}
+
+// Versión local (solo para el placeholder del campo, sin tocar la BD)
+function _previewNumeroOferta(){
+  const year = new Date().getFullYear();
+  const max  = ofertas.reduce((m,o)=>{
+    const n=parseInt((o.numeroOferta||"").split("-")[2])||0;
+    return n>m?n:m;
+  },0);
+  return `OF-${year}-${String(max+1).padStart(3,"0")} (provisional)`;
 }
 
 // ===== IMPORTAR DESDE WORD =====
@@ -4924,12 +4987,19 @@ function abrirModal(o){
   if(currentProfile?.rol==="lectura"){toast("⚠️ Tu rol es de solo lectura. No puedes crear ni editar ofertas.","#f59e0b");return;}
   archivosTemp=o?.archivos||[];editandoId=o?.id||null;
   document.getElementById("modal-title").textContent=o?"✏️ Editar Oferta":"➕ Nueva Oferta";
-  // Mostrar panel Word solo en nueva oferta, no al editar
   const wordPanel=document.getElementById("import-word-panel");
   if(wordPanel) wordPanel.style.display=o?"none":"flex";
   const wordStatus=document.getElementById("import-word-status");
   if(wordStatus){wordStatus.style.display="none";wordStatus.textContent="";}
-  document.getElementById("f-num").value=o?.numeroOferta||generarNumero();
+  // Si es nueva oferta: mostrar preview provisional (no reserva número aún)
+  // El número definitivo y único se asigna en guardarOferta() vía transacción
+  if(o){
+    document.getElementById("f-num").value=o.numeroOferta;
+    document.getElementById("f-num").removeAttribute("placeholder");
+  } else {
+    document.getElementById("f-num").value="";
+    document.getElementById("f-num").placeholder=_previewNumeroOferta();
+  }
   document.getElementById("f-fecha").value=o?.fechaOferta||new Date().toISOString().split("T")[0];
   document.getElementById("f-empresa").value=o?.empresa||"";
   document.getElementById("f-contacto").value=o?.contacto||"";
@@ -5083,54 +5153,79 @@ async function guardarOferta(){
   if(currentProfile?.rol==="lectura"){ toast("⚠️ Tu rol es de solo lectura. No puedes guardar cambios.","#f59e0b"); return; }
   const empresa=document.getElementById("f-empresa").value.trim();
   if(!empresa){toast("⚠️ El nombre de empresa es obligatorio","#f59e0b");return;}
+
+  // Bloquear botón para evitar doble clic
+  const btnGuardar=document.querySelector("#modal .btn-save");
+  if(btnGuardar){btnGuardar.disabled=true;btnGuardar.textContent="Guardando...";}
+
   const estadoNuevo=document.getElementById("f-est-form").value;
-  // Construir objeto de datos con todos los campos del formulario
-  const datos={
-    numeroOferta:document.getElementById("f-num").value.trim()||generarNumero(),
-    empresa,
-    contacto:document.getElementById("f-contacto").value.trim(),
-    telefono:document.getElementById("f-tel").value.trim(),
-    telefonoMovil:document.getElementById("f-movil").value.trim(),
-    email:document.getElementById("f-email").value.trim(),
-    provincia:document.getElementById("f-prov-form").value,
-    pais:document.getElementById("f-pais-form").value||"",
-    tipoMaquina:document.getElementById("f-tipo").value.trim(),
-    descripcion:document.getElementById("f-desc").value.trim(),
-    otros:document.getElementById("f-otros").value.trim()||"",
-    importe:parseFloat(document.getElementById("f-importe").value)||0,
-    estado:estadoNuevo,
-    responsableNombre:document.getElementById("f-resp-form").value,
-    responsableUid:currentUser.uid,
-    fechaOferta:document.getElementById("f-fecha").value||null,
-    fechaRecordatorio:document.getElementById("f-recod").value||null,
- proximaAccion:document.getElementById("f-next").value.trim()||"",
- fechaProximaAccion:document.getElementById("f-nextdate").value||null,
- motivoPerdida:document.getElementById("f-motivo").value||"",
-    referencia:document.getElementById("f-referencia").value.trim(),
-    archivos:archivosTemp,
-    actualizadoEn:firebase.firestore.FieldValue.serverTimestamp(),
-    fechaUltimaActividad:firebase.firestore.FieldValue.serverTimestamp()
-  };
-  // Gestión especial de notas: si estamos editando, preservar el historial de llamadas
-  const notasFormulario=document.getElementById("f-notas").value;
-  if(editandoId){
-    const ofertaVieja=ofertas.find(o=>o.id===editandoId);
-    const notasViejas=ofertaVieja?.notas||"";
-    // Si las notas viejas contienen historial de llamadas (separadas por ---) y
-    // las notas del formulario difieren, fusionar: notas manuales + historial de llamadas
-    if(notasViejas.includes("---")){
-      // Separar la parte manual (antes del primer ---) del historial de llamadas
-      const partes=notasViejas.split("\n---\n");
-      const historialLlamadas=partes.slice(1).join("\n---\n");
-      // La parte manual la reemplazamos con lo que el usuario escribió en el campo
-      datos.notas=notasFormulario+(historialLlamadas?"\n---\n"+historialLlamadas:"");
+
+  try{
+    // ── Resolver número de oferta ──────────────────────────────────
+    // - Si estamos editando: usar el número existente (o el que el usuario haya escrito)
+    // - Si es nueva: usar el número que el usuario escribió manualmente,
+    //   o bien obtener el siguiente número atómico via transacción
+    let numeroOferta;
+    if(editandoId){
+      numeroOferta = document.getElementById("f-num").value.trim()
+                   || ofertas.find(o=>o.id===editandoId)?.numeroOferta
+                   || "";
+    } else {
+      const numManual = document.getElementById("f-num").value.trim();
+      if(numManual && numManual !== document.getElementById("f-num").placeholder){
+        // El usuario escribió un número manualmente → respetarlo
+        numeroOferta = numManual;
+      } else {
+        // Obtener número atómico (transacción Firestore — seguro para N usuarios)
+        toast("⏳ Reservando número de oferta...","#3b82f6");
+        numeroOferta = await _siguienteNumeroOferta();
+      }
+    }
+
+    // Construir objeto de datos
+    const datos={
+      numeroOferta,
+      empresa,
+      contacto:document.getElementById("f-contacto").value.trim(),
+      telefono:document.getElementById("f-tel").value.trim(),
+      telefonoMovil:document.getElementById("f-movil").value.trim(),
+      email:document.getElementById("f-email").value.trim(),
+      provincia:document.getElementById("f-prov-form").value,
+      pais:document.getElementById("f-pais-form").value||"",
+      tipoMaquina:document.getElementById("f-tipo").value.trim(),
+      descripcion:document.getElementById("f-desc").value.trim(),
+      otros:document.getElementById("f-otros").value.trim()||"",
+      importe:parseFloat(document.getElementById("f-importe").value)||0,
+      estado:estadoNuevo,
+      responsableNombre:document.getElementById("f-resp-form").value,
+      responsableUid:currentUser.uid,
+      fechaOferta:document.getElementById("f-fecha").value||null,
+      fechaRecordatorio:document.getElementById("f-recod").value||null,
+      proximaAccion:document.getElementById("f-next").value.trim()||"",
+      fechaProximaAccion:document.getElementById("f-nextdate").value||null,
+      motivoPerdida:document.getElementById("f-motivo").value||"",
+      referencia:document.getElementById("f-referencia").value.trim(),
+      archivos:archivosTemp,
+      actualizadoEn:firebase.firestore.FieldValue.serverTimestamp(),
+      fechaUltimaActividad:firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    // Gestión de notas con historial de llamadas
+    const notasFormulario=document.getElementById("f-notas").value;
+    if(editandoId){
+      const ofertaVieja=ofertas.find(o=>o.id===editandoId);
+      const notasViejas=ofertaVieja?.notas||"";
+      if(notasViejas.includes("---")){
+        const partes=notasViejas.split("\n---\n");
+        const historialLlamadas=partes.slice(1).join("\n---\n");
+        datos.notas=notasFormulario+(historialLlamadas?"\n---\n"+historialLlamadas:"");
+      } else {
+        datos.notas=notasFormulario;
+      }
     } else {
       datos.notas=notasFormulario;
     }
-  } else {
-    datos.notas=notasFormulario;
-  }
-  try{
+
     if(editandoId){
       await db.collection("ofertas").doc(editandoId).update(datos);
       const vieja=ofertas.find(o=>o.id===editandoId);
@@ -5143,22 +5238,38 @@ async function guardarOferta(){
       ];
       for(const [campo,label] of cambios){
         if(String(vieja[campo]||"")!==String(datos[campo]||"")){
-          await db.collection("historial").add({ofertaId:editandoId,numeroOferta:datos.numeroOferta,empresa:datos.empresa,usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,accion:"editada",campoModificado:label,valorAnterior:String(vieja[campo]||""),valorNuevo:String(datos[campo]||""),fecha:firebase.firestore.FieldValue.serverTimestamp()});
+          await db.collection("historial").add({
+            ofertaId:editandoId,numeroOferta:datos.numeroOferta,empresa:datos.empresa,
+            usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,
+            accion:"editada",campoModificado:label,
+            valorAnterior:String(vieja[campo]||""),valorNuevo:String(datos[campo]||""),
+            fecha:firebase.firestore.FieldValue.serverTimestamp()
+          });
         }
       }
-    }else{
+    } else {
       datos.creadoEn=firebase.firestore.FieldValue.serverTimestamp();
-      datos.creadoPor=currentUser.uid;datos.numLlamadas=0;
+      datos.creadoPor=currentUser.uid;
+      datos.numLlamadas=0;
       const ref=await db.collection("ofertas").add(datos);
-      await db.collection("historial").add({ofertaId:ref.id,numeroOferta:datos.numeroOferta,empresa:datos.empresa,usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,accion:"creada",fecha:firebase.firestore.FieldValue.serverTimestamp()});
+      await db.collection("historial").add({
+        ofertaId:ref.id,numeroOferta:datos.numeroOferta,empresa:datos.empresa,
+        usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,
+        accion:"creada",fecha:firebase.firestore.FieldValue.serverTimestamp()
+      });
     }
-    toast("✅ Oferta guardada","#10b981");cerrarModal();
+
+    toast(`✅ Oferta ${numeroOferta} guardada correctamente`,"#10b981");
+    cerrarModal();
+
   }catch(e){
     if(e.code==="permission-denied"||e.message.toLowerCase().includes("permission")||e.message.toLowerCase().includes("insufficient")){
       mostrarErrorPermisos();
     } else {
       toast("❌ Error: "+e.message,"#ef4444");
     }
+  } finally {
+    if(btnGuardar){btnGuardar.disabled=false;btnGuardar.textContent="Guardar oferta";}
   }
 }
 async function eliminarOferta(id){
