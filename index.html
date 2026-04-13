@@ -196,15 +196,46 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
   box-shadow:0 3px 12px rgba(21,101,192,.3);transition:all .15s}
 .btn-save:hover{box-shadow:0 5px 18px rgba(21,101,192,.4);transform:translateY(-1px)}
 
-/* ===== KANBAN ===== */
-.kanban-wrap{display:flex;gap:10px;padding:12px 24px 28px;overflow-x:auto}
-.k-col{flex:0 0 188px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
-.k-head{padding:10px 12px;font-weight:700;font-size:12px;border-bottom:1px solid var(--border)}
-.k-count{color:var(--text3);font-size:10px;font-weight:500}
-.k-body{padding:7px;max-height:470px;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
-.k-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);
-  padding:10px;cursor:pointer;box-shadow:var(--shadow-sm);transition:all .15s}
-.k-card:hover{box-shadow:var(--shadow);transform:translateY(-1px);border-color:var(--accent)}
+/* ===== KANBAN — drag & drop profesional ===== */
+.kanban-wrap{display:flex;gap:12px;padding:12px 24px 28px;overflow-x:auto;min-height:540px;align-items:flex-start}
+.k-col{flex:0 0 215px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);display:flex;flex-direction:column;transition:box-shadow .2s,background .2s;max-height:calc(100vh - 220px)}
+.k-col.drag-over{box-shadow:0 0 0 2.5px var(--accent);background:var(--accent-light)}
+.k-head{padding:10px 12px;font-weight:700;font-size:12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:6px;flex-shrink:0}
+.k-head-left{display:flex;flex-direction:column;gap:1px;flex:1;min-width:0}
+.k-head-title{font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.k-head-imp{font-size:10px;font-weight:600;color:var(--text3);margin-top:1px}
+.k-count{background:rgba(0,0,0,.08);color:inherit;font-size:10px;font-weight:800;border-radius:20px;padding:2px 8px;flex-shrink:0}
+.k-body{padding:7px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;flex:1;min-height:80px}
+.k-body.drag-over-body{background:rgba(21,101,192,.04)}
+.k-card{background:var(--surface);border:1px solid var(--border);border-left:3px solid transparent;border-radius:var(--radius-sm);padding:10px;cursor:grab;box-shadow:var(--shadow-sm);transition:box-shadow .15s,transform .15s,opacity .15s;user-select:none;position:relative}
+.k-card:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
+.k-card.dragging{opacity:.35;transform:scale(.97);cursor:grabbing;box-shadow:none}
+.k-card-empresa{font-size:12px;font-weight:700;color:var(--text);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.k-card-ref{font-size:10px;color:var(--text3);margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.k-card-footer{display:flex;align-items:center;justify-content:space-between;gap:4px}
+.k-card-imp{font-size:11px;font-weight:700;color:#0a7c5c}
+.k-avatar{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:white;flex-shrink:0;cursor:default}
+.k-drop-placeholder{border:2px dashed var(--accent);background:var(--accent-light);border-radius:var(--radius-sm);min-height:58px;pointer-events:none}
+/* ===== FICHA EMPRESA ===== */
+.emp-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.emp-kpi{background:var(--surface2);border-radius:var(--radius-sm);padding:12px;text-align:center;border:1px solid var(--border)}
+.emp-kpi-val{font-size:22px;font-weight:800}
+.emp-kpi-lbl{font-size:10px;color:var(--text3);font-weight:600;margin-top:3px}
+.emp-item{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--radius-sm);padding:10px 12px;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+.emp-item:hover{border-color:var(--accent);box-shadow:0 2px 8px var(--accent-glow)}
+/* ===== NOTIFICACIÓN INTELIGENTE AL LOGIN ===== */
+.smart-notif{background:linear-gradient(135deg,#f0f6ff,#f7f9ff);border:1.5px solid #b8d0f5;border-radius:var(--radius);padding:13px 18px;margin:10px 24px 0;display:flex;align-items:flex-start;gap:14px;box-shadow:0 2px 10px rgba(21,101,192,.09);animation:slideDown .35s ease both}
+@keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.smart-notif-body{flex:1}
+.smart-notif-title{font-size:13px;font-weight:800;color:var(--accent);margin-bottom:5px}
+.smart-notif-chips{display:flex;flex-wrap:wrap;gap:5px}
+.sn-chip{border-radius:20px;padding:3px 11px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid;transition:filter .15s}
+.sn-chip:hover{filter:brightness(.93)}
+.sn-chip.red{background:var(--red-bg);color:var(--red);border-color:#fca5a5}
+.sn-chip.warn{background:var(--orange-bg);color:var(--orange);border-color:#fbd0b0}
+.sn-chip.ok{background:var(--green-bg);color:var(--green);border-color:#b7e4d1}
+.sn-chip.blue{background:var(--accent-light);color:var(--accent);border-color:#b8d0f5}
+.smart-notif-close{background:transparent;border:none;color:var(--text3);font-size:18px;cursor:pointer;padding:0;line-height:1;flex-shrink:0;margin-top:1px}
 
 /* ===== HISTORIAL ===== */
 .hist-item{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);
@@ -555,6 +586,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
   <div class="nav">
     <button class="nav-btn active" id="nav-dashboard" onclick="setVista('dashboard')">🏠 Inicio</button>
     <button class="nav-btn" id="nav-tabla" onclick="setVista('tabla')">📋 Ofertas</button>
+    <button class="nav-btn" id="nav-kanban" onclick="setVista('kanban')">🗂 Kanban</button>
     <button class="nav-btn" id="nav-estadistas" onclick="setVista('estadistas')">📊 Estadísticas</button>
     <button class="nav-btn" id="nav-mapa" onclick="setVista('mapa')">🗺️ Mapa</button>
     <button class="nav-btn" id="nav-llamadas" onclick="setVista('llamadas')">📞 Llamadas</button>
@@ -591,8 +623,12 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
     <button class="btn-clear" onclick="limpiarFiltros()">✕ Limpiar</button>
   </div>
 
+  <!-- NOTIFICACIÓN INTELIGENTE (se inyecta dinámicamente al cargar) -->
+  <div id="smart-notif-container"></div>
+
   <!-- VISTAS -->
   <div id="vista-dashboard" style="display:none"></div>
+  <div id="vista-kanban" style="display:none;padding:0 0 28px"></div>
   <div id="vista-tabla" style="display:none">
     <div style="padding:8px 24px 0;display:flex;align-items:center;gap:8px" id="barra-seleccion">
       <span id="seleccion-count" style="font-size:12px;color:var(--text3);font-weight:600"></span>
@@ -637,7 +673,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       <div id="stats-builder"></div>
     </div>
 
-    <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">v3.4_ONEDRIVE_ADJUNTOS</b></div>
+    <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">v4.0_KANBAN_EMPRESA_SMARTNOTIF</b></div>
   </div>
 </div></div>
   <div id="vista-mapa" style="display:none;padding:16px 20px 28px">
@@ -673,6 +709,14 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
   <div id="vista-admin" style="display:none;padding:16px 20px 24px">
     <h3 style="color:var(--accent);margin-bottom:14px">👑 Panel de Administrador</h3>
     <div id="admin-body"></div>
+  </div>
+</div>
+
+<!-- MODAL FICHA EMPRESA -->
+<div id="modal-empresa" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:860px">
+    <button class="modal-close" onclick="document.getElementById('modal-empresa').style.display='none'">✕</button>
+    <div id="empresa-body"></div>
   </div>
 </div>
 
@@ -937,7 +981,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 // ===== FIREBASE =====
 const firebaseConfig={apiKey:"AIzaSyB4kJsqEtQ0ypOIL4LyY9rhTBpcY_mxhnI",authDomain:"machinecrm-61b34.firebaseapp.com",projectId:"machinecrm-61b34",storageBucket:"machinecrm-61b34.firebasestorage.app",messagingSenderId:"686919580495",appId:"1:686919580495:web:019fa5682054bb089a633a"};
 firebase.initializeApp(firebaseConfig);
-console.log('[Marcopack CRM] v3.1 — Build estable');
+console.log('[Marcopack CRM] v4.0 — Kanban + Ficha Empresa + Smart Notif');
 const auth=firebase.auth(),db=firebase.firestore();
 
 // ===== SEGURIDAD: Sesión solo dura mientras la pestaña está abierta =====
@@ -1554,10 +1598,9 @@ function showErr(msg){
   setTimeout(()=>el.style.display="none",6000);
 }
 function doLogout(){
-  // Cancelar listener de Firestore antes de cerrar sesión
-  // (evita errores de permission-denied al intentar leer sin autenticación)
   if(_ofertasUnsub){ try{ _ofertasUnsub(); }catch(_){} _ofertasUnsub=null; }
   ofertas=[];
+  _smartNotifMostrada=false;
   auth.signOut();
 }
 
@@ -1716,6 +1759,8 @@ function escucharOfertas(){
     nombres.forEach(n=>{fr.add(new Option(n,n));frm.add(new Option(n,n));});
     if(currentProfile?.nombre&&!nombres.includes(currentProfile.nombre))frm.add(new Option(currentProfile.nombre,currentProfile.nombre));
     renderStats();renderVista();
+    // Mostrar notificación inteligente solo la primera vez que llegan los datos
+    mostrarSmartNotif();
   }, err=>{
     // Si Firestore devuelve permission-denied (p.ej. sesión caducada), silenciar
     if(err.code==='permission-denied'||err.code==='unauthenticated'){
@@ -1934,7 +1979,7 @@ document.addEventListener("click",function(e){
 // ===== VISTAS =====
 function setVista(v){
   vistaActual=v;
-  const vistas=["dashboard","tabla","estadistas","mapa","llamadas","comparativa","alertas","historial","admin"];
+  const vistas=["dashboard","tabla","kanban","estadistas","mapa","llamadas","comparativa","alertas","historial","admin"];
   vistas.forEach(x=>{
     const el=document.getElementById("vista-"+x);
     if(el)el.style.display=x===v?"block":"none";
@@ -1942,14 +1987,16 @@ function setVista(v){
     if(btn)btn.classList.toggle("active",x===v);
   });
   // Mostrar/ocultar filtros según vista
-  const sinFiltros=["dashboard","mapa","estadistas","llamadas","comparativa","alertas","historial","admin"];
+  const sinFiltros=["dashboard","kanban","mapa","estadistas","llamadas","comparativa","alertas","historial","admin"];
   document.getElementById("filtros-barra").style.display=sinFiltros.includes(v)?"none":"flex";
   if(v==="historial")cargarHistorial();
-  if(v==="admin")cargarAdmin();  if(v==="mapa")renderMapa();
+  if(v==="admin")cargarAdmin();
+  if(v==="mapa")renderMapa();
   if(v==="llamadas")renderLlamadas();
   if(v==="comparativa")renderComparativa();
   if(v==="alertas")renderAlertas();
   if(v==="dashboard")renderDashboard();
+  if(v==="kanban")renderKanban();
   renderVista();
 }
 function renderVista(){
@@ -2193,6 +2240,311 @@ function renderDashboard(){
   });
 }
 
+// ===== KANBAN CON DRAG & DROP REAL =====
+// Paleta de colores para avatares de responsable
+const _avatarColors=["#1565c0","#0a7c5c","#5b21b6","#c2490b","#b91c1c","#0e7490","#166534","#7c2d12"];
+function _avatarColor(nombre){
+  if(!nombre)return"#64748b";
+  let h=0;for(let i=0;i<nombre.length;i++)h=(h*31+nombre.charCodeAt(i))&0xffffffff;
+  return _avatarColors[Math.abs(h)%_avatarColors.length];
+}
+function _avatarInitials(nombre){
+  if(!nombre)return"?";
+  const p=nombre.trim().split(/\s+/);
+  return p.length>=2?(p[0][0]+p[1][0]).toUpperCase():nombre.slice(0,2).toUpperCase();
+}
+
+let _kanbanDragId=null; // id de la oferta que se está arrastrando
+
+function renderKanban(){
+  const cont=document.getElementById("vista-kanban");
+  if(!cont)return;
+
+  const activas=ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado));
+  const todasCols=ESTADOS; // usar todos los estados para mostrar pipeline completo
+
+  // Calcular métricas por columna
+  const colData={};
+  todasCols.forEach(est=>{
+    const items=ofertas.filter(o=>o.estado===est);
+    colData[est]={
+      items,
+      count:items.length,
+      importe:items.reduce((s,o)=>s+(o.importe||0),0)
+    };
+  });
+
+  const totalPipeline=activas.reduce((s,o)=>s+(o.importe||0),0);
+  const totalActivas=activas.length;
+
+  cont.innerHTML=`
+    <div style="padding:14px 24px 6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <h3 style="color:var(--accent);font-size:17px;font-weight:900;margin:0">🗂 Pipeline Kanban</h3>
+        <div style="color:var(--text3);font-size:12px;margin-top:3px">${totalActivas} ofertas activas · Pipeline: <strong style="color:#0a7c5c">${totalPipeline.toLocaleString("es-ES")} €</strong> · Arrastra las tarjetas para cambiar estado</div>
+      </div>
+      <button onclick="abrirModal()" class="btn-sm btn-add">+ Nueva Oferta</button>
+    </div>
+    <div class="kanban-wrap" id="kanban-board">
+      ${todasCols.map(est=>{
+        const col=colData[est];
+        const color=CE[est]||"#64748b";
+        const impFmt=col.importe>0?col.importe.toLocaleString("es-ES")+" €":"—";
+        return `
+        <div class="k-col" data-estado="${est}"
+          ondragover="kDragOver(event,this)"
+          ondragleave="kDragLeave(event,this)"
+          ondrop="kDrop(event,'${est}')">
+          <div class="k-head" style="border-top:3px solid ${color};color:${color}">
+            <div class="k-head-left">
+              <div class="k-head-title">${est}</div>
+              <div class="k-head-imp">${impFmt}</div>
+            </div>
+            <span class="k-count">${col.count}</span>
+          </div>
+          <div class="k-body" id="kcol-${est.replace(/\s/g,'_')}">
+            ${col.items.map(o=>kCardHTML(o,color)).join("")}
+            ${col.items.length===0?`<div style="color:var(--text3);font-size:11px;text-align:center;padding:18px 0;font-style:italic">Sin ofertas</div>`:""}
+          </div>
+        </div>`;
+      }).join("")}
+    </div>`;
+}
+
+function kCardHTML(o,color){
+  const hoy=fechaLocal();
+  const vence=o.fechaRecordatorio&&o.fechaRecordatorio<=hoy;
+  const imp=(o.importe||0).toLocaleString("es-ES");
+  const resp=o.responsableNombre||"";
+  const bgColor=_avatarColor(resp);
+  const initials=_avatarInitials(resp);
+  const ref=o.tipoMaquina||o.provincia||"";
+  return `<div class="k-card" draggable="true"
+    style="border-left-color:${color}"
+    data-id="${o.id}"
+    ondragstart="kDragStart(event,'${o.id}')"
+    ondragend="kDragEnd(event)"
+    onclick="verDetalle('${o.id}')">
+    <div class="k-card-empresa" title="${o.empresa}">${o.empresa}</div>
+    <div class="k-card-ref">${ref}${vence?` · <span style="color:var(--orange);font-weight:700">⚠️ Recordatorio</span>`:""}</div>
+    <div class="k-card-footer">
+      <span class="k-card-imp">${o.importe?imp+" €":"—"}</span>
+      <div style="display:flex;align-items:center;gap:5px">
+        ${vence?`<span style="font-size:14px" title="Recordatorio vencido">🔔</span>`:""}
+        <span class="k-avatar" style="background:${bgColor}" title="${resp}">${initials}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── Drag & Drop handlers ──────────────────────────────────────────
+function kDragStart(ev,id){
+  _kanbanDragId=id;
+  ev.dataTransfer.effectAllowed="move";
+  ev.dataTransfer.setData("text/plain",id);
+  setTimeout(()=>{
+    const card=document.querySelector(`.k-card[data-id="${id}"]`);
+    if(card)card.classList.add("dragging");
+  },0);
+}
+function kDragEnd(ev){
+  _kanbanDragId=null;
+  document.querySelectorAll(".k-card.dragging").forEach(c=>c.classList.remove("dragging"));
+  document.querySelectorAll(".k-col.drag-over").forEach(c=>c.classList.remove("drag-over"));
+}
+function kDragOver(ev,col){
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect="move";
+  document.querySelectorAll(".k-col.drag-over").forEach(c=>{if(c!==col)c.classList.remove("drag-over");});
+  col.classList.add("drag-over");
+}
+function kDragLeave(ev,col){
+  if(!col.contains(ev.relatedTarget))col.classList.remove("drag-over");
+}
+async function kDrop(ev,nuevoEstado){
+  ev.preventDefault();
+  const id=ev.dataTransfer.getData("text/plain")||_kanbanDragId;
+  document.querySelectorAll(".k-col.drag-over").forEach(c=>c.classList.remove("drag-over"));
+  if(!id)return;
+  const o=ofertas.find(x=>x.id===id);
+  if(!o||o.estado===nuevoEstado)return;
+  const estadoAnterior=o.estado;
+  try{
+    await db.collection("ofertas").doc(id).update({
+      estado:nuevoEstado,
+      actualizadoEn:firebase.firestore.FieldValue.serverTimestamp(),
+      fechaUltimaActividad:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    await db.collection("historial").add({
+      ofertaId:id,empresa:o.empresa,numeroOferta:o.numeroOferta,
+      usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,
+      accion:"cambio de estado",campoModificado:"estado",
+      valorAnterior:estadoAnterior,valorNuevo:nuevoEstado,
+      fecha:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast(`✅ ${o.empresa} → ${nuevoEstado}`,"#10b981");
+  }catch(e){
+    toast("❌ Error al mover tarjeta: "+e.message,"#ef4444");
+  }
+}
+
+// ===== FICHA DE EMPRESA UNIFICADA =====
+function abrirFichaEmpresa(nombreEmpresa){
+  const modal=document.getElementById("modal-empresa");
+  const body=document.getElementById("empresa-body");
+  if(!modal||!body)return;
+
+  const ofEmp=ofertas.filter(o=>o.empresa===nombreEmpresa);
+  if(!ofEmp.length){toast("Sin ofertas para esta empresa","#f59e0b");return;}
+
+  const ganadas=ofEmp.filter(o=>o.estado==="Ganada");
+  const activas=ofEmp.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado));
+  const perdidas=ofEmp.filter(o=>["Perdida","Descartada"].includes(o.estado));
+  const totalImp=ofEmp.reduce((s,o)=>s+(o.importe||0),0);
+  const impGanado=ganadas.reduce((s,o)=>s+(o.importe||0),0);
+  const tasa=(ganadas.length+perdidas.length)>0?Math.round(ganadas.length/(ganadas.length+perdidas.length)*100):0;
+  const totalLlamadas=ofEmp.reduce((s,o)=>s+(o.numLlamadas||0),0);
+
+  // Última oferta para datos de contacto
+  const ult=ofEmp[0];
+  const responsables=[...new Set(ofEmp.map(o=>o.responsableNombre).filter(Boolean))];
+  const initials=_avatarInitials(nombreEmpresa);
+  const avatarCol=_avatarColor(nombreEmpresa);
+
+  body.innerHTML=`
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--border)">
+      <div style="width:52px;height:52px;border-radius:14px;background:${avatarCol};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:white;flex-shrink:0">${initials}</div>
+      <div style="flex:1">
+        <h2 style="color:var(--text);font-size:20px;font-weight:900;margin:0 0 3px">${nombreEmpresa}</h2>
+        <div style="color:var(--text3);font-size:12px;display:flex;flex-wrap:wrap;gap:10px">
+          ${ult.contacto?`<span>👤 ${ult.contacto}</span>`:""}
+          ${ult.telefono?`<span>📞 ${ult.telefono}</span>`:""}
+          ${ult.telefonoMovil?`<span>📱 ${ult.telefonoMovil}</span>`:""}
+          ${ult.email?`<span>📧 ${ult.email}</span>`:""}
+          ${ult.provincia?`<span>📍 ${ult.provincia}${ult.pais&&ult.pais!=="España"?" · "+ult.pais:""}</span>`:""}
+        </div>
+        <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:5px">
+          ${responsables.map(r=>`<span style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:600">👷 ${r}</span>`).join("")}
+        </div>
+      </div>
+      <button onclick="document.getElementById('modal-empresa').style.display='none';abrirModal();document.getElementById('f-empresa').value='${nombreEmpresa.replace(/'/g,"\\'")}'" class="btn-sm btn-add" style="white-space:nowrap;flex-shrink:0">+ Nueva oferta</button>
+    </div>
+
+    <div class="emp-kpis">
+      <div class="emp-kpi">
+        <div class="emp-kpi-val" style="color:var(--accent)">${ofEmp.length}</div>
+        <div class="emp-kpi-lbl">Total ofertas</div>
+      </div>
+      <div class="emp-kpi">
+        <div class="emp-kpi-val" style="color:#0a7c5c">${totalImp.toLocaleString("es-ES")} €</div>
+        <div class="emp-kpi-lbl">Importe total</div>
+      </div>
+      <div class="emp-kpi">
+        <div class="emp-kpi-val" style="color:#10b981">${tasa}%</div>
+        <div class="emp-kpi-lbl">Tasa de cierre</div>
+      </div>
+      <div class="emp-kpi">
+        <div class="emp-kpi-val" style="color:var(--accent)">${totalLlamadas}</div>
+        <div class="emp-kpi-lbl">Llamadas totales</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
+      <div style="background:var(--green-bg);border:1px solid #b7e4d1;border-radius:var(--radius-sm);padding:10px;text-align:center">
+        <div style="color:var(--green);font-size:18px;font-weight:800">${ganadas.length}</div>
+        <div style="color:var(--green);font-size:10px;font-weight:700">✅ Ganadas · ${impGanado.toLocaleString("es-ES")} €</div>
+      </div>
+      <div style="background:var(--accent-light);border:1px solid #b8d0f5;border-radius:var(--radius-sm);padding:10px;text-align:center">
+        <div style="color:var(--accent);font-size:18px;font-weight:800">${activas.length}</div>
+        <div style="color:var(--accent);font-size:10px;font-weight:700">🔵 En pipeline</div>
+      </div>
+      <div style="background:var(--red-bg);border:1px solid #fca5a5;border-radius:var(--radius-sm);padding:10px;text-align:center">
+        <div style="color:var(--red);font-size:18px;font-weight:800">${perdidas.length}</div>
+        <div style="color:var(--red);font-size:10px;font-weight:700">❌ Perdidas/desc.</div>
+      </div>
+    </div>
+
+    <div style="color:var(--text3);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">📋 Historial de ofertas</div>
+    <div style="max-height:320px;overflow-y:auto">
+      ${ofEmp.map(o=>{
+        const col=CE[o.estado]||"#64748b";
+        return `<div class="emp-item" onclick="document.getElementById('modal-empresa').style.display='none';verDetalle('${o.id}')" style="border-left-color:${col}">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="color:var(--accent);font-size:11px;font-weight:700">${o.numeroOferta||"—"}</span>
+              <span class="badge" style="background:${col}18;color:${col};border:1px solid ${col}44">${o.estado}</span>
+              ${o.tipoMaquina?`<span style="color:var(--text3);font-size:11px">${o.tipoMaquina}</span>`:""}
+            </div>
+            <div style="color:var(--text3);font-size:11px;margin-top:3px">
+              ${o.fechaOferta?new Date(o.fechaOferta).toLocaleDateString("es-ES"):"—"}
+              ${o.responsableNombre?` · 👷 ${o.responsableNombre.split(" ")[0]}`:""}
+              ${o.numLlamadas?` · 📞 ${o.numLlamadas} llamadas`:""}
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:13px;font-weight:700;color:#0a7c5c">${(o.importe||0).toLocaleString("es-ES")} €</div>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>`;
+
+  modal.style.display="flex";
+}
+
+// ===== NOTIFICACIÓN INTELIGENTE AL ENTRAR =====
+let _smartNotifMostrada=false;
+function mostrarSmartNotif(){
+  if(_smartNotifMostrada)return;
+  _smartNotifMostrada=true;
+  const cont=document.getElementById("smart-notif-container");
+  if(!cont)return;
+
+  const hoy=fechaLocal();
+  const manana=getFechaManana();
+  const vencidos=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado));
+  const hoyRec=ofertas.filter(o=>o.fechaRecordatorio===hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado));
+  const mananaRec=ofertas.filter(o=>o.fechaRecordatorio===manana&&!["Ganada","Perdida","Descartada"].includes(o.estado));
+  const inactivas=getAlertasInactivas();
+  const pipeline=ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado));
+  const totalPipeline=pipeline.reduce((s,o)=>s+(o.importe||0),0);
+  const ganMes=ofertas.filter(o=>{
+    if(o.estado!=="Ganada"||!o.fechaOferta)return false;
+    const d=new Date(o.fechaOferta);
+    const ahora=new Date();
+    return d.getMonth()===ahora.getMonth()&&d.getFullYear()===ahora.getFullYear();
+  });
+  const impMes=ganMes.reduce((s,o)=>s+(o.importe||0),0);
+
+  // Si no hay nada urgente, no molestar
+  if(!vencidos.length&&!hoyRec.length&&!inactivas.length)return;
+
+  const chips=[];
+  if(vencidos.length) chips.push(`<span class="sn-chip red" onclick="setVista('alertas');cerrarSmartNotif()">⚠️ ${vencidos.length} recordatorio${vencidos.length>1?"s":""} vencido${vencidos.length>1?"s":""}</span>`);
+  if(hoyRec.length)   chips.push(`<span class="sn-chip warn" onclick="setVista('alertas');cerrarSmartNotif()">🔔 ${hoyRec.length} para hoy</span>`);
+  if(mananaRec.length)chips.push(`<span class="sn-chip warn" onclick="setVista('alertas');cerrarSmartNotif()">⏰ ${mananaRec.length} mañana</span>`);
+  if(inactivas.length)chips.push(`<span class="sn-chip red" onclick="setVista('alertas');cerrarSmartNotif()">💤 ${inactivas.length} sin actividad +${DIAS_ALERTA}d</span>`);
+  if(totalPipeline>0) chips.push(`<span class="sn-chip blue" onclick="setVista('kanban');cerrarSmartNotif()">💶 Pipeline: ${totalPipeline.toLocaleString("es-ES")} €</span>`);
+  if(impMes>0)        chips.push(`<span class="sn-chip ok" onclick="setVista('estadistas');cerrarSmartNotif()">🏆 Ganado este mes: ${impMes.toLocaleString("es-ES")} €</span>`);
+
+  const nombre=(currentProfile?.nombre||"").split(" ")[0]||"";
+  const hora=new Date().getHours();
+  const saludo=hora<13?"Buenos días":hora<20?"Buenas tardes":"Buenas noches";
+
+  cont.innerHTML=`
+    <div class="smart-notif">
+      <span style="font-size:22px;flex-shrink:0;margin-top:1px">👋</span>
+      <div class="smart-notif-body">
+        <div class="smart-notif-title">${saludo}${nombre?" "+nombre:""}! Resumen de hoy:</div>
+        <div class="smart-notif-chips">${chips.join("")}</div>
+      </div>
+      <button class="smart-notif-close" onclick="cerrarSmartNotif()" title="Cerrar">✕</button>
+    </div>`;
+}
+function cerrarSmartNotif(){
+  const cont=document.getElementById("smart-notif-container");
+  if(cont)cont.innerHTML="";
+}
+
 // ===== TABLA CON PAGINACIÓN (50 por página) =====
 function renderTabla(){
   const hoy=fechaLocal();
@@ -2225,7 +2577,7 @@ function renderTabla(){
     return `<tr style="--ec:${inactiva?"#ef4444":col};${filaColor};${filaBorde}" onclick="verDetalle('${o.id}')">
       <td onclick="event.stopPropagation()" style="text-align:center"><input type="checkbox" class="row-check" data-id="${o.id}" onclick="actualizarSeleccion()" style="accent-color:var(--accent);cursor:pointer;width:15px;height:15px"/></td>
       <td style="color:var(--accent);font-weight:600">${o.numeroOferta||"—"}</td>
-      <td><div style="color:var(--text);font-weight:600">${o.empresa}</div><div style="color:var(--text3);font-size:10px">${o.contacto||""}</div></td>
+      <td><div style="color:var(--text);font-weight:600;cursor:pointer;text-decoration:underline;text-decoration-color:var(--border2)" onclick="event.stopPropagation();abrirFichaEmpresa('${o.empresa.replace(/'/g,"\\'")}') " title="Ver ficha de empresa">${o.empresa}</div><div style="color:var(--text3);font-size:10px">${o.contacto||""}</div></td>
       <td style="color:var(--text2)">${o.provincia||"—"}</td>
       <td style="color:var(--text2)">${o.pais||"—"}</td>
       <td style="color:var(--text2)">${o.tipoMaquina||"—"}</td>
@@ -4283,6 +4635,7 @@ function verDetalle(id){
     <div style="margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700;margin-bottom:6px">📎 DOCUMENTOS ADJUNTOS</div>${renderArchivosDetalle(o.archivos)}</div>
     <div style="display:flex;gap:8px;margin-top:20px;justify-content:flex-end;flex-wrap:wrap">
       <button class="btn-cancel" onclick="document.getElementById('modal-det').style.display='none'">Cerrar</button>
+      <button style="background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer" onclick="document.getElementById('modal-det').style.display='none';abrirFichaEmpresa('${o.empresa.replace(/'/g,"\\'")}')">🏢 Ver empresa</button>
       <button style="background:var(--green-bg);color:var(--green);border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer" onclick="document.getElementById('modal-det').style.display='none';abrirLlamada('${o.id}')">📞 Registrar llamada</button>
       <button class="btn-save" onclick="document.getElementById('modal-det').style.display='none';editarOferta('${o.id}')">✏️ Editar</button>
       ${puedeEliminar?`<button style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer" onclick="document.getElementById('modal-det').style.display='none';eliminarOferta('${o.id}')">🗑 Eliminar</button>`:""}
