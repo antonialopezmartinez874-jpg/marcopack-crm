@@ -711,7 +711,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       <div id="stats-builder"></div>
     </div>
 
-    <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">v4.0_KANBAN_EMPRESA_SMARTNOTIF</b></div>
+    <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">v5.0_MEJORAS_ALTA_MEDIA_PRIORIDAD</b></div>
   </div>
 </div></div>
   <div id="vista-mapa" style="display:none;padding:16px 20px 28px">
@@ -839,6 +839,10 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       <div class="grid2">
         <div class="field"><label>Responsable</label><select id="f-resp-form"></select></div>
         <div class="field"><label>🔔 Recordatorio</label><input type="date" id="f-recod"/></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>🎯 Fecha prevista de cierre</label><input type="date" id="f-fechacierre"/></div>
+        <div class="field"></div>
       </div>
  <div class="grid2">
   <div class="field"><label>➡️ Próxima acción</label><input id="f-next" placeholder="Ej: enviar catálogo, pedir confirmación..."/></div>
@@ -1659,6 +1663,7 @@ function doLogout(){
   paisesSeleccionados.clear();
   paginaActual=1;
   ofertasSeleccionadas.clear();
+  _kanbanFiltroResp="";
   // Limpiar cache de historial de comerciales
   _compHistorial=[];
   auth.signOut();
@@ -1822,7 +1827,7 @@ function escucharOfertas(){
   // Cancelar listener anterior si existe (evita duplicados y errores de permiso al re-login)
   if(_ofertasUnsub){ try{ _ofertasUnsub(); }catch(_){} _ofertasUnsub=null; }
   _ofertasUnsub=db.collection("ofertas").orderBy("fechaOferta","desc").onSnapshot(snap=>{
-    ofertas=snap.docs.map(d=>({id:d.id,...d.data()}));
+    ofertas=snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>!o.eliminado);
     acReconstruirIndice();
     const fr=document.getElementById("f-resp"),frm=document.getElementById("f-resp-form");
     const nombres=[...new Set(ofertas.map(o=>o.responsableNombre).filter(Boolean))].sort();
@@ -1877,7 +1882,8 @@ function renderStats(){
   const totalRecordatorios=venc+proximos;
   const gan=ofertas.filter(o=>o.estado==="Ganada").length;
   const total=ofertas.reduce((s,o)=>s+(o.importe||0),0);
-  const tasa=ofertas.length?Math.round(gan/ofertas.length*100):0;
+  const cerradas=ofertas.filter(o=>["Ganada","Perdida","Descartada"].includes(o.estado)).length;
+  const tasa=cerradas>0?Math.round(gan/cerradas*100):0;
   const alertas=getAlertasInactivas().length;
   document.getElementById("stats-row").innerHTML=`
     <div class="stat-card clickable" onclick="setVista('tabla')"><div class="stat-val" style="color:var(--accent)">${ofertas.length}</div><div class="stat-lbl">Total Ofertas</div></div>
@@ -2006,7 +2012,7 @@ function toggleSeleccionTodos(cb){
 async function borrarSeleccionadas(){
   const n=ofertasSeleccionadas.size;
   if(!n)return;
-  if(!confirm(`¿Eliminar ${n} oferta${n>1?"s":""} seleccionada${n>1?"s":""}? Esta acción no se puede deshacer.`))return;
+  if(!confirm(`¿Enviar ${n} oferta${n>1?"s":""} seleccionada${n>1?"s":""} a la papelera de reciclaje?`))return;
   const ids=[...ofertasSeleccionadas];
   const btn=document.getElementById("btn-borrar-sel");
   if(btn){btn.textContent="Eliminando...";btn.disabled=true;}
@@ -2016,7 +2022,7 @@ async function borrarSeleccionadas(){
       try{
         const o=ofertas.find(x=>x.id===id);
         await db.collection("historial").add({ofertaId:id,empresa:o?.empresa,numeroOferta:o?.numeroOferta,usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,accion:"eliminada",fecha:firebase.firestore.FieldValue.serverTimestamp()});
-        await db.collection("ofertas").doc(id).delete();
+        await db.collection("ofertas").doc(id).update({eliminado:true,eliminadoEn:firebase.firestore.FieldValue.serverTimestamp(),eliminadoPor:currentUser.uid});
       }catch(e){
         console.error("[CRM] Error eliminando oferta "+id+":",e);
         errores++;
@@ -2024,7 +2030,7 @@ async function borrarSeleccionadas(){
     }
     ofertasSeleccionadas.clear();
     const ok=n-errores;
-    if(ok>0) toast(`🗑 ${ok} oferta${ok>1?"s":""} eliminada${ok>1?"s":""} correctamente`+(errores>0?` · ${errores} error${errores>1?"es":""}`:""),(errores>0?"#f59e0b":"#10b981"));
+    if(ok>0) toast(`🗑 ${ok} oferta${ok>1?"s":""} enviada${ok>1?"s":""} a la papelera`+(errores>0?` · ${errores} error${errores>1?"es":""}`:""),(errores>0?"#f59e0b":"#10b981"));
     else toast(`❌ No se pudo eliminar ninguna oferta (${errores} errores)`,"#ef4444");
   }finally{
     if(btn){btn.textContent="🗑 Eliminar seleccionadas";btn.disabled=false;btn.style.display="none";}
@@ -2114,7 +2120,8 @@ function renderDashboard(){
   const pend=ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado));
   const totalGan=gan.reduce((s,o)=>s+(o.importe||0),0);
   const totalPipeline=pend.reduce((s,o)=>s+(o.importe||0),0);
-  const tasa=ofertas.length?Math.round(gan.length/ofertas.length*100):0;
+  const cerradasTotal=gan.length+perd.length;
+  const tasa=cerradasTotal>0?Math.round(gan.length/cerradasTotal*100):0;
   const venc=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoyStr&&!["Ganada","Perdida","Descartada"].includes(o.estado));
   const mananaStr=getFechaManana();
   const proxManana=ofertas.filter(o=>o.fechaRecordatorio===mananaStr&&!["Ganada","Perdida","Descartada"].includes(o.estado));
@@ -2347,18 +2354,24 @@ function _avatarInitials(nombre){
 }
 
 let _kanbanDragId=null; // id de la oferta que se está arrastrando
+let _kanbanFiltroResp=""; // filtro de responsable en kanban
 
 function renderKanban(){
   const cont=document.getElementById("vista-kanban");
   if(!cont)return;
 
-  const activas=ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado));
+  // Aplicar filtro de responsable
+  const ofertasFiltradas=_kanbanFiltroResp
+    ? ofertas.filter(o=>o.responsableNombre===_kanbanFiltroResp)
+    : ofertas;
+
+  const activas=ofertasFiltradas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado));
   const todasCols=ESTADOS; // usar todos los estados para mostrar pipeline completo
 
   // Calcular métricas por columna
   const colData={};
   todasCols.forEach(est=>{
-    const items=ofertas.filter(o=>o.estado===est);
+    const items=ofertasFiltradas.filter(o=>o.estado===est);
     colData[est]={
       items,
       count:items.length,
@@ -2369,13 +2382,24 @@ function renderKanban(){
   const totalPipeline=activas.reduce((s,o)=>s+(o.importe||0),0);
   const totalActivas=activas.length;
 
+  // Obtener lista de responsables únicos para el selector
+  const responsables=[...new Set(ofertas.map(o=>o.responsableNombre).filter(Boolean))].sort();
+
   cont.innerHTML=`
     <div style="padding:14px 24px 6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
       <div>
         <h3 style="color:var(--accent);font-size:17px;font-weight:900;margin:0">🗂 Pipeline Kanban</h3>
         <div style="color:var(--text3);font-size:12px;margin-top:3px">${totalActivas} ofertas activas · Pipeline: <strong style="color:#0a7c5c">${totalPipeline.toLocaleString("es-ES")} €</strong> · Arrastra las tarjetas para cambiar estado</div>
       </div>
-      <button onclick="abrirModal()" class="btn-sm btn-add">+ Nueva Oferta</button>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <select onchange="_kanbanFiltroResp=this.value;renderKanban()"
+          style="background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:7px 11px;color:var(--text);font-size:12px;font-family:inherit;cursor:pointer">
+          <option value="">👤 Todos los responsables</option>
+          ${responsables.map(r=>`<option value="${r}"${_kanbanFiltroResp===r?" selected":""}>${r}</option>`).join("")}
+        </select>
+        ${_kanbanFiltroResp?`<button onclick="_kanbanFiltroResp='';renderKanban()" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer">✕ Quitar filtro</button>`:""}
+        <button onclick="abrirModal()" class="btn-sm btn-add">+ Nueva Oferta</button>
+      </div>
     </div>
     <div class="kanban-wrap" id="kanban-board">
       ${todasCols.map(est=>{
@@ -3900,11 +3924,48 @@ function renderLlamadas(){
       <button class="cal-hoy-btn" onclick="llCalIrHoy()">Hoy</button>
     </div>`:"";
 
+  // ---- Calcular acciones vencidas (fechaProximaAccion <= hoy) ----
+  const accionesVencidas=activas.filter(o=>o.fechaProximaAccion&&o.fechaProximaAccion<=hoy&&o.proximaAccion);
+  const accionesHoy=activas.filter(o=>o.fechaProximaAccion===hoy&&o.proximaAccion);
+  const llKpiBadgeAcciones=accionesVencidas.length>0
+    ?`<span style="background:#fdf4ff;border:1px solid #d8b4fe;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:#7c3aed">⚡ ${accionesVencidas.length} acc. vencida${accionesVencidas.length>1?"s":""}</span>`
+    :"";
+
+  // ---- Panel HTML de acciones vencidas ----
+  const panelAccionesVencidas=accionesVencidas.length>0?`
+    <div style="background:linear-gradient(135deg,#fdf4ff,#faf5ff);border:1.5px solid #d8b4fe;border-radius:var(--radius);padding:14px 16px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+        <div style="color:#7c3aed;font-size:13px;font-weight:800">⚡ Próximas acciones vencidas (${accionesVencidas.length})</div>
+        ${accionesHoy.length>0?`<span style="background:#fdf4ff;border:1px solid #d8b4fe;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;color:#7c3aed">🗓 ${accionesHoy.length} para hoy</span>`:""}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto">
+        ${accionesVencidas.map(o=>{
+          const diasVenc=Math.floor((new Date()-new Date(o.fechaProximaAccion+"T00:00:00"))/(1000*60*60*24));
+          const urgColor=diasVenc===0?"#7c3aed":diasVenc<=3?"#c2490b":"#b91c1c";
+          return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:white;border:1px solid #e9d5ff;border-radius:8px;padding:8px 12px;flex-wrap:wrap">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:700;color:var(--text);cursor:pointer" onclick="verDetalle('${o.id}')">${o.empresa}</div>
+              <div style="color:#7c3aed;font-size:11px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">➡️ ${o.proximaAccion}</div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:3px;flex-wrap:wrap">
+                <span style="color:${urgColor};font-size:11px;font-weight:700">${diasVenc===0?"🗓 Hoy":"⏰ Vencida hace "+diasVenc+"d"}</span>
+                <span style="color:var(--text3);font-size:10px">👷 ${(o.responsableNombre||"—").split(" ")[0]}</span>
+                <span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}55">${o.estado}</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:5px;flex-shrink:0">
+              <button onclick="abrirLlamada('${o.id}')" style="background:#7c3aed;color:white;border:none;border-radius:7px;padding:6px 11px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">📞 Llamar</button>
+              <button onclick="editarOferta('${o.id}')" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:7px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer">✏️</button>
+            </div>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>`:"";
+
   document.getElementById("vista-llamadas").innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <h3 style="color:var(--accent);margin:0;font-size:17px;font-weight:900">📞 Seguimiento de Llamadas</h3>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">${llKpiBadges}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${llKpiBadges}${llKpiBadgeAcciones}</div>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <input type="text" placeholder="🔍 Buscar empresa, contacto o responsable..."
@@ -3919,6 +3980,7 @@ function renderLlamadas(){
         </div>
       </div>
     </div>
+    ${panelAccionesVencidas}
     <div id="llamadas-contenido">
       ${llCalVistaActual==="calendario"?llHtmlCalendario():llHtmlLista()}
     </div>`;
@@ -4281,7 +4343,7 @@ function _renderComparativaUI(){
                 <span style="font-size:13px">${histIcono(h.accion)}</span>
                 <span style="color:${histColor(h.accion)};font-weight:700;margin-left:4px">${h.accion}</span>
                 <span style="color:var(--text2)"> — ${h.empresa||""}${h.numeroOferta?" ("+h.numeroOferta+")":""}</span>
-                ${h.campoModificado?`<span style="color:var(--text3)"> · ${h.campoModificado}: <b style="color:var(--red)">${h.valorAnterior||"—"}</b> → <b style="color:var(--green)">${h.valorNuevo||"—"}</b></span>`:""}
+                ${h.campoModificado?`<span style="color:var(--text3)"> · ${h.campoModificado}: <b style="color:var(--red)">${h.campoModificado==="importe"&&h.valorAnterior&&!isNaN(Number(h.valorAnterior))?Number(h.valorAnterior).toLocaleString("es-ES")+" €":h.valorAnterior||"—"}</b> → <b style="color:var(--green)">${h.campoModificado==="importe"&&h.valorNuevo&&!isNaN(Number(h.valorNuevo))?Number(h.valorNuevo).toLocaleString("es-ES")+" €":h.valorNuevo||"—"}</b></span>`:""}
                 <span style="color:var(--text3);font-size:11px;float:right">${fh?fh.toLocaleString("es-ES"):""}</span>
               </div>`;
             }).join("")}
@@ -4774,6 +4836,11 @@ async function cargarHistorial(){
     const fh=h.fecha?.toDate?.();
     const fstr=fh?fh.toLocaleString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"";
     const ofertaLink=h.ofertaId?`<button onclick="abrirOfertaDesdeHistorial('${h.ofertaId}')" title="Abrir oferta" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:5px;padding:2px 8px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap">↗ Ver</button>`:"";
+    // Formatear importes si el campo modificado es "importe"
+    function fmtHistVal(campo,val){
+      if(campo==="importe"&&val&&!isNaN(Number(val))) return Number(val).toLocaleString("es-ES",{minimumFractionDigits:0,maximumFractionDigits:2})+" €";
+      return val||"—";
+    }
     return `<div class="hist-item" style="border-left-color:${histBorderColor(h.accion)}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
         <div style="flex:1;min-width:0">
@@ -4787,9 +4854,9 @@ async function cargarHistorial(){
           </div>
           ${h.campoModificado?`<div style="color:var(--text2);font-size:12px;margin-top:2px">
             Campo: <b>${h.campoModificado}</b> ·
-            <span style="color:var(--red)">${h.valorAnterior||"—"}</span>
+            <span style="color:var(--red)">${fmtHistVal(h.campoModificado,h.valorAnterior)}</span>
             <span style="color:var(--text3)"> → </span>
-            <span style="color:var(--green)">${h.valorNuevo||"—"}</span>
+            <span style="color:var(--green)">${fmtHistVal(h.campoModificado,h.valorNuevo)}</span>
           </div>`:""}
           ${h.accion==="llamada registrada"&&h.valorNuevo?`<div style="color:#15803d;font-size:12px;margin-top:2px;font-style:italic">Resultado: ${h.valorNuevo}</div>`:""}
           <div style="color:var(--text3);font-size:11px;margin-top:4px">🕐 ${fstr}</div>
@@ -4886,16 +4953,36 @@ function exportarExcel(){
   const rows=getFiltradas();
   if(!rows.length){toast("⚠️ No hay datos para exportar","#f59e0b");return;}
   const datos=rows.map(o=>({
-    "Nº Oferta":o.numeroOferta||"","Empresa":o.empresa||"","Contacto":o.contacto||"",
-    "Teléfono":o.telefono||"","Email":o.email||"","Provincia":o.provincia||"",
-    "Tipo Máquina":o.tipoMaquina||"","Descripción":o.descripcion||"","Importe €":o.importe||0,
-    "Estado":o.estado||"","Responsable":o.responsableNombre||"","Fecha Oferta":o.fechaOferta||"",
-    "Fecha Recordatorio":o.fechaRecordatorio||"","Llamadas":o.numLlamadas||0,
-    "Último resultado":o.ultimoResultado||"","Notas":o.notas||""
+    "Nº Oferta":o.numeroOferta||"",
+    "Empresa":o.empresa||"",
+    "Contacto":o.contacto||"",
+    "Teléfono":o.telefono||"",
+    "Teléfono Móvil":o.telefonoMovil||"",
+    "Email":o.email||"",
+    "Provincia":o.provincia||"",
+    "País":o.pais||"",
+    "Tipo Máquina":o.tipoMaquina||"",
+    "Otros":o.otros||"",
+    "Descripción":o.descripcion||"",
+    "Referencia":o.referencia||"",
+    "Importe €":o.importe||0,
+    "Estado":o.estado||"",
+    "Motivo Pérdida":o.motivoPerdida||"",
+    "Responsable":o.responsableNombre||"",
+    "Fecha Oferta":o.fechaOferta||"",
+    "Fecha Recordatorio":o.fechaRecordatorio||"",
+    "Fecha Prevista Cierre":o.fechaPrevistaCierre||"",
+    "Próxima Acción":o.proximaAccion||"",
+    "Fecha Próxima Acción":o.fechaProximaAccion||"",
+    "Llamadas":o.numLlamadas||0,
+    "Último resultado":o.ultimoResultado||"",
+    "Última llamada":o.ultimaLlamada||"",
+    "Notas":o.notas||"",
+    "Archivos adjuntos":(o.archivos||[]).map(a=>a.name).join(", ")
   }));
   const wb=XLSX.utils.book_new();
   const ws=XLSX.utils.json_to_sheet(datos);
-  ws["!cols"]=[{wch:14},{wch:28},{wch:20},{wch:14},{wch:26},{wch:16},{wch:18},{wch:30},{wch:12},{wch:16},{wch:20},{wch:14},{wch:16},{wch:10},{wch:24},{wch:40}];
+  ws["!cols"]=[{wch:14},{wch:28},{wch:20},{wch:14},{wch:14},{wch:26},{wch:16},{wch:14},{wch:18},{wch:18},{wch:30},{wch:16},{wch:12},{wch:16},{wch:18},{wch:20},{wch:14},{wch:16},{wch:18},{wch:24},{wch:16},{wch:10},{wch:24},{wch:14},{wch:40},{wch:40}];
   XLSX.utils.book_append_sheet(wb,ws,"Ofertas");
   XLSX.writeFile(wb,`Marcopack_CRM_${new Date().toISOString().split("T")[0]}.xlsx`);
   toast(`✅ Exportadas ${rows.length} ofertas`,"#10b981");
@@ -5008,6 +5095,8 @@ function verDetalle(id){
       ${[["📋 Referencia",o.referencia],["👤 Contacto",o.contacto],["📞 Teléfono",o.telefono],["📱 Teléfono Móvil",o.telefonoMovil],["📧 Email",o.email],["📍 Provincia",o.provincia],["🏭 Máquina",o.tipoMaquina],["💶 Importe",(o.importe||0).toLocaleString("es-ES")+" €"],["📅 Fecha",o.fechaOferta?new Date(o.fechaOferta).toLocaleDateString("es-ES"):"—"],["👷 Responsable",o.responsableNombre||"—"],["📞 Llamadas",o.numLlamadas||0],["💬 Último resultado",o.ultimoResultado||"—"]].map(([k,v])=>`<div style="background:var(--surface);border-radius:8px;padding:9px 12px"><div style="color:var(--text3);font-size:10px;font-weight:700">${k}</div><div style="color:var(--text);font-size:13px;margin-top:2px">${v||"—"}</div></div>`).join("")}
     </div>
     ${o.fechaRecordatorio?`<div style="background:${vence?"#fff0e6":"var(--accent-light)"};border:1px solid ${vence?"#fbd0b0":"#b8d0f5"};border-radius:8px;padding:9px 12px;margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700">🔔 RECORDATORIO</div><div style="color:${vence?"var(--orange)":"var(--accent)"};font-size:13px;font-weight:600;margin-top:2px">${new Date(o.fechaRecordatorio).toLocaleDateString("es-ES")}${vence?" — ¡VENCIDO!":""}</div></div>`:""}
+    ${o.fechaPrevistaCierre?`<div style="background:#f0fdf4;border:1px solid #b7e4d1;border-radius:8px;padding:9px 12px;margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700">🎯 FECHA PREVISTA DE CIERRE</div><div style="color:var(--green);font-size:13px;font-weight:700;margin-top:2px">${new Date(o.fechaPrevistaCierre).toLocaleDateString("es-ES")}</div></div>`:""}
+    ${(o.proximaAccion||o.fechaProximaAccion)?`<div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:8px;padding:9px 12px;margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700">➡️ PRÓXIMA ACCIÓN</div><div style="color:#7c3aed;font-size:13px;font-weight:600;margin-top:2px">${o.proximaAccion||"—"}${o.fechaProximaAccion?` <span style="color:var(--text3);font-size:11px;font-weight:500">· ${new Date(o.fechaProximaAccion).toLocaleDateString("es-ES")}</span>`:""}</div></div>`:""}
     ${o.descripcion?`<div style="margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700;margin-bottom:3px">DESCRIPCIÓN</div><div style="color:var(--text2);font-size:13px">${o.descripcion}</div></div>`:""}
     ${o.notas?`<div style="margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700;margin-bottom:3px">NOTAS</div><div style="color:var(--text2);font-size:13px;background:var(--surface);border-radius:8px;padding:9px 12px;white-space:pre-line">${o.notas}</div></div>`:""}
     <div style="margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700;margin-bottom:6px">📎 DOCUMENTOS ADJUNTOS</div>${renderArchivosDetalle(o.archivos)}</div>
@@ -5373,6 +5462,7 @@ function abrirModal(o){
   document.getElementById("f-est-form").value=o?.estado||"Pendiente";
   document.getElementById("f-resp-form").value=o?.responsableNombre||currentProfile.nombre;
   document.getElementById("f-recod").value=o?.fechaRecordatorio||"";
+  document.getElementById("f-fechacierre").value=o?.fechaPrevistaCierre||"";
   document.getElementById("f-notas").value=o?.notas||"";
   document.getElementById("f-referencia").value=o?.referencia||"";
   renderArchivos();
@@ -5539,6 +5629,14 @@ async function guardarOferta(){
         numeroOferta = await _siguienteNumeroOferta();
       }
     }
+    // ── Validar número duplicado ──────────────────────────────────
+    const duplicado = ofertas.find(o => o.numeroOferta === numeroOferta && o.id !== editandoId);
+    if(duplicado){
+      if(!confirm(`⚠️ El número de oferta "${numeroOferta}" ya está en uso por la empresa "${duplicado.empresa}".\n\n¿Deseas continuar de todas formas y asignar este número igualmente?`)){
+        if(btnGuardar){btnGuardar.disabled=false;btnGuardar.textContent="Guardar oferta";}
+        return;
+      }
+    }
 
     // Construir objeto de datos
     const datos={
@@ -5572,6 +5670,7 @@ async function guardarOferta(){
       })(),
       fechaOferta:document.getElementById("f-fecha").value||null,
       fechaRecordatorio:document.getElementById("f-recod").value||null,
+      fechaPrevistaCierre:document.getElementById("f-fechacierre").value||null,
       proximaAccion:document.getElementById("f-next").value.trim()||"",
       fechaProximaAccion:document.getElementById("f-nextdate").value||null,
       motivoPerdida:document.getElementById("f-motivo").value||"",
@@ -5603,6 +5702,7 @@ async function guardarOferta(){
       const cambios=[
         ["empresa","empresa"],["estado","estado"],["importe","importe"],
         ["responsableNombre","responsable"],["fechaRecordatorio","recordatorio"],
+        ["fechaPrevistaCierre","fecha prevista cierre"],
         ["telefono","teléfono"],["telefonoMovil","móvil"],["email","email"],
         ["contacto","contacto"],["provincia","provincia"],["tipoMaquina","tipo máquina"],
         ["descripcion","descripción"],["otros","otros"],["referencia","referencia"]
@@ -5645,12 +5745,12 @@ async function guardarOferta(){
 }
 async function eliminarOferta(id){
   if(!currentUser){ toast("⚠️ Sesión caducada. Por favor vuelve a iniciar sesión.","#f59e0b"); return; }
-  if(!confirm("¿Eliminar esta oferta? No se puede deshacer."))return;
+  if(!confirm("¿Enviar esta oferta a la papelera de reciclaje?"))return;
   try{
     const o=ofertas.find(x=>x.id===id);
     await db.collection("historial").add({ofertaId:id,empresa:o?.empresa,numeroOferta:o?.numeroOferta,usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,accion:"eliminada",fecha:firebase.firestore.FieldValue.serverTimestamp()});
-    await db.collection("ofertas").doc(id).delete();
-    toast("🗑 Oferta eliminada","#f59e0b");
+    await db.collection("ofertas").doc(id).update({eliminado:true,eliminadoEn:firebase.firestore.FieldValue.serverTimestamp(),eliminadoPor:currentUser.uid});
+    toast("🗑 Oferta enviada a la papelera","#f59e0b");
   }catch(e){
     if(e.code==="permission-denied"){ mostrarErrorPermisos(); }
     else { toast("❌ Error al eliminar: "+e.message,"#ef4444"); }
@@ -6214,6 +6314,24 @@ async function cargarAdmin(){
         }).join("")}
       </div>
     </div>
+    <!-- ═══ DETECTOR DE EMPRESAS DUPLICADAS ═══ -->
+    <div class="admin-card" style="border-color:#fbd0b0;background:linear-gradient(135deg,#fff8f0,#fffbf5)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0;color:var(--orange)">🔍 Detector de Empresas Duplicadas</h3>
+        <button onclick="detectarDuplicados()" style="background:var(--orange-bg);color:var(--orange);border:1px solid #fbd0b0;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🔎 Analizar ahora</button>
+      </div>
+      <div style="color:var(--text3);font-size:12px;margin-bottom:12px">Detecta empresas con nombres similares que podrían ser duplicados. Clic en cualquier empresa para editar.</div>
+      <div id="admin-duplicados-body"><div style="color:var(--text3);font-size:12px;font-style:italic">Pulsa "Analizar ahora" para buscar posibles duplicados.</div></div>
+    </div>
+    <!-- ═══ PAPELERA DE RECICLAJE ═══ -->
+    <div class="admin-card" style="border-color:#fca5a5;background:linear-gradient(135deg,#fff5f5,#fffafa)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0;color:var(--red)">🗑 Papelera de reciclaje</h3>
+        <button onclick="cargarPapelera()" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🔄 Cargar papelera</button>
+      </div>
+      <div style="color:var(--text3);font-size:12px;margin-bottom:12px">Las ofertas eliminadas se guardan aquí durante 30 días. Puedes recuperarlas o borrarlas definitivamente.</div>
+      <div id="admin-papelera-body"><div style="color:var(--text3);font-size:12px;font-style:italic">Pulsa "Cargar papelera" para ver las ofertas eliminadas.</div></div>
+    </div>
     <div class="admin-card" style="border-color:#b8d0f5;background:linear-gradient(135deg,#f0f6ff,#f7f9ff)">
       <h3 style="color:var(--accent)">☁️ Configuración OneDrive Central</h3>
       <p style="color:var(--text3);font-size:12px;margin-bottom:14px;line-height:1.6">
@@ -6251,6 +6369,130 @@ async function adm_eliminarUsuario(uid,nombre,nOfertas){
   }catch(e){ toast("❌ Error: "+e.message,"#ef4444"); }
 }
 async function cambiarRol(uid,rol){await db.collection("usuarios").doc(uid).update({rol});toast("✅ Rol actualizado","#10b981");cargarAdmin();}
+
+// ─── Detector de empresas duplicadas ────────────────────────────────────────
+function detectarDuplicados(){
+  const body=document.getElementById("admin-duplicados-body");
+  if(!body)return;
+  body.innerHTML=`<div style="color:var(--text3);font-size:12px">⏳ Analizando ${ofertas.length} ofertas...</div>`;
+  // Normalizar nombre para comparación
+  function norm(s){return (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g," ").replace(/\s+/g," ").trim();}
+  // Similitud por palabras comunes (Jaccard)
+  function similitud(a,b){
+    const wa=new Set(norm(a).split(" ").filter(w=>w.length>2));
+    const wb=new Set(norm(b).split(" ").filter(w=>w.length>2));
+    if(!wa.size||!wb.size) return 0;
+    const inter=[...wa].filter(w=>wb.has(w)).length;
+    const union=new Set([...wa,...wb]).size;
+    return inter/union;
+  }
+  // Agrupar por empresa (una entrada por empresa)
+  const empresas=[...new Set(ofertas.map(o=>o.empresa).filter(Boolean))];
+  const grupos=[];
+  const usadas=new Set();
+  for(let i=0;i<empresas.length;i++){
+    if(usadas.has(i)) continue;
+    const grupo=[empresas[i]];
+    for(let j=i+1;j<empresas.length;j++){
+      if(usadas.has(j)) continue;
+      if(similitud(empresas[i],empresas[j])>=0.6){
+        grupo.push(empresas[j]);
+        usadas.add(j);
+      }
+    }
+    if(grupo.length>1){grupos.push(grupo);usadas.add(i);}
+  }
+  if(!grupos.length){
+    body.innerHTML=`<div style="background:var(--green-bg);border:1px solid #b7e4d1;border-radius:10px;padding:12px 16px;color:var(--green);font-size:13px;font-weight:700">✅ No se encontraron empresas duplicadas. ¡Base de datos limpia!</div>`;
+    return;
+  }
+  body.innerHTML=`
+    <div style="background:var(--orange-bg);border:1px solid #fbd0b0;border-radius:8px;padding:9px 14px;margin-bottom:12px;color:var(--orange);font-size:12px;font-weight:700">
+      ⚠️ Se encontraron ${grupos.length} grupo${grupos.length>1?"s":""} con posibles duplicados
+    </div>
+    ${grupos.map((g,gi)=>`
+      <div style="background:var(--surface);border:1.5px solid #fbd0b0;border-radius:10px;padding:12px;margin-bottom:10px">
+        <div style="color:var(--orange);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Grupo ${gi+1} — ${g.length} variantes detectadas</div>
+        ${g.map(emp=>{
+          const n=ofertas.filter(o=>o.empresa===emp).length;
+          return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;background:var(--surface2);border-radius:7px;margin-bottom:5px">
+            <div>
+              <span style="font-size:13px;font-weight:700;color:var(--text)">${emp}</span>
+              <span style="color:var(--text3);font-size:11px;margin-left:8px">${n} oferta${n!==1?"s":""}</span>
+            </div>
+            <button onclick="filtrarPorEmpresa('${emp.replace(/'/g,"\\'")}');setVista('tabla')" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">Ver ofertas →</button>
+          </div>`;
+        }).join("")}
+      </div>`).join("")}`;
+}
+
+// ─── Filtrar tabla por empresa exacta ───────────────────────────────────────
+function filtrarPorEmpresa(emp){
+  const busq=document.getElementById("busqueda");
+  if(busq){busq.value=emp;renderVista();}
+}
+
+// ─── Papelera de reciclaje ───────────────────────────────────────────────────
+async function cargarPapelera(){
+  const body=document.getElementById("admin-papelera-body");
+  if(!body)return;
+  body.innerHTML=`<div style="color:var(--text3);font-size:12px">⏳ Cargando papelera...</div>`;
+  try{
+    const snap=await db.collection("ofertas").where("eliminado","==",true).orderBy("eliminadoEn","desc").limit(50).get();
+    const eliminadas=snap.docs.map(d=>({id:d.id,...d.data()}));
+    if(!eliminadas.length){
+      body.innerHTML=`<div style="color:var(--text3);font-size:12px;padding:10px 0;font-style:italic">La papelera está vacía. Las ofertas eliminadas aparecerán aquí.</div>`;
+      return;
+    }
+    body.innerHTML=`
+      <div style="color:var(--text3);font-size:11px;margin-bottom:10px">${eliminadas.length} oferta${eliminadas.length>1?"s":""} en papelera</div>
+      ${eliminadas.map(o=>{
+        const fEl=o.eliminadoEn?.toDate?.()?.toLocaleDateString("es-ES")||"—";
+        return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface);border:1px solid #fca5a5;border-radius:8px;padding:10px 13px;margin-bottom:7px;flex-wrap:wrap">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:700;color:var(--text)">${o.empresa||"—"} <span style="color:var(--text3);font-size:11px;font-weight:500">${o.numeroOferta||""}</span></div>
+            <div style="color:var(--text3);font-size:11px;margin-top:2px">Eliminada: ${fEl} · Responsable: ${o.responsableNombre||"—"} · ${o.estado||"—"}</div>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0">
+            <button onclick="recuperarOferta('${o.id}')" style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">♻️ Recuperar</button>
+            <button onclick="eliminarDefinitivamente('${o.id}','${(o.empresa||"").replace(/'/g,"\\'")}','${o.numeroOferta||""}')" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">🗑 Borrar definitivo</button>
+          </div>
+        </div>`;
+      }).join("")}`;
+  }catch(e){
+    // Si el índice no existe aún, intentar sin orderBy
+    try{
+      const snap2=await db.collection("ofertas").where("eliminado","==",true).get();
+      const eliminadas=snap2.docs.map(d=>({id:d.id,...d.data()}));
+      if(!eliminadas.length){body.innerHTML=`<div style="color:var(--text3);font-size:12px;padding:10px 0;font-style:italic">La papelera está vacía.</div>`;return;}
+      body.innerHTML=`<div style="color:var(--text3);font-size:11px;margin-bottom:10px">${eliminadas.length} oferta${eliminadas.length>1?"s":""} en papelera (sin ordenar — crea el índice de Firestore para ordenar por fecha)</div>`+
+        eliminadas.map(o=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface);border:1px solid #fca5a5;border-radius:8px;padding:10px 13px;margin-bottom:7px;flex-wrap:wrap">
+          <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700">${o.empresa||"—"} <span style="color:var(--text3);font-size:11px">${o.numeroOferta||""}</span></div><div style="color:var(--text3);font-size:11px;margin-top:2px">Responsable: ${o.responsableNombre||"—"}</div></div>
+          <div style="display:flex;gap:6px">
+            <button onclick="recuperarOferta('${o.id}')" style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">♻️ Recuperar</button>
+            <button onclick="eliminarDefinitivamente('${o.id}','${(o.empresa||"").replace(/'/g,"\\'")}','${o.numeroOferta||""}')" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">🗑 Definitivo</button>
+          </div>
+        </div>`).join("");
+    }catch(e2){body.innerHTML=`<div style="color:var(--red);font-size:12px">❌ Error: ${e2.message}</div>`;}
+  }
+}
+async function recuperarOferta(id){
+  if(!confirm("¿Recuperar esta oferta y devolverla al CRM?"))return;
+  try{
+    await db.collection("ofertas").doc(id).update({eliminado:firebase.firestore.FieldValue.delete(),eliminadoEn:firebase.firestore.FieldValue.delete(),eliminadoPor:firebase.firestore.FieldValue.delete()});
+    toast("✅ Oferta recuperada correctamente","#10b981");
+    cargarPapelera();
+  }catch(e){toast("❌ Error: "+e.message,"#ef4444");}
+}
+async function eliminarDefinitivamente(id,empresa,num){
+  if(!confirm(`¿Eliminar permanentemente "${empresa} ${num}"? Esta acción NO se puede deshacer.`))return;
+  try{
+    await db.collection("historial").add({ofertaId:id,empresa,numeroOferta:num,usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,accion:"eliminada",valorNuevo:"borrado definitivo",fecha:firebase.firestore.FieldValue.serverTimestamp()});
+    await db.collection("ofertas").doc(id).delete();
+    toast("🗑 Oferta eliminada permanentemente","#ef4444");
+    cargarPapelera();
+  }catch(e){toast("❌ Error: "+e.message,"#ef4444");}
+}
 async function crearUsuario(){
   const nombre=document.getElementById("nu-nombre")?.value.trim()||"";
   const email=document.getElementById("nu-email")?.value.trim()||"";
