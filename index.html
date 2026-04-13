@@ -1529,6 +1529,10 @@ auth.onAuthStateChanged(async user=>{
 
       poblarSelects();
       escucharOfertas();
+      // Precargar caché de usuarios para resolver UIDs correctamente en guardarOferta
+      db.collection("usuarios").get().then(snap=>{
+        window._usuariosCache=snap.docs.map(d=>({id:d.id,...d.data()}));
+      }).catch(()=>{ window._usuariosCache=[]; });
       // Vista inicial estable
       setTimeout(()=>{ try{ setVista('dashboard'); }catch(_){ } }, 50);
 
@@ -1646,6 +1650,17 @@ function doLogout(){
   ofertas=[];
   _smartNotifMostrada=false;
   window._contadorSincronizado=false;
+  // Limpiar filtros de historial para que el siguiente usuario empiece limpio
+  histFiltro="todos";
+  histBusqueda="";
+  histUsuario="todos";
+  // Limpiar filtros de tabla
+  provinciasSeleccionadas.clear();
+  paisesSeleccionados.clear();
+  paginaActual=1;
+  ofertasSeleccionadas.clear();
+  // Limpiar cache de historial de comerciales
+  _compHistorial=[];
   auth.signOut();
 }
 
@@ -1655,9 +1670,14 @@ function poblarSelects(){
   const fpf=document.getElementById("f-prov-form");
   const fef=document.getElementById("f-est-form"),fe=document.getElementById("f-est");
   const fpais=document.getElementById("f-pais-form");
-  PROVINCIAS.forEach(p=>{fpf.add(new Option(p,p));});
-  PAISES.forEach(p=>{fpais.add(new Option(p,p));});
-  ESTADOS.forEach(e=>{fef.add(new Option(e,e));fe.add(new Option(e,e));});
+  // Limpiar antes de poblar para evitar duplicados si el usuario hace logout+login
+  if(fpf) fpf.innerHTML="";
+  if(fef) fef.innerHTML="";
+  if(fe)  fe.innerHTML='<option value="">Todos los estados</option>';
+  if(fpais) fpais.innerHTML='<option value="">— Seleccionar país —</option>';
+  PROVINCIAS.forEach(p=>{if(fpf)fpf.add(new Option(p,p));});
+  PAISES.forEach(p=>{if(fpais)fpais.add(new Option(p,p));});
+  ESTADOS.forEach(e=>{if(fef)fef.add(new Option(e,e));if(fe)fe.add(new Option(e,e));});
   renderProvOpciones();
   renderPaisOpciones();
 }
@@ -1694,11 +1714,25 @@ function toggleProvDropdown(){
   const d=document.getElementById("prov-dropdown");
   d.style.display=d.style.display==="none"?"block":"none";
 }
+// ===== CIERRE DE DROPDOWNS AL HACER CLIC FUERA (listener unificado) =====
 document.addEventListener("click",function(e){
-  const wrap=document.getElementById("prov-dropdown-wrap");
-  if(wrap&&!wrap.contains(e.target)){
+  // Cerrar dropdown de provincias
+  const provWrap=document.getElementById("prov-dropdown-wrap");
+  if(provWrap&&!provWrap.contains(e.target)){
     const d=document.getElementById("prov-dropdown");
     if(d)d.style.display="none";
+  }
+  // Cerrar autocomplete empresa
+  const acWrap=document.querySelector(".ac-wrap");
+  if(acWrap&&!acWrap.contains(e.target)){
+    const dd=document.getElementById("ac-dropdown");
+    if(dd) dd.classList.remove("open");
+  }
+  // Cerrar dropdown de países
+  const paisWrap=document.getElementById("pais-dropdown-wrap");
+  if(paisWrap&&!paisWrap.contains(e.target)){
+    const dp=document.getElementById("pais-dropdown");
+    if(dp)dp.style.display="none";
   }
 });
 
@@ -1781,14 +1815,7 @@ function acSeleccionar(i){
   dd.classList.remove("open");
 }
 
-// Cerrar dropdown al hacer clic fuera
-document.addEventListener("click",function(e){
-  const wrap=document.querySelector(".ac-wrap");
-  if(wrap&&!wrap.contains(e.target)){
-    const dd=document.getElementById("ac-dropdown");
-    if(dd) dd.classList.remove("open");
-  }
-});
+// (listener de cierre de dropdowns unificado arriba)
 
 // ===== TIEMPO REAL =====
 function escucharOfertas(){
@@ -1798,11 +1825,20 @@ function escucharOfertas(){
     ofertas=snap.docs.map(d=>({id:d.id,...d.data()}));
     acReconstruirIndice();
     const fr=document.getElementById("f-resp"),frm=document.getElementById("f-resp-form");
-    const nombres=[...new Set(ofertas.map(o=>o.responsableNombre).filter(Boolean))];
+    const nombres=[...new Set(ofertas.map(o=>o.responsableNombre).filter(Boolean))].sort();
+    // Actualizar selector de filtro siempre
     fr.innerHTML='<option value="">Todos los responsables</option>';
-    frm.innerHTML='';
-    nombres.forEach(n=>{fr.add(new Option(n,n));frm.add(new Option(n,n));});
-    if(currentProfile?.nombre&&!nombres.includes(currentProfile.nombre))frm.add(new Option(currentProfile.nombre,currentProfile.nombre));
+    nombres.forEach(n=>fr.add(new Option(n,n)));
+    // Actualizar selector del formulario solo si el modal no está abierto (evita reset de selección activa)
+    const modalAbierto=document.getElementById("modal")?.style.display==="flex";
+    if(!modalAbierto){
+      const valorActual=frm?.value||"";
+      frm.innerHTML='';
+      nombres.forEach(n=>frm.add(new Option(n,n)));
+      if(currentProfile?.nombre&&!nombres.includes(currentProfile.nombre))frm.add(new Option(currentProfile.nombre,currentProfile.nombre));
+      // Restaurar valor si sigue siendo válido
+      if(valorActual&&[...frm.options].some(o=>o.value===valorActual)) frm.value=valorActual;
+    }
     renderStats();renderVista();
     // Notificación inteligente solo la primera vez
     mostrarSmartNotif();
@@ -1973,16 +2009,28 @@ async function borrarSeleccionadas(){
   if(!confirm(`¿Eliminar ${n} oferta${n>1?"s":""} seleccionada${n>1?"s":""}? Esta acción no se puede deshacer.`))return;
   const ids=[...ofertasSeleccionadas];
   const btn=document.getElementById("btn-borrar-sel");
-  btn.textContent="Eliminando...";btn.disabled=true;
-  for(const id of ids){
-    try{
-      const o=ofertas.find(x=>x.id===id);
-      await db.collection("historial").add({ofertaId:id,empresa:o?.empresa,numeroOferta:o?.numeroOferta,usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,accion:"eliminada",fecha:firebase.firestore.FieldValue.serverTimestamp()});
-      await db.collection("ofertas").doc(id).delete();
-    }catch(e){}
+  if(btn){btn.textContent="Eliminando...";btn.disabled=true;}
+  let errores=0;
+  try{
+    for(const id of ids){
+      try{
+        const o=ofertas.find(x=>x.id===id);
+        await db.collection("historial").add({ofertaId:id,empresa:o?.empresa,numeroOferta:o?.numeroOferta,usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,accion:"eliminada",fecha:firebase.firestore.FieldValue.serverTimestamp()});
+        await db.collection("ofertas").doc(id).delete();
+      }catch(e){
+        console.error("[CRM] Error eliminando oferta "+id+":",e);
+        errores++;
+      }
+    }
+    ofertasSeleccionadas.clear();
+    const ok=n-errores;
+    if(ok>0) toast(`🗑 ${ok} oferta${ok>1?"s":""} eliminada${ok>1?"s":""} correctamente`+(errores>0?` · ${errores} error${errores>1?"es":""}`:""),(errores>0?"#f59e0b":"#10b981"));
+    else toast(`❌ No se pudo eliminar ninguna oferta (${errores} errores)`,"#ef4444");
+  }finally{
+    if(btn){btn.textContent="🗑 Eliminar seleccionadas";btn.disabled=false;btn.style.display="none";}
+    const cnt=document.getElementById("seleccion-count");
+    if(cnt) cnt.textContent="";
   }
-  ofertasSeleccionadas.clear();
-  toast("🗑 "+n+" oferta"+(n>1?"s":"")+" eliminada"+(n>1?"s":"")+" correctamente","#f59e0b");
 }
 
 // ===== FILTRO PAÍSES =====
@@ -2018,13 +2066,7 @@ function togglePaisDropdown(){
   const d=document.getElementById("pais-dropdown");
   d.style.display=d.style.display==="none"?"block":"none";
 }
-document.addEventListener("click",function(e){
-  const wrap=document.getElementById("pais-dropdown-wrap");
-  if(wrap&&!wrap.contains(e.target)){
-    const d=document.getElementById("pais-dropdown");
-    if(d)d.style.display="none";
-  }
-});
+// (listener de cierre de dropdowns unificado arriba)
 
 // ===== VISTAS =====
 function setVista(v){
@@ -2043,7 +2085,7 @@ function setVista(v){
   if(v==="admin")cargarAdmin();
   if(v==="mapa")renderMapa();
   if(v==="llamadas")renderLlamadas();
-  if(v==="comparativa")renderComparativa();
+  if(v==="comparativa")renderComparativa().catch(e=>{ console.error("[CRM] Error cargando comerciales:",e); toast("⚠️ Error al cargar datos de comerciales","#f59e0b"); });
   if(v==="alertas")renderAlertas();
   if(v==="dashboard")renderDashboard();
   if(v==="kanban")renderKanban();
@@ -2096,7 +2138,7 @@ function renderDashboard(){
 
   // ── Datos embudo ──
   const estadosEmbudo=ESTADOS.filter(e=>!["Ganada","Perdida","Descartada"].includes(e));
-  const embудоCounts=estadosEmbudo.map(e=>pend.filter(o=>o.estado===e).length);
+  const embudoCounts=estadosEmbudo.map(e=>pend.filter(o=>o.estado===e).length);
   const embudoColores=estadosEmbudo.map(e=>CE[e]||"#64748b");
 
   // ── Datos distribución por estado (doughnut) ──
@@ -2239,10 +2281,10 @@ function renderDashboard(){
 
     // Embudo — barras horizontales pipeline activo
     const ctxE=document.getElementById("chart-embudo");
-    if(ctxE&&embудоCounts.some(v=>v>0)){
+    if(ctxE&&embudoCounts.some(v=>v>0)){
       _chartEmbudo=new Chart(ctxE,{
         type:"bar",
-        data:{labels:estadosEmbudo,datasets:[{data:embудоCounts,backgroundColor:embudoColores.map(c=>c+"44"),borderColor:embudoColores,borderWidth:2,borderRadius:4}]},
+        data:{labels:estadosEmbudo,datasets:[{data:embudoCounts,backgroundColor:embudoColores.map(c=>c+"44"),borderColor:embudoColores,borderWidth:2,borderRadius:4}]},
         options:{
           indexAxis:"y",responsive:true,maintainAspectRatio:false,
           plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>" "+ctx.parsed.x+" ofertas"}}},
@@ -4226,7 +4268,7 @@ function _renderComparativaUI(){
             </div>
             ${s.masReciente?`<div style="flex:1;min-width:180px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 13px">
               <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Oferta más reciente</div>
-              <div style="font-size:12px;color:var(--accent);font-weight:700;cursor:pointer" onclick="abrirModal('${s.masReciente.id}')">${s.masReciente.empresa||"—"} · ${s.masReciente.numeroOferta||""}</div>
+              <div style="font-size:12px;color:var(--accent);font-weight:700;cursor:pointer" onclick="editarOferta('${s.masReciente.id}')">${s.masReciente.empresa||"—"} · ${s.masReciente.numeroOferta||""}</div>
             </div>`:""}
           </div>
           <!-- Últimas acciones del historial -->
@@ -4762,9 +4804,17 @@ async function cargarHistorial(){
 }
 
 async function abrirOfertaDesdeHistorial(ofertaId){
-  const oferta=ofertas.find(o=>o.id===ofertaId);
-  if(oferta){abrirModal(ofertaId);}
-  else{toast("⚠️ Esta oferta ya no existe o fue eliminada","#f59e0b");}
+  // Primero buscar en memoria (más rápido)
+  const enMemoria=ofertas.find(o=>o.id===ofertaId);
+  if(enMemoria){ abrirModal(enMemoria); return; }
+  // Si no está (oferta muy antigua no cargada), buscar en Firestore
+  try{
+    const doc=await db.collection("ofertas").doc(ofertaId).get();
+    if(doc.exists){ abrirModal({id:doc.id,...doc.data()}); }
+    else{ toast("⚠️ Esta oferta ya no existe o fue eliminada","#f59e0b"); }
+  }catch(e){
+    toast("❌ Error al abrir la oferta: "+e.message,"#ef4444");
+  }
 }
 
 async function borrarRegistroHistorial(id){
@@ -4784,36 +4834,51 @@ async function borrarLlamadasAntiguas(dias){
   const limite=new Date();
   limite.setDate(limite.getDate()-dias);
   if(!confirm(`¿Borrar todos los registros de llamadas con más de ${dias} días? Esta acción no se puede deshacer.`))return;
-  const snap=await db.collection("historial")
-    .where("accion","==","llamada registrada")
-    .orderBy("fecha","asc")
-    .get();
-  const antiguos=snap.docs.filter(d=>{
-    const f=d.data().fecha?.toDate?.();
-    return f&&f<limite;
-  });
-  if(!antiguos.length){toast("ℹ️ No hay registros de llamadas con más de "+dias+" días","#3b82f6");return;}
-  const btn_txt=`🗑 Borrando ${antiguos.length} registros...`;
-  toast(btn_txt,"#f59e0b");
-  const batch=db.batch();
-  antiguos.forEach(d=>batch.delete(d.ref));
-  await batch.commit();
-  toast(`✅ ${antiguos.length} registros de llamadas eliminados`,"#10b981");
-  cargarHistorial();
+  try{
+    const snap=await db.collection("historial")
+      .where("accion","==","llamada registrada")
+      .orderBy("fecha","asc")
+      .get();
+    const antiguos=snap.docs.filter(d=>{
+      const f=d.data().fecha?.toDate?.();
+      return f&&f<limite;
+    });
+    if(!antiguos.length){toast("ℹ️ No hay registros de llamadas con más de "+dias+" días","#3b82f6");return;}
+    toast(`🗑 Borrando ${antiguos.length} registros...`,"#f59e0b");
+    const batch=db.batch();
+    antiguos.forEach(d=>batch.delete(d.ref));
+    await batch.commit();
+    toast(`✅ ${antiguos.length} registros de llamadas eliminados`,"#10b981");
+    cargarHistorial();
+  }catch(e){
+    console.error("[CRM] Error borrando llamadas:",e);
+    toast("❌ Error al borrar: "+e.message,"#ef4444");
+  }
 }
 
 async function borrarHistorialTodo(){
   if(currentProfile?.rol!=="admin"){toast("⚠️ Solo los administradores pueden limpiar todo el historial","#f59e0b");return;}
   if(!confirm("⚠️ ¿Borrar TODO el historial de cambios y llamadas? Esta acción es irreversible."))return;
   if(!confirm("Confirmación final — esto borrará todos los registros. ¿Seguro?"))return;
-  const snap=await db.collection("historial").limit(500).get();
-  if(snap.empty){toast("ℹ️ El historial ya está vacío","#3b82f6");return;}
-  toast(`🗑 Borrando ${snap.docs.length} registros...`,"#f59e0b");
-  const batch=db.batch();
-  snap.docs.forEach(d=>batch.delete(d.ref));
-  await batch.commit();
-  toast("✅ Historial limpiado completamente","#10b981");
-  cargarHistorial();
+  try{
+    let totalBorrados=0;
+    // Borrar en lotes de 500 hasta vaciar completamente (Firestore limita batch a 500 ops)
+    while(true){
+      const snap=await db.collection("historial").limit(500).get();
+      if(snap.empty) break;
+      toast(`🗑 Borrando registros (${totalBorrados} eliminados hasta ahora)...`,"#f59e0b");
+      const batch=db.batch();
+      snap.docs.forEach(d=>batch.delete(d.ref));
+      await batch.commit();
+      totalBorrados+=snap.docs.length;
+      if(snap.docs.length<500) break; // último lote
+    }
+    toast(`✅ Historial limpiado completamente (${totalBorrados} registros eliminados)`,"#10b981");
+    cargarHistorial();
+  }catch(e){
+    console.error("[CRM] Error limpiando historial:",e);
+    toast("❌ Error al limpiar historial: "+e.message,"#ef4444");
+  }
 }
 
 // ===== EXPORTAR =====
@@ -4897,7 +4962,7 @@ async function ejecutarImport(datos){
     baseNum=doc.exists?(doc.data().ultimo||0):0;
     tx.set(refCont,{ultimo:baseNum+datos.length,year},{merge:true});
   });
-  let ok=0;
+  let ok=0, errores=0;
   for(let i=0;i<datos.length;i++){
     const r=datos[i];
     const num=`OF-${year}-${String(baseNum+i+1).padStart(3,"0")}`;
@@ -4905,11 +4970,24 @@ async function ejecutarImport(datos){
       const ref=await db.collection("ofertas").add({...r,numeroOferta:num,responsableUid:currentUser.uid,archivos:[],numLlamadas:0,creadoEn:firebase.firestore.FieldValue.serverTimestamp(),actualizadoEn:firebase.firestore.FieldValue.serverTimestamp(),fechaUltimaActividad:firebase.firestore.FieldValue.serverTimestamp(),creadoPor:currentUser.uid,importado:true});
       await db.collection("historial").add({ofertaId:ref.id,numeroOferta:num,empresa:r.empresa,usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,accion:"importada",fecha:firebase.firestore.FieldValue.serverTimestamp()});
       ok++;
-    }catch(e){}
-    document.getElementById("prog-fill").style.width=Math.round((i+1)/datos.length*100)+"%";
-    document.getElementById("prog-text").textContent=`Importando ${i+1} de ${datos.length}...`;
+    }catch(e){
+      console.error("[CRM] Error importando fila "+(i+1)+":",e);
+      errores++;
+    }
+    const progFill=document.getElementById("prog-fill");
+    const progText=document.getElementById("prog-text");
+    if(progFill) progFill.style.width=Math.round((i+1)/datos.length*100)+"%";
+    if(progText) progText.textContent=`Importando ${i+1} de ${datos.length}...`;
   }
-  setTimeout(()=>{document.getElementById("modal-import").style.display="none";toast(`✅ ${ok} ofertas importadas`,"#10b981");},1200);
+  const msg=errores>0
+    ? `✅ ${ok} ofertas importadas · ⚠️ ${errores} error${errores>1?"es":""}`
+    : `✅ ${ok} oferta${ok!==1?"s":""} importada${ok!==1?"s":""}`;
+  const color=errores>0?"#f59e0b":"#10b981";
+  setTimeout(()=>{
+    const modal=document.getElementById("modal-import");
+    if(modal) modal.style.display="none";
+    toast(msg,color);
+  },1200);
 }
 
 // ===== DETALLE =====
@@ -5478,7 +5556,20 @@ async function guardarOferta(){
       importe:parseFloat(document.getElementById("f-importe").value)||0,
       estado:estadoNuevo,
       responsableNombre:document.getElementById("f-resp-form").value,
-      responsableUid:currentUser.uid,
+      // Resolver el UID del responsable: si el admin asigna a otro, buscar su UID real
+      // Si no se encuentra en caché de usuarios, conservar el existente (edición) o usar el del editor (nueva)
+      responsableUid:(()=>{
+        const nombreSel=document.getElementById("f-resp-form").value;
+        // Buscar en la caché de usuarios cargados si existe
+        const usuarioCacheado=window._usuariosCache?.find(u=>u.nombre===nombreSel);
+        if(usuarioCacheado) return usuarioCacheado.id;
+        // Si estamos editando y el responsable no cambió, conservar el uid anterior
+        if(editandoId){
+          const vieja=ofertas.find(o=>o.id===editandoId);
+          if(vieja?.responsableNombre===nombreSel&&vieja?.responsableUid) return vieja.responsableUid;
+        }
+        return currentUser.uid;
+      })(),
       fechaOferta:document.getElementById("f-fecha").value||null,
       fechaRecordatorio:document.getElementById("f-recod").value||null,
       proximaAccion:document.getElementById("f-next").value.trim()||"",
@@ -6065,6 +6156,8 @@ async function cargarAdmin(){
   try{
     const snap=await db.collection("usuarios").get();
     usuarios=snap.docs.map(d=>({id:d.id,...d.data()}));
+    // Actualizar caché global de usuarios para resolver UIDs en guardarOferta
+    window._usuariosCache=usuarios;
   }catch(e){
     body.innerHTML=`<div style="background:var(--red-bg);border:1.5px solid #fca5a5;border-radius:12px;padding:18px;color:var(--red)">
       <div style="font-weight:900;font-size:14px;margin-bottom:8px">🔒 Error al cargar usuarios</div>
