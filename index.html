@@ -629,6 +629,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
     <button class="nav-btn" id="nav-mapa" onclick="setVista('mapa')">🗺️ Mapa</button>
     <button class="nav-btn" id="nav-llamadas" onclick="setVista('llamadas')">📞 Llamadas</button>
     <button class="nav-btn" id="nav-comparativa" onclick="setVista('comparativa')">🏆 Comerciales</button>
+    <button class="nav-btn" id="nav-ranking" onclick="setVista('ranking')">🥇 Clasificación</button>
     <button class="nav-btn" id="nav-alertas" onclick="setVista('alertas')">🔔 Alertas</button>
     <button class="nav-btn" id="nav-historial" onclick="setVista('historial')">📜 Historial</button>
     <button class="nav-btn" id="nav-admin" onclick="setVista('admin')" style="display:none">👑 Admin</button>
@@ -739,6 +740,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
   </div>
   <div id="vista-llamadas" style="display:none;padding:16px 20px 24px"></div>
   <div id="vista-comparativa" style="display:none;padding:16px 20px 24px"></div>
+  <div id="vista-ranking" style="display:none;padding:16px 20px 24px"></div>
   <div id="vista-alertas" style="display:none;padding:16px 20px 24px"></div>
   <div id="vista-historial" style="display:none;padding:16px 20px 24px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
@@ -842,7 +844,22 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       </div>
       <div class="grid2">
         <div class="field"><label>🎯 Fecha prevista de cierre</label><input type="date" id="f-fechacierre"/></div>
-        <div class="field"></div>
+        <div class="field">
+          <label>📣 Origen del contacto</label>
+          <select id="f-origen">
+            <option value="">— ¿Cómo llegó este cliente? —</option>
+            <option value="Feria / Exposición">🏛️ Feria / Exposición</option>
+            <option value="Página web">🌐 Página web</option>
+            <option value="Recomendación de cliente">🤝 Recomendación de cliente</option>
+            <option value="Llamada en frío">📞 Llamada en frío</option>
+            <option value="Visita comercial">🚗 Visita comercial</option>
+            <option value="Correo electrónico">✉️ Correo electrónico</option>
+            <option value="Redes sociales">📱 Redes sociales</option>
+            <option value="Cliente recurrente">🔁 Cliente recurrente</option>
+            <option value="Distribuidor / Agente">🏢 Distribuidor / Agente</option>
+            <option value="Otro">📌 Otro</option>
+          </select>
+        </div>
       </div>
  <div class="grid2">
   <div class="field"><label>➡️ Próxima acción</label><input id="f-next" placeholder="Ej: enviar catálogo, pedir confirmación..."/></div>
@@ -2078,7 +2095,7 @@ function togglePaisDropdown(){
 // ===== VISTAS =====
 function setVista(v){
   vistaActual=v;
-  const vistas=["dashboard","tabla","kanban","estadistas","mapa","llamadas","comparativa","alertas","historial","admin"];
+  const vistas=["dashboard","tabla","kanban","estadistas","mapa","llamadas","comparativa","ranking","alertas","historial","admin"];
   vistas.forEach(x=>{
     const el=document.getElementById("vista-"+x);
     if(el)el.style.display=x===v?"block":"none";
@@ -2086,13 +2103,14 @@ function setVista(v){
     if(btn)btn.classList.toggle("active",x===v);
   });
   // Mostrar/ocultar filtros según vista
-  const sinFiltros=["dashboard","kanban","mapa","estadistas","llamadas","comparativa","alertas","historial","admin"];
+  const sinFiltros=["dashboard","kanban","mapa","estadistas","llamadas","comparativa","ranking","alertas","historial","admin"];
   document.getElementById("filtros-barra").style.display=sinFiltros.includes(v)?"none":"flex";
   if(v==="historial")cargarHistorial();
   if(v==="admin")cargarAdmin();
   if(v==="mapa")renderMapa();
   if(v==="llamadas")renderLlamadas();
   if(v==="comparativa")renderComparativa().catch(e=>{ console.error("[CRM] Error cargando comerciales:",e); toast("⚠️ Error al cargar datos de comerciales","#f59e0b"); });
+  if(v==="ranking")renderRanking();
   if(v==="alertas")renderAlertas();
   if(v==="dashboard")renderDashboard();
   if(v==="kanban")renderKanban();
@@ -2250,6 +2268,48 @@ function renderDashboard(){
         <button onclick="setVista('alertas')" style="background:transparent;border:1px solid var(--border);color:var(--text3);border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer;margin-top:8px;width:100%">Ver todas las alertas →</button>
       </div>
     </div>
+
+    <!-- ── Fila 4: Origen del contacto ── -->
+    ${(()=>{
+      const origenData={};
+      ofertas.forEach(o=>{
+        const org=o.origenContacto||"Sin especificar";
+        if(!origenData[org]) origenData[org]={total:0,ganadas:0,importe:0};
+        origenData[org].total++;
+        if(o.estado==="Ganada"){origenData[org].ganadas++;origenData[org].importe+=(o.importe||0);}
+      });
+      const origenes=Object.entries(origenData).sort((a,b)=>b[1].total-a[1].total);
+      const maxOrig=origenes[0]?.[1]?.total||1;
+      if(origenes.length<=1) return "";
+      const origenesConDatos=origenes.filter(([k])=>k!=="Sin especificar");
+      if(!origenesConDatos.length) return "";
+      return `
+      <div class="charts-grid" style="grid-template-columns:1fr;margin-top:0">
+        <div class="chart-card">
+          <h3>📣 Rendimiento por origen del contacto</h3>
+          <div style="display:grid;gap:8px">
+            ${origenesConDatos.slice(0,8).map(([org,d])=>{
+              const pct=Math.round(d.total/maxOrig*100);
+              const tasaOrg=d.ganadas&&(d.ganadas/(d.ganadas+(d.total-d.ganadas-ofertas.filter(o=>o.origenContacto===org&&!["Ganada","Perdida","Descartada"].includes(o.estado)).length)))>0
+                ?Math.round(d.ganadas/(d.total)*100):0;
+              return `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <div style="min-width:180px;max-width:220px;font-size:12px;font-weight:600;color:var(--text)">${org}</div>
+                <div style="flex:1;min-width:100px">
+                  <div style="background:var(--surface2);border-radius:4px;height:10px;overflow:hidden">
+                    <div style="height:100%;background:linear-gradient(90deg,var(--accent),#1976d2);width:${pct}%;border-radius:4px;transition:width .5s"></div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:10px;font-size:11px;min-width:200px;flex-wrap:wrap">
+                  <span style="color:var(--text2);font-weight:600">${d.total} oferta${d.total!==1?"s":""}</span>
+                  <span style="color:#10b981;font-weight:700">✓ ${d.ganadas} ganadas</span>
+                  <span style="color:var(--text3)">${d.importe>0?d.importe.toLocaleString("es-ES")+" €":""}</span>
+                </div>
+              </div>`;
+            }).join("")}
+          </div>
+        </div>
+      </div>`;
+    })()}
 
   </div>`;
 
@@ -4967,6 +5027,7 @@ function exportarExcel(){
     "Referencia":o.referencia||"",
     "Importe €":o.importe||0,
     "Estado":o.estado||"",
+    "Origen del contacto":o.origenContacto||"",
     "Motivo Pérdida":o.motivoPerdida||"",
     "Responsable":o.responsableNombre||"",
     "Fecha Oferta":o.fechaOferta||"",
@@ -5094,6 +5155,7 @@ function verDetalle(id){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
       ${[["📋 Referencia",o.referencia],["👤 Contacto",o.contacto],["📞 Teléfono",o.telefono],["📱 Teléfono Móvil",o.telefonoMovil],["📧 Correo",o.email],["📍 Provincia",o.provincia],["🏭 Máquina",o.tipoMaquina],["💶 Importe",(o.importe||0).toLocaleString("es-ES")+" €"],["📅 Fecha",o.fechaOferta?new Date(o.fechaOferta).toLocaleDateString("es-ES"):"—"],["👷 Responsable",o.responsableNombre||"—"],["📞 Llamadas",o.numLlamadas||0],["💬 Último resultado",o.ultimoResultado||"—"]].map(([k,v])=>`<div style="background:var(--surface);border-radius:8px;padding:9px 12px"><div style="color:var(--text3);font-size:10px;font-weight:700">${k}</div><div style="color:var(--text);font-size:13px;margin-top:2px">${v||"—"}</div></div>`).join("")}
     </div>
+    ${o.origenContacto?`<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:9px 12px;margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700">📣 ORIGEN DEL CONTACTO</div><div style="color:#0369a1;font-size:13px;font-weight:700;margin-top:2px">${o.origenContacto}</div></div>`:""}
     ${o.fechaRecordatorio?`<div style="background:${vence?"#fff0e6":"var(--accent-light)"};border:1px solid ${vence?"#fbd0b0":"#b8d0f5"};border-radius:8px;padding:9px 12px;margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700">🔔 RECORDATORIO</div><div style="color:${vence?"var(--orange)":"var(--accent)"};font-size:13px;font-weight:600;margin-top:2px">${new Date(o.fechaRecordatorio).toLocaleDateString("es-ES")}${vence?" — ¡VENCIDO!":""}</div></div>`:""}
     ${o.fechaPrevistaCierre?`<div style="background:#f0fdf4;border:1px solid #b7e4d1;border-radius:8px;padding:9px 12px;margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700">🎯 FECHA PREVISTA DE CIERRE</div><div style="color:var(--green);font-size:13px;font-weight:700;margin-top:2px">${new Date(o.fechaPrevistaCierre).toLocaleDateString("es-ES")}</div></div>`:""}
     ${(o.proximaAccion||o.fechaProximaAccion)?`<div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:8px;padding:9px 12px;margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700">➡️ PRÓXIMA ACCIÓN</div><div style="color:#7c3aed;font-size:13px;font-weight:600;margin-top:2px">${o.proximaAccion||"—"}${o.fechaProximaAccion?` <span style="color:var(--text3);font-size:11px;font-weight:500">· ${new Date(o.fechaProximaAccion).toLocaleDateString("es-ES")}</span>`:""}</div></div>`:""}
@@ -5463,6 +5525,7 @@ function abrirModal(o){
   document.getElementById("f-resp-form").value=o?.responsableNombre||currentProfile.nombre;
   document.getElementById("f-recod").value=o?.fechaRecordatorio||"";
   document.getElementById("f-fechacierre").value=o?.fechaPrevistaCierre||"";
+  document.getElementById("f-origen").value=o?.origenContacto||"";
   document.getElementById("f-next").value=o?.proximaAccion||"";
   document.getElementById("f-nextdate").value=o?.fechaProximaAccion||"";
   document.getElementById("f-motivo").value=o?.motivoPerdida||"";
@@ -5674,6 +5737,7 @@ async function guardarOferta(){
       fechaOferta:document.getElementById("f-fecha").value||null,
       fechaRecordatorio:document.getElementById("f-recod").value||null,
       fechaPrevistaCierre:document.getElementById("f-fechacierre").value||null,
+      origenContacto:document.getElementById("f-origen").value||"",
       proximaAccion:document.getElementById("f-next").value.trim()||"",
       fechaProximaAccion:document.getElementById("f-nextdate").value||null,
       motivoPerdida:document.getElementById("f-motivo").value||"",
@@ -5705,7 +5769,7 @@ async function guardarOferta(){
       const cambios=[
         ["empresa","empresa"],["estado","estado"],["importe","importe"],
         ["responsableNombre","responsable"],["fechaRecordatorio","recordatorio"],
-        ["fechaPrevistaCierre","fecha prevista cierre"],
+        ["fechaPrevistaCierre","fecha prevista cierre"],["origenContacto","origen del contacto"],
         ["telefono","teléfono"],["telefonoMovil","móvil"],["email","email"],
         ["contacto","contacto"],["provincia","provincia"],["tipoMaquina","tipo máquina"],
         ["descripcion","descripción"],["otros","otros"],["referencia","referencia"]
@@ -6378,9 +6442,7 @@ function detectarDuplicados(){
   const body=document.getElementById("admin-duplicados-body");
   if(!body)return;
   body.innerHTML=`<div style="color:var(--text3);font-size:12px">⏳ Analizando ${ofertas.length} ofertas...</div>`;
-  // Normalizar nombre para comparación
   function norm(s){return (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g," ").replace(/\s+/g," ").trim();}
-  // Similitud por palabras comunes (Jaccard)
   function similitud(a,b){
     const wa=new Set(norm(a).split(" ").filter(w=>w.length>2));
     const wb=new Set(norm(b).split(" ").filter(w=>w.length>2));
@@ -6389,7 +6451,6 @@ function detectarDuplicados(){
     const union=new Set([...wa,...wb]).size;
     return inter/union;
   }
-  // Agrupar por empresa (una entrada por empresa)
   const empresas=[...new Set(ofertas.map(o=>o.empresa).filter(Boolean))];
   const grupos=[];
   const usadas=new Set();
@@ -6398,10 +6459,7 @@ function detectarDuplicados(){
     const grupo=[empresas[i]];
     for(let j=i+1;j<empresas.length;j++){
       if(usadas.has(j)) continue;
-      if(similitud(empresas[i],empresas[j])>=0.6){
-        grupo.push(empresas[j]);
-        usadas.add(j);
-      }
+      if(similitud(empresas[i],empresas[j])>=0.6){grupo.push(empresas[j]);usadas.add(j);}
     }
     if(grupo.length>1){grupos.push(grupo);usadas.add(i);}
   }
@@ -6409,24 +6467,156 @@ function detectarDuplicados(){
     body.innerHTML=`<div style="background:var(--green-bg);border:1px solid #b7e4d1;border-radius:10px;padding:12px 16px;color:var(--green);font-size:13px;font-weight:700">✅ No se encontraron empresas duplicadas. ¡Base de datos limpia!</div>`;
     return;
   }
+  // Guardar grupos en window para usarlos en la fusión
+  window._dupGrupos = grupos;
   body.innerHTML=`
     <div style="background:var(--orange-bg);border:1px solid #fbd0b0;border-radius:8px;padding:9px 14px;margin-bottom:12px;color:var(--orange);font-size:12px;font-weight:700">
       ⚠️ Se encontraron ${grupos.length} grupo${grupos.length>1?"s":""} con posibles duplicados
     </div>
-    ${grupos.map((g,gi)=>`
-      <div style="background:var(--surface);border:1.5px solid #fbd0b0;border-radius:10px;padding:12px;margin-bottom:10px">
-        <div style="color:var(--orange);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Grupo ${gi+1} — ${g.length} variantes detectadas</div>
+    ${grupos.map((g,gi)=>{
+      const totalOfs=g.reduce((s,emp)=>s+ofertas.filter(o=>o.empresa===emp).length,0);
+      return `
+      <div id="dup-grupo-${gi}" style="background:var(--surface);border:1.5px solid #fbd0b0;border-radius:10px;padding:14px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+          <div style="color:var(--orange);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em">
+            Grupo ${gi+1} — ${g.length} nombres similares · ${totalOfs} ofertas en total
+          </div>
+          <button onclick="abrirFusion(${gi})"
+            style="background:linear-gradient(135deg,#f97316,#ea580c);color:white;border:none;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit">
+            🔀 Fusionar empresa
+          </button>
+        </div>
         ${g.map(emp=>{
           const n=ofertas.filter(o=>o.empresa===emp).length;
-          return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;background:var(--surface2);border-radius:7px;margin-bottom:5px">
-            <div>
+          const impTotal=ofertas.filter(o=>o.empresa===emp).reduce((s,o)=>s+(o.importe||0),0);
+          return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 11px;background:var(--surface2);border-radius:7px;margin-bottom:5px;flex-wrap:wrap">
+            <div style="flex:1;min-width:0">
               <span style="font-size:13px;font-weight:700;color:var(--text)">${emp}</span>
-              <span style="color:var(--text3);font-size:11px;margin-left:8px">${n} oferta${n!==1?"s":""}</span>
+              <span style="color:var(--text3);font-size:11px;margin-left:8px">${n} oferta${n!==1?"s":""} · ${impTotal.toLocaleString("es-ES")} €</span>
             </div>
-            <button onclick="filtrarPorEmpresa('${emp.replace(/'/g,"\\'")}');setVista('tabla')" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">Ver ofertas →</button>
+            <button onclick="filtrarPorEmpresa('${emp.replace(/'/g,"\\'")}');setVista('tabla')"
+              style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">
+              Ver ofertas →
+            </button>
           </div>`;
         }).join("")}
-      </div>`).join("")}`;
+      </div>`;
+    }).join("")}`;
+}
+
+// ─── Modal de fusión de empresas duplicadas ──────────────────────────────────
+function abrirFusion(grupoIdx){
+  const g = window._dupGrupos?.[grupoIdx];
+  if(!g) return;
+  // Calcular la empresa con más ofertas (candidata principal)
+  const conOfertas = g.map(emp=>({emp, n:ofertas.filter(o=>o.empresa===emp).length}))
+                      .sort((a,b)=>b.n-a.n);
+  const principal = conOfertas[0].emp;
+
+  // Construir modal
+  let modal = document.getElementById("modal-fusion");
+  if(!modal){
+    modal = document.createElement("div");
+    modal.id = "modal-fusion";
+    modal.className = "modal-overlay";
+    modal.style.cssText = "position:fixed;inset:0;background:rgba(20,30,60,.5);z-index:2000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);padding:14px";
+    modal.onclick = e=>{ if(e.target===modal) modal.style.display="none"; };
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML=`
+    <div class="modal" style="max-width:560px">
+      <button class="modal-close" onclick="document.getElementById('modal-fusion').style.display='none'">✕</button>
+      <h2 style="color:var(--orange)">🔀 Fusionar empresas duplicadas</h2>
+      <p style="color:var(--text2);font-size:13px;margin-bottom:16px;line-height:1.6">
+        Elige el nombre <strong>definitivo</strong> que se usará para todas las ofertas del grupo.<br>
+        Todas las demás variantes se renombrarán automáticamente.
+      </p>
+
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px">
+        <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Nombre definitivo de la empresa</div>
+        <select id="fusion-nombre-sel" style="width:100%;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;font-family:inherit;margin-bottom:10px">
+          ${g.map(emp=>`<option value="${emp.replace(/"/g,'&quot;')}"${emp===principal?" selected":""}>${emp} (${ofertas.filter(o=>o.empresa===emp).length} ofertas)</option>`).join("")}
+        </select>
+        <div style="color:var(--text3);font-size:11px;margin-bottom:6px;font-weight:600">O escribe un nombre personalizado:</div>
+        <input id="fusion-nombre-custom" placeholder="Ej: Empresa García S.L."
+          style="width:100%;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;font-family:inherit"
+          oninput="if(this.value.trim()) document.getElementById('fusion-nombre-sel').value=''"/>
+      </div>
+
+      <div style="background:var(--orange-bg);border:1px solid #fbd0b0;border-radius:10px;padding:12px 14px;margin-bottom:18px">
+        <div style="color:var(--orange);font-size:12px;font-weight:700;margin-bottom:4px">⚠️ Esta acción modificará las siguientes ofertas:</div>
+        ${g.map(emp=>{
+          const n=ofertas.filter(o=>o.empresa===emp).length;
+          return n>0?`<div style="color:var(--text2);font-size:12px;padding:2px 0">· <strong>${emp}</strong> → ${n} oferta${n!==1?'s':''} a renombrar</div>`:"";
+        }).join("")}
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-cancel" onclick="document.getElementById('modal-fusion').style.display='none'">Cancelar</button>
+        <button onclick="ejecutarFusion(${grupoIdx})"
+          style="background:linear-gradient(135deg,#f97316,#ea580c);color:white;border:none;border-radius:8px;padding:9px 24px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 3px 12px rgba(249,115,22,.3)">
+          🔀 Fusionar ahora
+        </button>
+      </div>
+    </div>`;
+  modal.style.display = "flex";
+}
+
+async function ejecutarFusion(grupoIdx){
+  const g = window._dupGrupos?.[grupoIdx];
+  if(!g) return;
+
+  // Determinar nombre definitivo
+  const custom = document.getElementById("fusion-nombre-custom")?.value.trim();
+  const sel    = document.getElementById("fusion-nombre-sel")?.value;
+  const nombreFinal = custom || sel;
+  if(!nombreFinal){ toast("⚠️ Elige o escribe el nombre definitivo","#f59e0b"); return; }
+
+  // Verificar que hay algo que renombrar
+  const afectadas = ofertas.filter(o=>g.includes(o.empresa) && o.empresa!==nombreFinal);
+  if(!afectadas.length){ toast("ℹ️ Todas las ofertas ya tienen ese nombre","#3b82f6"); return; }
+
+  if(!confirm(`¿Renombrar ${afectadas.length} oferta${afectadas.length!==1?"s":""} a "${nombreFinal}"? Esta acción no se puede deshacer.`)) return;
+
+  const btn = document.querySelector("#modal-fusion .modal-footer button:last-child");
+  if(btn){ btn.disabled=true; btn.textContent="Fusionando..."; }
+
+  let ok=0, errores=0;
+  try{
+    // Procesar en lotes de 10 para no saturar Firestore
+    for(let i=0; i<afectadas.length; i+=10){
+      const lote = afectadas.slice(i, i+10);
+      const batch = db.batch();
+      lote.forEach(o=>{
+        batch.update(db.collection("ofertas").doc(o.id), {
+          empresa: nombreFinal,
+          actualizadoEn: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      });
+      await batch.commit();
+      ok += lote.length;
+    }
+    // Registrar en historial
+    await db.collection("historial").add({
+      usuarioUid: currentUser.uid,
+      usuarioNombre: currentProfile.nombre,
+      accion: "fusión de empresas",
+      empresa: nombreFinal,
+      valorAnterior: g.filter(e=>e!==nombreFinal).join(", "),
+      valorNuevo: nombreFinal,
+      campoModificado: "empresa",
+      fecha: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    document.getElementById("modal-fusion").style.display="none";
+    toast(`✅ Fusión completada — ${ok} oferta${ok!==1?"s":""} renombradas a "${nombreFinal}"`, "#10b981");
+    // Limpiar grupos y reanalizar
+    window._dupGrupos = null;
+    setTimeout(()=>detectarDuplicados(), 1200);
+  }catch(e){
+    toast("❌ Error en la fusión: "+e.message, "#ef4444");
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent="🔀 Fusionar ahora"; }
+  }
 }
 
 // ─── Filtrar tabla por empresa exacta ───────────────────────────────────────
@@ -6550,6 +6740,192 @@ function toast(msg,color="#10b981"){
   const el=document.getElementById("toast");
   el.textContent=msg;el.style.background=color;el.style.opacity="1";
   setTimeout(()=>el.style.opacity="0",3500);
+}
+
+// ===== CLASIFICACIÓN DE COMERCIALES =====
+let _rankingPeriodo="mes"; // mes | trimestre | anio | total
+
+function renderRanking(){
+  const el=document.getElementById("vista-ranking");
+  if(!el) return;
+
+  const hoy=new Date();
+  const mesActual=hoy.getMonth();
+  const anioActual=hoy.getFullYear();
+
+  // Filtrar ofertas según período seleccionado
+  function dentroDelPeriodo(o){
+    const f=o.fechaOferta?new Date(o.fechaOferta):null;
+    if(!f) return false;
+    if(_rankingPeriodo==="mes")      return f.getMonth()===mesActual && f.getFullYear()===anioActual;
+    if(_rankingPeriodo==="trimestre"){
+      const tri=Math.floor(mesActual/3);
+      return Math.floor(f.getMonth()/3)===tri && f.getFullYear()===anioActual;
+    }
+    if(_rankingPeriodo==="anio")     return f.getFullYear()===anioActual;
+    return true; // total
+  }
+
+  const ofPeriodo = ofertas.filter(dentroDelPeriodo);
+  const responsables=[...new Set(ofertas.map(o=>o.responsableNombre).filter(Boolean))].sort();
+
+  if(!responsables.length){
+    el.innerHTML=`<div style="text-align:center;padding:60px 20px;color:var(--text3)">Sin comerciales registrados aún.</div>`;
+    return;
+  }
+
+  // Calcular estadísticas por comercial en el período
+  const stats = responsables.map(r=>{
+    const sus      = ofPeriodo.filter(o=>o.responsableNombre===r);
+    const ganadas  = sus.filter(o=>o.estado==="Ganada");
+    const perdidas = sus.filter(o=>["Perdida","Descartada"].includes(o.estado));
+    const activas  = sus.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado));
+    const cerradas = ganadas.length+perdidas.length;
+    const tasa     = cerradas>0 ? Math.round(ganadas.length/cerradas*100) : 0;
+    const impGan   = ganadas.reduce((s,o)=>s+(o.importe||0),0);
+    const impPipe  = activas.reduce((s,o)=>s+(o.importe||0),0);
+    const llamadas = sus.reduce((s,o)=>s+(o.numLlamadas||0),0);
+    // Puntuación compuesta: ganadas×40 + tasa×1 + llamadas×0.5 + importe/10000
+    const puntos   = Math.round(ganadas.length*40 + tasa*1 + llamadas*0.5 + impGan/10000);
+    return {nombre:r,total:sus.length,ganadas:ganadas.length,perdidas:perdidas.length,
+            activas:activas.length,cerradas,tasa,impGan,impPipe,llamadas,puntos};
+  }).sort((a,b)=>b.puntos-a.puntos);
+
+  // Totales generales del período
+  const totGan   = stats.reduce((s,x)=>s+x.ganadas,0);
+  const totImp   = stats.reduce((s,x)=>s+x.impGan,0);
+  const totLl    = stats.reduce((s,x)=>s+x.llamadas,0);
+  const maxPuntos= stats[0]?.puntos||1;
+
+  // Paleta de colores por posición
+  const coloresPodio=["#f59e0b","#94a3b8","#cd7c3b"];
+  const medallaEmoji=["🥇","🥈","🥉"];
+  const coloresAvatar=["#1565c0","#0a7c5c","#5b21b6","#c2490b","#b91c1c","#0e7490"];
+  function avatarColor(n){let h=0;for(let i=0;i<n.length;i++)h=(h*31+n.charCodeAt(i))&0xffffffff;return coloresAvatar[Math.abs(h)%coloresAvatar.length];}
+  function iniciales(n){const p=n.trim().split(/\s+/);return p.length>=2?(p[0][0]+p[1][0]).toUpperCase():n.slice(0,2).toUpperCase();}
+  function fmtEur(n){return n.toLocaleString("es-ES",{minimumFractionDigits:0,maximumFractionDigits:0})+" €";}
+
+  // Etiqueta del período
+  const MESES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  const triNom=["1er trimestre","2º trimestre","3er trimestre","4º trimestre"];
+  const labelPeriodo = _rankingPeriodo==="mes" ? `${MESES[mesActual]} ${anioActual}`
+    : _rankingPeriodo==="trimestre" ? `${triNom[Math.floor(mesActual/3)]} ${anioActual}`
+    : _rankingPeriodo==="anio" ? `Año ${anioActual}`
+    : "Histórico completo";
+
+  el.innerHTML=`
+    <!-- Cabecera -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+      <div>
+        <h3 style="color:var(--accent);font-size:18px;font-weight:900;margin:0">🥇 Clasificación de Comerciales</h3>
+        <div style="color:var(--text3);font-size:12px;margin-top:4px">Período: <strong style="color:var(--text)">${labelPeriodo}</strong> · ${stats.filter(s=>s.total>0).length} comerciales activos</div>
+      </div>
+      <!-- Selector de período -->
+      <div style="display:flex;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:4px">
+        ${[["mes","Este mes"],["trimestre","Trimestre"],["anio","Este año"],["total","Histórico"]].map(([v,l])=>`
+          <button onclick="_rankingPeriodo='${v}';renderRanking()"
+            style="background:${_rankingPeriodo===v?"var(--accent)":"transparent"};color:${_rankingPeriodo===v?"white":"var(--text3)"};border:none;border-radius:7px;padding:6px 13px;font-size:12px;font-weight:${_rankingPeriodo===v?"700":"600"};cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap">
+            ${l}
+          </button>`).join("")}
+      </div>
+    </div>
+
+    <!-- KPIs resumen del período -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:22px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:24px;font-weight:900;color:var(--accent)">${stats.reduce((s,x)=>s+x.total,0)}</div>
+        <div style="color:var(--text3);font-size:11px;font-weight:600;margin-top:3px">Ofertas presentadas</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:24px;font-weight:900;color:#10b981">${totGan}</div>
+        <div style="color:var(--text3);font-size:11px;font-weight:600;margin-top:3px">Ofertas ganadas</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:${totImp>999999?"18":"24"}px;font-weight:900;color:#34d399">${fmtEur(totImp)}</div>
+        <div style="color:var(--text3);font-size:11px;font-weight:600;margin-top:3px">Ingresos cerrados</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:24px;font-weight:900;color:#3b82f6">${totLl}</div>
+        <div style="color:var(--text3);font-size:11px;font-weight:600;margin-top:3px">Llamadas realizadas</div>
+      </div>
+    </div>
+
+    <!-- Pódium top 3 -->
+    ${stats.length>=2?`
+    <div style="background:linear-gradient(135deg,#fffbeb,#fefce8);border:1.5px solid #fde68a;border-radius:16px;padding:24px 20px;margin-bottom:22px">
+      <div style="text-align:center;color:var(--yellow);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;margin-bottom:20px">🏆 Pódium del período</div>
+      <div style="display:flex;align-items:flex-end;justify-content:center;gap:12px;flex-wrap:wrap">
+        ${[1,0,2].filter(i=>stats[i]).map(i=>{
+          const s=stats[i];
+          const altura=[100,130,80][i===0?1:i===1?0:2]||80;
+          const col=coloresPodio[i]||"#64748b";
+          const medalla=medallaEmoji[i]||"";
+          return `<div style="display:flex;flex-direction:column;align-items:center;gap:8px;flex:0 0 auto">
+            <div style="width:52px;height:52px;border-radius:50%;background:${avatarColor(s.nombre)};display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:900;color:white;border:3px solid ${col};box-shadow:0 4px 14px ${col}44">${iniciales(s.nombre)}</div>
+            <div style="text-align:center">
+              <div style="font-size:13px;font-weight:800;color:var(--text)">${s.nombre.split(" ")[0]}</div>
+              <div style="font-size:18px">${medalla}</div>
+            </div>
+            <div style="background:${col};border-radius:8px 8px 0 0;width:80px;height:${altura}px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px">
+              <div style="color:white;font-size:16px;font-weight:900">${s.ganadas}</div>
+              <div style="color:rgba(255,255,255,.8);font-size:9px;font-weight:700">GANADAS</div>
+              <div style="color:rgba(255,255,255,.9);font-size:10px;font-weight:700;margin-top:2px">${fmtEur(s.impGan)}</div>
+            </div>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>`:""}
+
+    <!-- Tabla de clasificación completa -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden">
+      <div style="padding:14px 18px;border-bottom:2px solid var(--border);background:var(--surface2);display:grid;grid-template-columns:44px 1fr 80px 80px 80px 90px 100px 80px;gap:8px;align-items:center">
+        <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase;text-align:center">#</div>
+        <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase">Comercial</div>
+        <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase;text-align:center">Ofertas</div>
+        <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase;text-align:center">Ganadas</div>
+        <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase;text-align:center">% Cierre</div>
+        <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase;text-align:center">Ingresos</div>
+        <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase">Rendimiento</div>
+        <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase;text-align:center">Llamadas</div>
+      </div>
+      ${stats.map((s,i)=>{
+        const pct = Math.round(s.puntos/maxPuntos*100);
+        const col = i===0?"#f59e0b":i===1?"#94a3b8":i===2?"#cd7c3b":"var(--border)";
+        const tasaCol = s.tasa>=60?"#10b981":s.tasa>=35?"#f59e0b":"#ef4444";
+        const esLider = i===0;
+        return `<div style="display:grid;grid-template-columns:44px 1fr 80px 80px 80px 90px 100px 80px;gap:8px;align-items:center;padding:13px 18px;border-bottom:1px solid var(--border);background:${esLider?"linear-gradient(135deg,#fffbeb,#fefce8)":"var(--surface)"};transition:background .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='${esLider?"linear-gradient(135deg,#fffbeb,#fefce8)":"var(--surface)"}'">
+          <div style="text-align:center">
+            <span style="font-size:${i<3?"20":"14"}px">${medallaEmoji[i]||`<span style="color:var(--text3);font-weight:700">${i+1}</span>`}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:36px;height:36px;border-radius:50%;background:${avatarColor(s.nombre)};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:white;flex-shrink:0;border:2px solid ${col}">${iniciales(s.nombre)}</div>
+            <div>
+              <div style="font-size:13px;font-weight:700;color:var(--text)">${s.nombre}</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:1px">${s.activas} en cartera</div>
+            </div>
+          </div>
+          <div style="text-align:center;font-size:14px;font-weight:700;color:var(--text)">${s.total}</div>
+          <div style="text-align:center;font-size:14px;font-weight:800;color:#10b981">${s.ganadas}</div>
+          <div style="text-align:center">
+            <span style="background:${tasaCol}22;color:${tasaCol};border:1px solid ${tasaCol}55;border-radius:20px;padding:3px 9px;font-size:12px;font-weight:700">${s.tasa}%</span>
+          </div>
+          <div style="text-align:center;font-size:12px;font-weight:700;color:#34d399">${fmtEur(s.impGan)}</div>
+          <div>
+            <div style="background:var(--surface2);border-radius:4px;height:8px;overflow:hidden;margin-bottom:3px">
+              <div style="height:100%;background:${i===0?"linear-gradient(90deg,#f59e0b,#fbbf24)":i===1?"linear-gradient(90deg,#94a3b8,#cbd5e1)":i===2?"linear-gradient(90deg,#cd7c3b,#d97706)":"linear-gradient(90deg,var(--accent),var(--accent2))"};width:${pct}%;border-radius:4px;transition:width .5s"></div>
+            </div>
+            <div style="font-size:10px;color:var(--text3);font-weight:600">${s.puntos} pts</div>
+          </div>
+          <div style="text-align:center;font-size:13px;font-weight:600;color:var(--accent)">${s.llamadas}</div>
+        </div>`;
+      }).join("")}
+    </div>
+
+    <!-- Nota explicativa de la puntuación -->
+    <div style="margin-top:14px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text3);font-size:11px;line-height:1.7">
+      <strong style="color:var(--text2)">📊 Cálculo de puntuación:</strong>
+      Ganadas ×40 pts · Tasa de cierre ×1 pt · Llamadas ×0,5 pts · Importe ganado /10.000 pts
+    </div>`;
 }
 
 // Arranque: verificar sesión activa
