@@ -550,8 +550,8 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       <input type="text" id="setup-nombre" placeholder="Nombre Apellido"/>
     </div>
     <div class="form-group">
-      <label>Email</label>
-      <input type="email" id="setup-email" placeholder="tu@email.com" autocomplete="email"/>
+      <label>Correo electrónico</label>
+      <input type="email" id="setup-email" placeholder="tu@correo.com" autocomplete="email"/>
     </div>
     <div class="form-group">
       <label>Contraseña <span style="color:var(--text3);font-size:10px;font-weight:400">(mínimo 6 caracteres)</span></label>
@@ -574,7 +574,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
     </div>
     <div id="login-error" class="error-msg"></div>
     <div class="form-group">
-      <label>Email</label>
+      <label>Correo electrónico</label>
       <input type="email" id="login-email" placeholder="usuario@empresa.com" autocomplete="email"/>
     </div>
     <div class="form-group">
@@ -624,7 +624,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
   <div class="nav">
     <button class="nav-btn active" id="nav-dashboard" onclick="setVista('dashboard')">🏠 Inicio</button>
     <button class="nav-btn" id="nav-tabla" onclick="setVista('tabla')">📋 Ofertas</button>
-    <button class="nav-btn" id="nav-kanban" onclick="setVista('kanban')">🗂 Kanban</button>
+    <button class="nav-btn" id="nav-kanban" onclick="setVista('kanban')">🗂 Tablero</button>
     <button class="nav-btn" id="nav-estadistas" onclick="setVista('estadistas')">📊 Estadísticas</button>
     <button class="nav-btn" id="nav-mapa" onclick="setVista('mapa')">🗺️ Mapa</button>
     <button class="nav-btn" id="nav-llamadas" onclick="setVista('llamadas')">📞 Llamadas</button>
@@ -711,7 +711,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       <div id="stats-builder"></div>
     </div>
 
-    <div style="margin-top:14px;color:var(--text3);font-size:11px">Build: <b style="color:var(--accent)">v5.0_MEJORAS_ALTA_MEDIA_PRIORIDAD</b></div>
+    <div style="margin-top:14px;color:var(--text3);font-size:11px">Versión: <b style="color:var(--accent)">v5.1_ESPAÑOL_COMPLETO</b></div>
   </div>
 </div></div>
   <div id="vista-mapa" style="display:none;padding:16px 20px 28px">
@@ -806,7 +806,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
         <div class="field"><label>Teléfono Móvil</label><input type="tel" id="f-movil" placeholder="Ej: 6XX XXX XXX"/></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>Email</label><input type="email" id="f-email"/></div>
+        <div class="field"><label>Correo electrónico</label><input type="email" id="f-email"/></div>
         <div class="field"></div>
       </div>
       <div class="grid2">
@@ -879,8 +879,8 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
           onmouseover="this.style.borderColor='var(--accent)';this.style.background='var(--accent-light)'"
           onmouseout="this.style.borderColor='var(--border2)';this.style.background='var(--surface2)'">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="opacity:.5"><path d="M4.5 16.5A4 4 0 0 1 3 9a5 5 0 0 1 9.9-1A4 4 0 0 1 19.5 13H19a3 3 0 0 1 0 3.5" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13v7M12 13l-2.5 2.5M12 13l2.5 2.5" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span style="font-size:12px;font-weight:600;color:var(--text2)">Arrastra archivos aquí o haz clic para seleccionar</span>
-          <span style="font-size:11px;color:var(--text3)">PDF, Word, Excel, imágenes · Varios a la vez</span>
+          <span style="font-size:12px;font-weight:600;color:var(--text2)">Arrastra archivos aquí o pulsa para seleccionar</span>
+          <span style="font-size:11px;color:var(--text3)">PDF, Word, Excel, imágenes · Se admiten varios a la vez</span>
           <input type="file" multiple accept=".doc,.docx,.pdf,.xls,.xlsx,.txt,.png,.jpg,.jpeg" onchange="adjuntar(event)" style="display:none"/>
         </label>
         <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
@@ -964,7 +964,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
     <h2>👤 Crear nuevo usuario</h2>
     <div style="display:grid;gap:12px">
       <div class="field"><label>Nombre completo</label><input id="nu-nombre"/></div>
-      <div class="field"><label>Email</label><input type="email" id="nu-email"/></div>
+      <div class="field"><label>Correo electrónico</label><input type="email" id="nu-email"/></div>
       <div class="field"><label>Contraseña temporal</label><input type="password" id="nu-pass" placeholder="Mínimo 6 caracteres"/></div>
       <div class="field"><label>Rol</label><select id="nu-rol"><option value="comercial">Comercial</option><option value="admin">Administrador</option><option value="lectura">Solo lectura</option></select></div>
     </div>
@@ -1189,7 +1189,7 @@ function actualizarEstadoOneDrive(){
   if(nombre){
     el.innerHTML=`<span style="color:#10b981">✅ Conectado: ${nombre}</span>`;
   } else {
-    el.innerHTML=`<span style="color:#f59e0b">🔗 Client ID guardado — pendiente de login</span>`;
+    el.innerHTML=`<span style="color:#f59e0b">🔗 ID de aplicación guardado — pendiente de login</span>`;
   }
 }
 
@@ -1609,7 +1609,7 @@ async function crearAdminInicial(){
     btn.textContent="Crear mi cuenta y entrar";btn.disabled=false;
     const el=document.getElementById("setup-error");
     if(e.code==="auth/email-already-in-use"){
-      el.textContent="Ese email ya tiene una cuenta. Ve al login normal.";
+      el.textContent="Ese correo ya tiene una cuenta. Inicia sesión con tu cuenta.";
     } else {
       el.textContent="Error: "+e.message;
     }
@@ -1630,9 +1630,9 @@ async function doLogin(){
   }catch(e){
     btn.textContent="Entrar al CRM";btn.disabled=false;
     if(e.code==="auth/user-not-found"||e.code==="auth/wrong-password"||e.code==="auth/invalid-credential"){
-      showErr("Email o contraseña incorrectos.");
+      showErr("Correo o contraseña incorrectos.");
     } else if(e.code==="auth/invalid-email"){
-      showErr("El formato del email no es válido.");
+      showErr("El formato del correo no es válido.");
     } else if(e.code==="auth/too-many-requests"){
       showErr("Cuenta bloqueada temporalmente por demasiados intentos fallidos. Inténtalo en unos minutos.");
     } else if(e.code==="auth/network-request-failed"){
@@ -1889,7 +1889,7 @@ function renderStats(){
   document.getElementById("stats-row").innerHTML=`
     <div class="stat-card clickable" onclick="setVista('tabla')"><div class="stat-val" style="color:var(--accent)">${ofertas.length}</div><div class="stat-lbl">Total Ofertas</div></div>
     <div class="stat-card clickable" onclick="setVista('tabla')"><div class="stat-val" style="color:#10b981">${gan}</div><div class="stat-lbl">Ganadas</div><div class="stat-trend" style="color:#10b981">Tasa: ${tasa}%</div></div>
-    <div class="stat-card clickable" onclick="setVista('estadistas')"><div class="stat-val" style="color:var(--purple)">${ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado)).length}</div><div class="stat-lbl">En pipeline</div></div>
+    <div class="stat-card clickable" onclick="setVista('estadistas')"><div class="stat-val" style="color:var(--purple)">${ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado)).length}</div><div class="stat-lbl">En cartera</div></div>
     <div class="stat-card clickable" onclick="setVista('alertas')" style="${totalRecordatorios>0?'border-color:#f97316':''}">
       <div class="stat-val" style="color:#fb923c">${totalRecordatorios}</div>
       <div class="stat-lbl">Recordatorios</div>
@@ -2175,7 +2175,7 @@ function renderDashboard(){
       </div>
       <div class="dash-kpi" style="cursor:pointer" onclick="setVista('kanban')">
         <div class="val" style="color:#3b82f6;font-size:${totalPipeline>999999?'20':'30'}px">${totalPipeline.toLocaleString("es-ES")} €</div>
-        <div class="lbl">Pipeline activo</div>
+        <div class="lbl">Cartera activa</div>
         <div class="sub" style="color:var(--text3)">${pend.length} oferta${pend.length!==1?'s':''} en curso</div>
       </div>
       <div class="dash-kpi" style="${(venc.length+proxManana.length)>0?'border-color:#f97316;':''};cursor:pointer" onclick="setVista('alertas')">
@@ -2200,7 +2200,7 @@ function renderDashboard(){
     <!-- ── Fila 2: Embudo + Doughnut + Últimas ofertas ── -->
     <div class="charts-grid" style="grid-template-columns:1fr 1fr 1fr">
       <div class="chart-card">
-        <h3>🎯 Embudo de ventas (pipeline activo)</h3>
+        <h3>🎯 Embudo de ventas (cartera activa)</h3>
         <div style="position:relative;height:190px">
           <canvas id="chart-embudo"></canvas>
         </div>
@@ -2301,7 +2301,7 @@ function renderDashboard(){
     } else if(ctxE){
       const ctx2=ctxE.getContext("2d");
       ctx2.fillStyle=fontColor;ctx2.font="13px Plus Jakarta Sans";
-      ctx2.textAlign="center";ctx2.fillText("Sin ofertas activas en pipeline",ctxE.width/2,ctxE.height/2);
+      ctx2.textAlign="center";ctx2.fillText("Sin ofertas activas en cartera",ctxE.width/2,ctxE.height/2);
     }
 
     // Doughnut — distribución por estado
@@ -2388,8 +2388,8 @@ function renderKanban(){
   cont.innerHTML=`
     <div style="padding:14px 24px 6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
       <div>
-        <h3 style="color:var(--accent);font-size:17px;font-weight:900;margin:0">🗂 Pipeline Kanban</h3>
-        <div style="color:var(--text3);font-size:12px;margin-top:3px">${totalActivas} ofertas activas · Pipeline: <strong style="color:#0a7c5c">${totalPipeline.toLocaleString("es-ES")} €</strong> · Arrastra las tarjetas para cambiar estado</div>
+        <h3 style="color:var(--accent);font-size:17px;font-weight:900;margin:0">🗂 Tablero de ventas</h3>
+        <div style="color:var(--text3);font-size:12px;margin-top:3px">${totalActivas} ofertas activas · Cartera: <strong style="color:#0a7c5c">${totalPipeline.toLocaleString("es-ES")} €</strong> · Arrastra las fichas para cambiar estado</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <select onchange="_kanbanFiltroResp=this.value;renderKanban()"
@@ -2572,7 +2572,7 @@ function abrirFichaEmpresa(nombreEmpresa){
       </div>
       <div style="background:var(--accent-light);border:1px solid #b8d0f5;border-radius:var(--radius-sm);padding:10px;text-align:center">
         <div style="color:var(--accent);font-size:18px;font-weight:800">${activas.length}</div>
-        <div style="color:var(--accent);font-size:10px;font-weight:700">🔵 En pipeline</div>
+        <div style="color:var(--accent);font-size:10px;font-weight:700">🔵 En cartera</div>
       </div>
       <div style="background:var(--red-bg);border:1px solid #fca5a5;border-radius:var(--radius-sm);padding:10px;text-align:center">
         <div style="color:var(--red);font-size:18px;font-weight:800">${perdidas.length}</div>
@@ -2639,7 +2639,7 @@ function mostrarSmartNotif(){
   if(hoyRec.length)   chips.push(`<span class="sn-chip warn" onclick="setVista('alertas');cerrarSmartNotif()">🔔 ${hoyRec.length} para hoy</span>`);
   if(mananaRec.length)chips.push(`<span class="sn-chip warn" onclick="setVista('alertas');cerrarSmartNotif()">⏰ ${mananaRec.length} mañana</span>`);
   if(inactivas.length)chips.push(`<span class="sn-chip red" onclick="setVista('alertas');cerrarSmartNotif()">💤 ${inactivas.length} sin actividad +${DIAS_ALERTA}d</span>`);
-  if(totalPipeline>0) chips.push(`<span class="sn-chip blue" onclick="setVista('kanban');cerrarSmartNotif()">💶 Pipeline: ${totalPipeline.toLocaleString("es-ES")} €</span>`);
+  if(totalPipeline>0) chips.push(`<span class="sn-chip blue" onclick="setVista('kanban');cerrarSmartNotif()">💶 Cartera: ${totalPipeline.toLocaleString("es-ES")} €</span>`);
   if(impMes>0)        chips.push(`<span class="sn-chip ok" onclick="setVista('estadistas');cerrarSmartNotif()">🏆 Ganado este mes: ${impMes.toLocaleString("es-ES")} €</span>`);
 
   const nombre=(currentProfile?.nombre||"").split(" ")[0]||"";
@@ -2936,7 +2936,7 @@ function renderEstadisticasCustom(){
         </div>
         <div class="sb-actions">
           <button class="sb-btn primary" id="st-run">▶ Generar</button>
-          <button class="sb-btn danger" id="st-reset">⟲ Reset</button>
+          <button class="sb-btn danger" id="st-reset">⟲ Limpiar</button>
         </div>
       </div>
       <div>
@@ -3274,7 +3274,7 @@ function renderMapa(){
       <div class="mapa-kpi" style="border-left:4px solid #f59e0b">
         <div class="mapa-kpi-val" style="color:#f59e0b;font-size:${ticketMedio>99999?'16':'20'}px">${ticketMedio.toLocaleString("es-ES")} €</div>
         <div class="mapa-kpi-lbl">Ticket medio</div>
-        <div class="mapa-kpi-sub" style="color:var(--text3)">🔄 ${totalPipeline} en pipeline</div>
+        <div class="mapa-kpi-sub" style="color:var(--text3)">🔄 ${totalPipeline} en cartera</div>
       </div>
     </div>
 
@@ -3407,7 +3407,7 @@ function renderMapa(){
         +`<tr><td style="color:#6b7280;padding:2px 0">📦 Ofertas</td><td style="font-weight:800;color:#1a2236;text-align:right">${n}</td></tr>`
         +`<tr><td style="color:#6b7280;padding:2px 0">💶 Importe</td><td style="font-weight:800;color:#059669;text-align:right">${Math.round(imp).toLocaleString("es-ES")} €</td></tr>`
         +`<tr><td style="color:#6b7280;padding:2px 0">✅ Ganadas</td><td style="font-weight:800;color:#10b981;text-align:right">${gan}</td></tr>`
-        +`<tr><td style="color:#6b7280;padding:2px 0">🔄 Pipeline</td><td style="font-weight:800;color:#3b82f6;text-align:right">${pipe}</td></tr>`
+        +`<tr><td style="color:#6b7280;padding:2px 0">🔄 Cartera</td><td style="font-weight:800;color:#3b82f6;text-align:right">${pipe}</td></tr>`
         +`<tr><td style="color:#6b7280;padding:2px 0">❌ Perdidas</td><td style="font-weight:800;color:#ef4444;text-align:right">${perd}</td></tr>`
         +`<tr><td colspan="2" style="padding:4px 0 0"><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700"><span style="color:#6b7280">🎯 Tasa cierre</span><span style="color:#7c3aed">${wr}%</span></div>${wrBar}</td></tr>`
         +`</table>`
@@ -3515,7 +3515,7 @@ function mapaClickProv(prov, n, imp, gan, wr){
     </div>
     <div class="mapa-metrica" style="border-left:3px solid #3b82f6">
       <div class="mapa-metrica-val" style="color:#3b82f6">${activas.length}</div>
-      <div class="mapa-metrica-lbl">En pipeline</div>
+      <div class="mapa-metrica-lbl">En cartera</div>
       <div style="font-size:10px;color:var(--text3);margin-top:2px">${Math.round(impPipeline).toLocaleString('es-ES')} €</div>
     </div>
     <div class="mapa-metrica" style="border-left:3px solid #f59e0b">
@@ -4132,7 +4132,7 @@ service cloud.firestore {
             Ve a <a href="https://console.firebase.google.com" target="_blank" style="color:var(--accent);font-weight:700">console.firebase.google.com</a>
             → Tu proyecto <b style="color:var(--text)">machinecrm-61b34</b>
             → <b style="color:var(--text)">Firestore Database</b>
-            → pestaña <b style="color:var(--text)">Reglas</b>
+            → pestaña <b style="color:var(--text)">Reglas de seguridad</b>
           </div>
         </div>
         <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
@@ -4258,9 +4258,9 @@ function _renderComparativaUI(){
       </div>`).join("")}
     </div>
 
-    <!-- Gráfico importe activo en pipeline -->
+    <!-- Gráfico importe activo en cartera -->
     <div class="chart-card" style="margin-bottom:16px">
-      <h3>⚡ Pipeline activo por comercial</h3>
+      <h3>⚡ Cartera activa por comercial</h3>
       ${stats.map((s,i)=>`<div class="bar-row">
         <div class="bar-label">${s.nombre.split(" ")[0]}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${maxAct?Math.round(s.importeActivo/maxAct*100):0}%;background:#3b82f6">
@@ -4307,7 +4307,7 @@ function _renderComparativaUI(){
             <div class="comp-kpi"><div class="comp-kpi-val" style="color:var(--red)">${s.perdidas}</div><div class="comp-kpi-lbl">Perdidas</div></div>
             <div class="comp-kpi"><div class="comp-kpi-val" style="color:var(--text3)">${s.descartadas}</div><div class="comp-kpi-lbl">Descartadas</div></div>
             <div class="comp-kpi"><div class="comp-kpi-val" style="color:var(--green);font-size:13px">${fmtEur(s.importeGanado)}</div><div class="comp-kpi-lbl">Imp. ganado</div></div>
-            <div class="comp-kpi"><div class="comp-kpi-val" style="color:#3b82f6;font-size:13px">${fmtEur(s.importeActivo)}</div><div class="comp-kpi-lbl">Pipeline activo</div></div>
+            <div class="comp-kpi"><div class="comp-kpi-val" style="color:#3b82f6;font-size:13px">${fmtEur(s.importeActivo)}</div><div class="comp-kpi-lbl">Cartera activa</div></div>
             <div class="comp-kpi"><div class="comp-kpi-val" style="color:var(--accent)">${s.llamadas}</div><div class="comp-kpi-lbl">Llamadas</div></div>
             <div class="comp-kpi"><div class="comp-kpi-val" style="color:var(--purple)">${s.ediciones}</div><div class="comp-kpi-lbl">Ediciones</div></div>
             <div class="comp-kpi"><div class="comp-kpi-val">${s.promDias!==null?s.promDias+" d":"—"}</div><div class="comp-kpi-lbl">Días medio cierre</div></div>
@@ -4958,7 +4958,7 @@ function exportarExcel(){
     "Contacto":o.contacto||"",
     "Teléfono":o.telefono||"",
     "Teléfono Móvil":o.telefonoMovil||"",
-    "Email":o.email||"",
+    "Correo":o.email||"",
     "Provincia":o.provincia||"",
     "País":o.pais||"",
     "Tipo Máquina":o.tipoMaquina||"",
@@ -5010,7 +5010,7 @@ function mostrarPrevistaImport(raw){
     empresa:mapCol(row,["Empresa","empresa","EMPRESA","Company","Razón Social"]),
     contacto:mapCol(row,["Contacto","contacto","Nombre contacto"]),
     telefono:mapCol(row,["Teléfono","telefono","Tel","Phone"]),
-    email:mapCol(row,["Email","email","Correo"]),
+    email:mapCol(row,["Correo","email","Correo"]),
     provincia:mapCol(row,["Provincia","provincia"]),
     tipoMaquina:mapCol(row,["Tipo Máquina","tipo_maquina","Tipo","Máquina"]),
     descripcion:mapCol(row,["Descripción","descripcion","Description"]),
@@ -5092,7 +5092,7 @@ function verDetalle(id){
     </div>
     ${vence?`<div style="background:var(--orange-bg);border:1px solid #fbd0b0;border-radius:10px;padding:10px 14px;margin-bottom:12px;color:#fb923c;font-size:13px;font-weight:600">⚠️ Recordatorio vencido — Llamar a ${o.contacto||o.empresa}</div>`:""}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-      ${[["📋 Referencia",o.referencia],["👤 Contacto",o.contacto],["📞 Teléfono",o.telefono],["📱 Teléfono Móvil",o.telefonoMovil],["📧 Email",o.email],["📍 Provincia",o.provincia],["🏭 Máquina",o.tipoMaquina],["💶 Importe",(o.importe||0).toLocaleString("es-ES")+" €"],["📅 Fecha",o.fechaOferta?new Date(o.fechaOferta).toLocaleDateString("es-ES"):"—"],["👷 Responsable",o.responsableNombre||"—"],["📞 Llamadas",o.numLlamadas||0],["💬 Último resultado",o.ultimoResultado||"—"]].map(([k,v])=>`<div style="background:var(--surface);border-radius:8px;padding:9px 12px"><div style="color:var(--text3);font-size:10px;font-weight:700">${k}</div><div style="color:var(--text);font-size:13px;margin-top:2px">${v||"—"}</div></div>`).join("")}
+      ${[["📋 Referencia",o.referencia],["👤 Contacto",o.contacto],["📞 Teléfono",o.telefono],["📱 Teléfono Móvil",o.telefonoMovil],["📧 Correo",o.email],["📍 Provincia",o.provincia],["🏭 Máquina",o.tipoMaquina],["💶 Importe",(o.importe||0).toLocaleString("es-ES")+" €"],["📅 Fecha",o.fechaOferta?new Date(o.fechaOferta).toLocaleDateString("es-ES"):"—"],["👷 Responsable",o.responsableNombre||"—"],["📞 Llamadas",o.numLlamadas||0],["💬 Último resultado",o.ultimoResultado||"—"]].map(([k,v])=>`<div style="background:var(--surface);border-radius:8px;padding:9px 12px"><div style="color:var(--text3);font-size:10px;font-weight:700">${k}</div><div style="color:var(--text);font-size:13px;margin-top:2px">${v||"—"}</div></div>`).join("")}
     </div>
     ${o.fechaRecordatorio?`<div style="background:${vence?"#fff0e6":"var(--accent-light)"};border:1px solid ${vence?"#fbd0b0":"#b8d0f5"};border-radius:8px;padding:9px 12px;margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700">🔔 RECORDATORIO</div><div style="color:${vence?"var(--orange)":"var(--accent)"};font-size:13px;font-weight:600;margin-top:2px">${new Date(o.fechaRecordatorio).toLocaleDateString("es-ES")}${vence?" — ¡VENCIDO!":""}</div></div>`:""}
     ${o.fechaPrevistaCierre?`<div style="background:#f0fdf4;border:1px solid #b7e4d1;border-radius:8px;padding:9px 12px;margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700">🎯 FECHA PREVISTA DE CIERRE</div><div style="color:var(--green);font-size:13px;font-weight:700;margin-top:2px">${new Date(o.fechaPrevistaCierre).toLocaleDateString("es-ES")}</div></div>`:""}
@@ -5912,7 +5912,7 @@ async function mcRenderUsuarios(){
   <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;overflow:hidden">
     <div style="display:grid;grid-template-columns:1.2fr 1.4fr 120px 130px 150px;padding:10px 16px;background:var(--surface2);border-bottom:2px solid var(--border)">
       <div style="color:var(--text3);font-size:11px;font-weight:800;text-transform:uppercase">Usuario</div>
-      <div style="color:var(--text3);font-size:11px;font-weight:800;text-transform:uppercase">Email</div>
+      <div style="color:var(--text3);font-size:11px;font-weight:800;text-transform:uppercase">Correo electrónico</div>
       <div style="color:var(--text3);font-size:11px;font-weight:800;text-transform:uppercase;text-align:center">Alta</div>
       <div style="color:var(--text3);font-size:11px;font-weight:800;text-transform:uppercase;text-align:center">Rol</div>
       <div style="color:var(--text3);font-size:11px;font-weight:800;text-transform:uppercase;text-align:center">Acciones</div>
@@ -5945,7 +5945,7 @@ async function mcRenderUsuarios(){
     <div style="color:var(--accent);font-weight:900;font-size:14px;margin-bottom:14px">➕ Crear nuevo usuario</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
       <div class="field" style="margin:0"><label>Nombre completo</label><input id="mc-nu-nombre" placeholder="Nombre Apellido"/></div>
-      <div class="field" style="margin:0"><label>Email</label><input type="email" id="mc-nu-email" placeholder="usuario@empresa.com"/></div>
+      <div class="field" style="margin:0"><label>Correo electrónico</label><input type="email" id="mc-nu-email" placeholder="usuario@empresa.com"/></div>
       <div class="field" style="margin:0"><label>Contraseña temporal</label><input type="password" id="mc-nu-pass" placeholder="Mínimo 6 caracteres"/></div>
       <div class="field" style="margin:0"><label>Rol</label><select id="mc-nu-rol"><option value="comercial">Comercial</option><option value="admin">Administrador</option><option value="lectura">Solo lectura</option></select></div>
     </div>
@@ -5957,9 +5957,9 @@ async function mcRenderUsuarios(){
 }
 
 async function mcResetPassword(email){
-  if(!email){toast('⚠️ Email no válido','#f59e0b');return;}
-  if(!confirm(`¿Enviar email de restablecimiento de contraseña a ${email}?`)) return;
-  try{ await auth.sendPasswordResetEmail(email); toast('✅ Email de reseteo enviado','#10b981'); }
+  if(!email){toast('⚠️ Correo no válido','#f59e0b');return;}
+  if(!confirm(`¿Enviar correo de recuperación de contraseña a ${email}?`)) return;
+  try{ await auth.sendPasswordResetEmail(email); toast('✅ Correo de recuperación enviado','#10b981'); }
   catch(e){ console.error(e); toast('❌ Error: '+(e.message||e),'#ef4444'); }
 }
 
@@ -6008,8 +6008,8 @@ async function mcCrearUsuario(){
     mcRenderUsuarios();
   }catch(e){
     console.error(e);
-    if(e.code==='auth/email-already-in-use') toast('⚠️ Ese email ya existe','#f59e0b');
-    else if(e.code==='auth/invalid-email') toast('⚠️ Email inválido','#f59e0b');
+    if(e.code==='auth/email-already-in-use') toast('⚠️ Ese correo ya existe','#f59e0b');
+    else if(e.code==='auth/invalid-email') toast('⚠️ Correo no válido','#f59e0b');
     else if(e.code==='auth/weak-password') toast('⚠️ Contraseña débil','#f59e0b');
     else toast('❌ Error: '+e.message,'#ef4444');
   }finally{
@@ -6163,8 +6163,8 @@ function mcRenderOneDrive(){
 
 function mcGuardarClientId(){
   const val=document.getElementById("od-client-id-input2").value.trim();
-  if(!val||val.length<30){toast("⚠️ Client ID no válido","#f59e0b");return;}
-  setClientId(val);toast("✅ Client ID guardado","#10b981");
+  if(!val||val.length<30){toast("⚠️ ID de aplicación no válido","#f59e0b");return;}
+  setClientId(val);toast("✅ ID de aplicación guardado","#10b981");
   mcActualizarEstadoOD();
 }
 
@@ -6196,7 +6196,7 @@ function mcActualizarEstadoOD(){
   const clientId=getClientId();
   if(!clientId){el.innerHTML='<span style="color:#ef4444">⚠️ Sin configurar</span>';return;}
   const nombre=getMsalAccountName();
-  el.innerHTML=nombre?`<span style="color:#10b981">✅ Conectado: ${nombre}</span>`:`<span style="color:#f59e0b">🔗 Client ID guardado — pendiente de login</span>`;
+  el.innerHTML=nombre?`<span style="color:#10b981">✅ Conectado: ${nombre}</span>`:`<span style="color:#f59e0b">🔗 ID de aplicación guardado — pendiente de login</span>`;
 }
 
 async function guardarNombre(){
@@ -6288,7 +6288,7 @@ async function cargarAdmin(){
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;overflow:hidden">
         <div style="display:grid;grid-template-columns:1.2fr 1.4fr 100px 130px 160px;padding:9px 14px;background:var(--surface2);border-bottom:2px solid var(--border)">
           <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase">Usuario</div>
-          <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase">Email</div>
+          <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase">Correo electrónico</div>
           <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase;text-align:center">Alta</div>
           <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase;text-align:center">Rol</div>
           <div style="color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase;text-align:center">Acciones</div>
@@ -6310,7 +6310,7 @@ async function cargarAdmin(){
               </select>`}
             </div>
             <div style="display:flex;justify-content:center;gap:5px;flex-wrap:wrap">
-              <button onclick="adm_resetPass('${(u.email||"").replace(/'/g,"\\'")}','${u.id}')" title="Resetear contraseña" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:6px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer">🔑</button>
+              <button onclick="adm_resetPass('${(u.email||"").replace(/'/g,"\\'")}','${u.id}')" title="Restablecer contraseña" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:6px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer">🔑</button>
               ${!esMio?`<button onclick="adm_eliminarUsuario('${u.id}','${(u.nombre||u.email||"").replace(/'/g,"\\'")}',${nOfertas})" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:6px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer">🗑</button>`:""}
             </div>
           </div>`;
@@ -6345,20 +6345,20 @@ async function cargarAdmin(){
         <input id="od-client-id-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
           style="flex:1;min-width:260px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;font-family:monospace"
           value="${getClientId()}"/>
-        <button onclick="guardarClientId()" class="btn-save" style="white-space:nowrap">💾 Guardar Client ID</button>
+        <button onclick="guardarClientId()" class="btn-save" style="white-space:nowrap">💾 Guardar ID de aplicación</button>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div style="font-size:12px;color:var(--text3)">Estado: <span id="od-status-badge"></span></div>
-        <button onclick="testOneDriveLogin()" style="background:var(--accent-light);color:var(--accent);border:1px solid var(--border);border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer">🔗 Conectar / Probar login</button>
+        <button onclick="testOneDriveLogin()" style="background:var(--accent-light);color:var(--accent);border:1px solid var(--border);border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer">🔗 Conectar y verificar acceso</button>
         <button onclick="desconectarOneDrive()" style="background:transparent;color:#ef4444;border:1px solid #ef444455;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer">⏏️ Desconectar</button>
       </div>
     </div>`;
   actualizarEstadoOneDrive();
 }
 async function adm_resetPass(email, uid){
-  if(!email){toast("⚠️ Email no válido","#f59e0b");return;}
-  if(!confirm(`¿Enviar email de restablecimiento de contraseña a ${email}?`))return;
-  try{ await auth.sendPasswordResetEmail(email); toast("✅ Email de reseteo enviado a "+email,"#10b981"); }
+  if(!email){toast("⚠️ Correo no válido","#f59e0b");return;}
+  if(!confirm(`¿Enviar correo de recuperación de contraseña a ${email}?`))return;
+  try{ await auth.sendPasswordResetEmail(email); toast("✅ Correo de recuperación enviado a "+email,"#10b981"); }
   catch(e){ toast("❌ Error: "+e.message,"#ef4444"); }
 }
 async function adm_eliminarUsuario(uid,nombre,nOfertas){
@@ -6516,8 +6516,8 @@ async function crearUsuario(){
     toast("✅ Usuario creado correctamente","#10b981");
     cargarAdmin();
   }catch(e){
-    if(e.code==="auth/email-already-in-use") toast("⚠️ Ya existe un usuario con ese email","#f59e0b");
-    else if(e.code==="auth/invalid-email") toast("⚠️ El formato del email no es válido","#f59e0b");
+    if(e.code==="auth/email-already-in-use") toast("⚠️ Ya existe un usuario con ese correo electrónico","#f59e0b");
+    else if(e.code==="auth/invalid-email") toast("⚠️ El formato del correo no es válido","#f59e0b");
     else if(e.code==="auth/weak-password") toast("⚠️ Contraseña demasiado débil (mínimo 6 caracteres)","#f59e0b");
     else toast("❌ Error: "+e.message,"#ef4444");
   }finally{
@@ -6527,9 +6527,9 @@ async function crearUsuario(){
 
 function guardarClientId(){
   const val=document.getElementById("od-client-id-input").value.trim();
-  if(!val||val.length<30){toast("⚠️ Client ID no válido — debe tener el formato UUID de Azure","#f59e0b");return;}
+  if(!val||val.length<30){toast("⚠️ ID de aplicación no válido — debe tener el formato UUID de Azure","#f59e0b");return;}
   setClientId(val);
-  toast("✅ Client ID guardado. Haz clic en 'Conectar / Probar login' para autenticarte con Microsoft.","#10b981");
+  toast("✅ ID de aplicación guardado. Pulsa 'Conectar / Verificar acceso' para autenticarse con Microsoft.","#10b981");
   actualizarEstadoOneDrive();
 }
 async function testOneDriveLogin(){
@@ -6541,7 +6541,7 @@ async function testOneDriveLogin(){
     toast("✅ OneDrive conectado como: "+(u.displayName||u.userPrincipalName),"#10b981");
     actualizarEstadoOneDrive();
   }catch(e){
-    if(e.message==="CLIENT_ID_NOT_SET") toast("⚠️ Guarda primero el Client ID","#f59e0b");
+    if(e.message==="CLIENT_ID_NOT_SET") toast("⚠️ Guarda primero el ID de aplicación","#f59e0b");
     else toast("❌ Error: "+e.message,"#ef4444");
   }
 }
