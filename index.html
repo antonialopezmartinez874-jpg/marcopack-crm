@@ -1664,6 +1664,8 @@ function doLogout(){
   paginaActual=1;
   ofertasSeleccionadas.clear();
   _kanbanFiltroResp="";
+  llBusqueda="";
+  llCalDiaSel=null;
   // Limpiar cache de historial de comerciales
   _compHistorial=[];
   auth.signOut();
@@ -1881,7 +1883,6 @@ function renderStats(){
   const proximos=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio===manana&&!["Ganada","Perdida","Descartada"].includes(o.estado)).length;
   const totalRecordatorios=venc+proximos;
   const gan=ofertas.filter(o=>o.estado==="Ganada").length;
-  const total=ofertas.reduce((s,o)=>s+(o.importe||0),0);
   const cerradas=ofertas.filter(o=>["Ganada","Perdida","Descartada"].includes(o.estado)).length;
   const tasa=cerradas>0?Math.round(gan/cerradas*100):0;
   const alertas=getAlertasInactivas().length;
@@ -2118,7 +2119,6 @@ function renderDashboard(){
   const gan=ofertas.filter(o=>o.estado==="Ganada");
   const perd=ofertas.filter(o=>o.estado==="Perdida"||o.estado==="Descartada");
   const pend=ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado));
-  const totalGan=gan.reduce((s,o)=>s+(o.importe||0),0);
   const totalPipeline=pend.reduce((s,o)=>s+(o.importe||0),0);
   const cerradasTotal=gan.length+perd.length;
   const tasa=cerradasTotal>0?Math.round(gan.length/cerradasTotal*100):0;
@@ -2173,10 +2173,10 @@ function renderDashboard(){
         <div class="lbl">Tasa de cierre</div>
         <div class="sub" style="color:#10b981">${gan.length} ganadas · ${perd.length} perdidas</div>
       </div>
-      <div class="dash-kpi">
-        <div class="val" style="color:#34d399;font-size:${totalGan>999999?'20':'30'}px">${totalGan.toLocaleString("es-ES")} €</div>
-        <div class="lbl">Ingresos cerrados</div>
-        <div class="sub" style="color:var(--text3)">Pipeline: ${totalPipeline.toLocaleString("es-ES")} €</div>
+      <div class="dash-kpi" style="cursor:pointer" onclick="setVista('kanban')">
+        <div class="val" style="color:#3b82f6;font-size:${totalPipeline>999999?'20':'30'}px">${totalPipeline.toLocaleString("es-ES")} €</div>
+        <div class="lbl">Pipeline activo</div>
+        <div class="sub" style="color:var(--text3)">${pend.length} oferta${pend.length!==1?'s':''} en curso</div>
       </div>
       <div class="dash-kpi" style="${(venc.length+proxManana.length)>0?'border-color:#f97316;':''};cursor:pointer" onclick="setVista('alertas')">
         <div class="val" style="color:#fb923c">${venc.length}</div>
@@ -5463,6 +5463,9 @@ function abrirModal(o){
   document.getElementById("f-resp-form").value=o?.responsableNombre||currentProfile.nombre;
   document.getElementById("f-recod").value=o?.fechaRecordatorio||"";
   document.getElementById("f-fechacierre").value=o?.fechaPrevistaCierre||"";
+  document.getElementById("f-next").value=o?.proximaAccion||"";
+  document.getElementById("f-nextdate").value=o?.fechaProximaAccion||"";
+  document.getElementById("f-motivo").value=o?.motivoPerdida||"";
   document.getElementById("f-notas").value=o?.notas||"";
   document.getElementById("f-referencia").value=o?.referencia||"";
   renderArchivos();
