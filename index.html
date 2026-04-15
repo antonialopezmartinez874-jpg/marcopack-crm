@@ -607,7 +607,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
   <div class="stats" id="stats-row"></div>
 
   <!-- BANNER PREAVISO RECORDATORIOS (se muestra/oculta dinámicamente) -->
-  <div id="banner-recordatorios" style="display:none;margin:8px 24px 0;background:linear-gradient(135deg,#fff7ed,#fffbeb);border:1.5px solid #fed7aa;border-radius:var(--radius);padding:12px 18px;display:none;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 2px 8px rgba(249,115,22,.12)">
+  <div id="banner-recordatorios" style="display:none;margin:8px 24px 0;background:linear-gradient(135deg,#fff7ed,#fffbeb);border:1.5px solid #fed7aa;border-radius:var(--radius);padding:12px 18px;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 2px 8px rgba(249,115,22,.12)">
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:22px">⏰</span>
       <div>
@@ -1641,7 +1641,7 @@ async function doLogin(){
   const btn=document.getElementById("btn-login");
   btn.textContent="Verificando...";btn.disabled=true;
   try{
-    await auth.setPersistence(firebase.auth.Auth.Persistence.NONE).catch(()=>{});
+    // Nota: setPersistence(NONE) ya se establece globalmente al iniciar la app
     await auth.signInWithEmailAndPassword(email,pass);
     // onAuthStateChanged se encarga de mostrar la app
   }catch(e){
@@ -1833,7 +1833,15 @@ function acSeleccionar(i){
   set("f-tel",e.telefono);
   set("f-movil",e.telefonoMovil);
   set("f-email",e.email);
-  if(!document.getElementById("f-prov-form").value||document.getElementById("f-prov-form").value==="Madrid") document.getElementById("f-prov-form").value=e.provincia||"Madrid";
+  // Actualizar provincia solo si no ha sido modificada manualmente por el usuario
+  // Se considera "no modificada" si está vacía o si sigue con el valor por defecto inicial ("Madrid")
+  // pero SOLO si el campo empresa también estaba vacío antes de abrir el autocomplete
+  const provSel=document.getElementById("f-prov-form");
+  if(provSel && (!provSel.dataset.usuarioModificoProv) && e.provincia){
+    provSel.value=e.provincia;
+  } else if(provSel && !provSel.value && e.provincia){
+    provSel.value=e.provincia;
+  }
   const fpais=document.getElementById("f-pais-form"); if(fpais&&!fpais.value&&e.pais) fpais.value=e.pais;
   set("f-tipo",e.tipoMaquina);
   dd.classList.remove("open");
@@ -1854,7 +1862,9 @@ function escucharOfertas(){
     fr.innerHTML='<option value="">Todos los responsables</option>';
     nombres.forEach(n=>fr.add(new Option(n,n)));
     // Actualizar selector del formulario solo si el modal no está abierto (evita reset de selección activa)
-    const modalAbierto=document.getElementById("modal")?.style.display==="flex";
+    // Usamos window._modalOfertaAbierto como flag fiable en vez de leer style.display
+    // (style.display puede ser vacío o transitorio durante animaciones de apertura/cierre)
+    const modalAbierto=window._modalOfertaAbierto===true;
     if(!modalAbierto){
       const valorActual=frm?.value||"";
       frm.innerHTML='';
@@ -1986,7 +1996,12 @@ function getFiltradas(){
   }).sort((a,b)=>{
     const va=a[ordenCampo]??"",vb=b[ordenCampo]??"";
     if(ordenCampo==="numeroOferta"){
-      const na=parseInt((String(va).split("-")[2])||"0"),nb=parseInt((String(vb).split("-")[2])||"0");
+      // Extrae el número de cualquier formato: OF-2026-001, OF-2026-1000, OF2026-001, etc.
+      const extraerNum=s=>{const m=String(s).match(/(\d+)$/);return m?parseInt(m[1],10):0;};
+      const extraerAnio=s=>{const m=String(s).match(/(20\d{2})/);return m?parseInt(m[1],10):0;};
+      const da=extraerAnio(va)-extraerAnio(vb);
+      if(da!==0) return ordenDir==="asc"?da:-da;
+      const na=extraerNum(va),nb=extraerNum(vb);
       return ordenDir==="asc"?na-nb:nb-na;
     }
     return ordenDir==="asc"?(va<vb?-1:va>vb?1:0):(va>vb?-1:va<vb?1:0);
@@ -2130,6 +2145,7 @@ function _destroyCharts(){
   _chartEmbudo=_chartMensual=_chartEstados=_chartResp=null;
 }
 
+renderDashboard._token=0;
 function renderDashboard(){
   _destroyCharts();
   const hoy=new Date();
@@ -2314,7 +2330,11 @@ function renderDashboard(){
   </div>`;
 
   // ── Inicializar Chart.js tras render del DOM ──
+  // Guardamos un token de renderizado para cancelar el RAF si el usuario
+  // cambia de vista antes de que se ejecute (evita crear charts sobre canvas ya eliminados)
+  const _dashRenderToken=++renderDashboard._token;
   requestAnimationFrame(()=>{
+    if(_dashRenderToken!==renderDashboard._token) return; // Vista ya cambiada, abortamos
     const fontColor="#4a5880";
     const gridColor="rgba(100,120,180,0.1)";
     Chart.defaults.font.family="'Plus Jakarta Sans',sans-serif";
@@ -2813,6 +2833,12 @@ function _renderPaginacion(inicio,fin,total,totalPaginas){
 
 function irPagina(p){
   paginaActual=p;
+  // Limpiar selección al cambiar de página para evitar borrar ofertas de páginas anteriores
+  ofertasSeleccionadas.clear();
+  const cnt=document.getElementById("seleccion-count");
+  const btn=document.getElementById("btn-borrar-sel");
+  if(cnt) cnt.textContent="";
+  if(btn) btn.style.display="none";
   renderTabla();
   // Scroll suave al inicio de la tabla
   const tw=document.querySelector(".table-wrap");
@@ -4098,7 +4124,7 @@ async function guardarLlamada(){
   btn.textContent="Guardando...";btn.disabled=true;
   const update={
     numLlamadas:(o.numLlamadas||0)+1,
-    ultimaLlamada:new Date().toISOString().split("T")[0],
+    ultimaLlamada:fechaLocal(),
     ultimoResultado:resultado,
     fechaUltimaActividad:firebase.firestore.FieldValue.serverTimestamp()
   };
@@ -4106,7 +4132,8 @@ async function guardarLlamada(){
   if(estadoNuevo&&estadoNuevo!==o.estado)update.estado=estadoNuevo;
   if(accion)update.proximaAccion=accion;
   const nota_nueva=`[${new Date().toLocaleDateString("es-ES")}] ${resultado}${notas?": "+notas:""}${accion?" → Próx: "+accion:""}`;
-  update.notas=(o.notas?o.notas+"\n---\n":"")+nota_nueva;
+  // Usar separador único para distinguir entradas de llamadas (%%LLAMADAS%%) en vez de "---"
+  update.notas=(o.notas?o.notas+"\n%%LLAMADAS%%\n":"")+nota_nueva;
   try{
     await db.collection("ofertas").doc(llamadaOfertaId).update(update);
     await db.collection("historial").add({
@@ -4883,14 +4910,15 @@ async function cargarHistorial(){
       <span style="color:var(--text3);font-size:12px;font-weight:600">${filtrados.length} registro${filtrados.length!==1?"s":""}</span>
     </div>`;
 
-  // Botones de limpieza
-  const limpiezaHtml=`
+  // Botones de limpieza — solo visibles para administrador
+  const esAdmin=currentProfile?.rol==="admin";
+  const limpiezaHtml=esAdmin?`
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;align-items:center">
-      <span style="font-size:11px;font-weight:700;color:var(--text3);flex:1">🗑 Limpieza:</span>
+      <span style="font-size:11px;font-weight:700;color:var(--text3);flex:1">🗑 Limpieza (solo admin):</span>
       ${llamadas.length>0?`<button onclick="borrarLlamadasAntiguas(30)" style="background:var(--orange-bg);color:var(--orange);border:1px solid #fbd0b0;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer">Llamadas +30d (${docs.filter(h=>{const f=h.fecha?.toDate?.();const l=new Date();l.setDate(l.getDate()-30);return h.accion==='llamada registrada'&&f&&f<l;}).length})</button>`:""}
       ${llamadas.length>0?`<button onclick="borrarLlamadasAntiguas(90)" style="background:var(--orange-bg);color:var(--orange);border:1px solid #fbd0b0;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer">Llamadas +90d</button>`:""}
-      ${currentProfile?.rol==="admin"&&docs.length>0?`<button onclick="borrarHistorialTodo()" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer">⚠️ Limpiar todo</button>`:""}
-    </div>`;
+      ${docs.length>0?`<button onclick="borrarHistorialTodo()" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer">⚠️ Limpiar todo</button>`:""}
+    </div>`:"";
 
   const itemsHtml=filtrados.map(h=>{
     const fh=h.fecha?.toDate?.();
@@ -4921,8 +4949,8 @@ async function cargarHistorial(){
           ${h.accion==="llamada registrada"&&h.valorNuevo?`<div style="color:#15803d;font-size:12px;margin-top:2px;font-style:italic">Resultado: ${h.valorNuevo}</div>`:""}
           <div style="color:var(--text3);font-size:11px;margin-top:4px">🕐 ${fstr}</div>
         </div>
-        <button onclick="borrarRegistroHistorial('${h.id}')" title="Borrar este registro"
-          style="background:transparent;border:1px solid #fca5a5;color:#ef4444;border-radius:6px;padding:3px 9px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;white-space:nowrap">✕</button>
+        ${esAdmin?`<button onclick="borrarRegistroHistorial('${h.id}')" title="Borrar este registro"
+          style="background:transparent;border:1px solid #fca5a5;color:#ef4444;border-radius:6px;padding:3px 9px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;white-space:nowrap">✕</button>`:""}
       </div>
     </div>`;
   }).join("");
@@ -4946,7 +4974,7 @@ async function abrirOfertaDesdeHistorial(ofertaId){
 
 async function borrarRegistroHistorial(id){
   const rol=currentProfile?.rol;
-  if(rol!=="admin"&&rol!=="comercial"){toast("⚠️ Sin permisos para borrar registros","#f59e0b");return;}
+  if(rol!=="admin"){toast("⚠️ Solo el administrador puede borrar registros del historial","#f59e0b");return;}
   if(!confirm("¿Borrar este registro del historial?"))return;
   try{
     await db.collection("historial").doc(id).delete();
@@ -4957,7 +4985,7 @@ async function borrarRegistroHistorial(id){
 
 async function borrarLlamadasAntiguas(dias){
   const rol=currentProfile?.rol;
-  if(rol!=="admin"&&rol!=="comercial"){toast("⚠️ Sin permisos para borrar registros","#f59e0b");return;}
+  if(rol!=="admin"){toast("⚠️ Solo el administrador puede borrar registros del historial","#f59e0b");return;}
   const limite=new Date();
   limite.setDate(limite.getDate()-dias);
   if(!confirm(`¿Borrar todos los registros de llamadas con más de ${dias} días? Esta acción no se puede deshacer.`))return;
@@ -5160,7 +5188,25 @@ function verDetalle(id){
     ${o.fechaPrevistaCierre?`<div style="background:#f0fdf4;border:1px solid #b7e4d1;border-radius:8px;padding:9px 12px;margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700">🎯 FECHA PREVISTA DE CIERRE</div><div style="color:var(--green);font-size:13px;font-weight:700;margin-top:2px">${new Date(o.fechaPrevistaCierre).toLocaleDateString("es-ES")}</div></div>`:""}
     ${(o.proximaAccion||o.fechaProximaAccion)?`<div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:8px;padding:9px 12px;margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700">➡️ PRÓXIMA ACCIÓN</div><div style="color:#7c3aed;font-size:13px;font-weight:600;margin-top:2px">${o.proximaAccion||"—"}${o.fechaProximaAccion?` <span style="color:var(--text3);font-size:11px;font-weight:500">· ${new Date(o.fechaProximaAccion).toLocaleDateString("es-ES")}</span>`:""}</div></div>`:""}
     ${o.descripcion?`<div style="margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700;margin-bottom:3px">DESCRIPCIÓN</div><div style="color:var(--text2);font-size:13px">${o.descripcion}</div></div>`:""}
-    ${o.notas?`<div style="margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700;margin-bottom:3px">NOTAS</div><div style="color:var(--text2);font-size:13px;background:var(--surface);border-radius:8px;padding:9px 12px;white-space:pre-line">${o.notas}</div></div>`:""}
+    ${(()=>{
+      if(!o.notas) return "";
+      // Separar notas libres del historial de llamadas (separador único %%LLAMADAS%%)
+      const SEP="\n%%LLAMADAS%%\n";
+      const SEP_OLD="\n---\n";
+      let notasLibres=o.notas, histLlamadas=[];
+      if(o.notas.includes(SEP)){
+        const partes=o.notas.split(SEP);
+        notasLibres=partes[0];
+        histLlamadas=partes.slice(1);
+      } else if(o.notas.includes(SEP_OLD)){
+        const partes=o.notas.split(SEP_OLD);
+        notasLibres=partes[0];
+        histLlamadas=partes.slice(1);
+      }
+      const notasHtml=notasLibres?`<div style="color:var(--text2);font-size:13px;background:var(--surface);border-radius:8px;padding:9px 12px;white-space:pre-line;margin-bottom:${histLlamadas.length?"8px":"0"}">${notasLibres}</div>`:"";
+      const histHtml=histLlamadas.length?histLlamadas.map(h=>`<div style="background:var(--green-bg);border-left:3px solid var(--green);border-radius:6px;padding:7px 10px;font-size:12px;color:var(--text2);margin-bottom:4px">📞 ${h}</div>`).join(""):"";
+      return `<div style="margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700;margin-bottom:3px">NOTAS</div>${notasHtml}${histHtml?`<div style="color:var(--text3);font-size:10px;font-weight:700;margin:6px 0 4px">HISTORIAL LLAMADAS</div>${histHtml}`:""}</div>`;
+    })()}
     <div style="margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700;margin-bottom:6px">📎 DOCUMENTOS ADJUNTOS</div>${renderArchivosDetalle(o.archivos)}</div>
     <div style="display:flex;gap:8px;margin-top:20px;justify-content:flex-end;flex-wrap:wrap">
       <button class="btn-cancel" onclick="document.getElementById('modal-det').style.display='none'">Cerrar</button>
@@ -5456,7 +5502,7 @@ function _extraerCamposWord(texto){
   }
 
   // ── PROVINCIA — buscar en la dirección ──
-  const PROVINCIAS_ES=["Álava","Albacete","Alicante","Almería","Asturias","Ávila","Badajoz","Barcelona","Burgos","Cáceres","Cádiz","Cantabria","Castellón","Ciudad Real","Córdoba","Cuenca","Girona","Granada","Guadalajara","Guipúzcoa","Huelva","Huesca","Jaén","La Rioja","Las Palmas","León","Lleida","Lugo","Madrid","Málaga","Murcia","Navarra","Ourense","Palencia","Pontevedra","Salamanca","Segovia","Sevilla","Soria","Tarragona","Santa Cruz de Tenerife","Teruel","Toledo","Valencia","Valladolid","Vizcaya","Zamora","Zaragoza"];
+  const PROVINCIAS_ES=PROVINCIAS; // Reutilizar la constante global (lista completa y sin duplicados)
   const textoNorm=texto.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
   for(const prov of PROVINCIAS_ES){
     const provNorm=prov.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
@@ -5509,7 +5555,7 @@ function abrirModal(o){
     document.getElementById("f-num").value="";
     document.getElementById("f-num").placeholder=_previewNumeroOferta();
   }
-  document.getElementById("f-fecha").value=o?.fechaOferta||new Date().toISOString().split("T")[0];
+  document.getElementById("f-fecha").value=o?.fechaOferta||fechaLocal(); // fechaLocal() evita desfase UTC en España
   document.getElementById("f-empresa").value=o?.empresa||"";
   document.getElementById("f-contacto").value=o?.contacto||"";
   document.getElementById("f-tel").value=o?.telefono||"";
@@ -5534,10 +5580,12 @@ function abrirModal(o){
   renderArchivos();
   _familiaActiva=null;
   cargarTiposPersonalizados();
+  window._modalOfertaAbierto=true;
   document.getElementById("modal").style.display="flex";
 }
 function editarOferta(id){abrirModal(ofertas.find(o=>o.id===id));}
 function cerrarModal(){
+  window._modalOfertaAbierto=false;
   document.getElementById("modal").style.display="none";
   archivosTemp=[];editandoId=null;
   const dd=document.getElementById("ac-dropdown");
@@ -5633,7 +5681,7 @@ function renderArchivos(){
       </div>
       <div style="display:flex;gap:4px;flex-shrink:0">
         ${f.url?`<a href="${f.url}" target="_blank" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">👁 Ver</a>`:""}
-        ${f.url?`<a href="${f.url}" target="_blank" style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">⬇ Descargar</a>`:""}
+        ${f.downloadUrl||f.url?`<a href="${f.downloadUrl||f.url+(f.url.includes("?")?"&":"?")+"download=1"}" target="_blank" download="${f.name||'archivo'}" style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">⬇ Descargar</a>`:""}
         <button onclick="eliminarArchivo(${i})" title="Quitar de esta oferta" style="background:var(--red-bg);border:1px solid #fca5a5;color:var(--red);cursor:pointer;font-size:11px;padding:4px 8px;border-radius:6px;font-weight:700;white-space:nowrap;font-family:inherit">✕</button>
       </div>
     </div>`;
@@ -5657,7 +5705,7 @@ function renderArchivosDetalle(archivos){
       </div>
       <div style="display:flex;gap:5px;flex-shrink:0">
         ${f.url?`<a href="${f.url}" target="_blank" style="background:var(--accent);color:white;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">👁 Ver</a>`:""}
-        ${f.url?`<a href="${f.url}" target="_blank" style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">⬇ Descargar</a>`:`<span style="color:var(--text3);font-size:10px">Sin enlace</span>`}
+        ${f.downloadUrl||f.url?`<a href="${f.downloadUrl||f.url+(f.url.includes("?")?"&":"?")+"download=1"}" target="_blank" download="${f.name||'archivo'}" style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">⬇ Descargar</a>`:`<span style="color:var(--text3);font-size:10px">Sin enlace</span>`}
       </div>
     </div>`;
   }).join("");
@@ -5748,14 +5796,23 @@ async function guardarOferta(){
     };
 
     // Gestión de notas con historial de llamadas
+    // Usamos un separador único que nunca escribiría un usuario manualmente
+    const SEPARADOR_LLAMADAS="\n%%LLAMADAS%%\n";
     const notasFormulario=document.getElementById("f-notas").value;
     if(editandoId){
       const ofertaVieja=ofertas.find(o=>o.id===editandoId);
       const notasViejas=ofertaVieja?.notas||"";
-      if(notasViejas.includes("---")){
+      if(notasViejas.includes(SEPARADOR_LLAMADAS)){
+        // Formato nuevo con separador único
+        const partes=notasViejas.split(SEPARADOR_LLAMADAS);
+        const historialLlamadas=partes.slice(1).join(SEPARADOR_LLAMADAS);
+        datos.notas=notasFormulario+(historialLlamadas?SEPARADOR_LLAMADAS+historialLlamadas:"");
+      } else if(notasViejas.includes("\n---\n")){
+        // Compatibilidad con formato antiguo (separador "---")
         const partes=notasViejas.split("\n---\n");
         const historialLlamadas=partes.slice(1).join("\n---\n");
-        datos.notas=notasFormulario+(historialLlamadas?"\n---\n"+historialLlamadas:"");
+        // Migramos al nuevo separador al guardar
+        datos.notas=notasFormulario+(historialLlamadas?SEPARADOR_LLAMADAS+historialLlamadas:"");
       } else {
         datos.notas=notasFormulario;
       }
@@ -6059,13 +6116,13 @@ async function mcCrearUsuario(){
   if(pass.length<6){toast('⚠️ Contraseña mínimo 6 caracteres','#f59e0b');return;}
   const btn=document.getElementById('mc-btn-crear');
   if(btn){btn.disabled=true;btn.textContent='Creando...';}
+  let secondary=null;
   try{
-    const secondary=firebase.initializeApp(firebaseConfig,'sec_'+Date.now());
+    secondary=firebase.initializeApp(firebaseConfig,'sec_'+Date.now());
     const secAuth=secondary.auth();
     const cred=await secAuth.createUserWithEmailAndPassword(email,pass);
     await db.collection('usuarios').doc(cred.user.uid).set({nombre,email,rol,creadoEn:firebase.firestore.FieldValue.serverTimestamp()});
     await secAuth.signOut();
-    await secondary.delete();
     toast('✅ Usuario creado correctamente','#10b981');
     const form=document.getElementById('mc-nuevo-usuario');
     if(form) form.style.display='none';
@@ -6077,6 +6134,8 @@ async function mcCrearUsuario(){
     else if(e.code==='auth/weak-password') toast('⚠️ Contraseña débil','#f59e0b');
     else toast('❌ Error: '+e.message,'#ef4444');
   }finally{
+    // Siempre eliminar la instancia secundaria de Firebase para evitar fugas de memoria
+    if(secondary){ try{ await secondary.delete(); }catch(_){} }
     if(btn){btn.disabled=false;btn.textContent='Crear usuario';}
   }
 }
@@ -6281,14 +6340,22 @@ async function cambiarPassword(){
   if(!pass1||!pass2){toast('⚠️ Rellena los dos campos de contraseña','#f59e0b');return;}
   if(pass1!==pass2){toast('⚠️ Las contraseñas no coinciden','#f59e0b');return;}
   if(pass1.length<6){toast('⚠️ Mínimo 6 caracteres','#f59e0b');return;}
+  // Debido a Persistence.NONE necesitamos reautenticar antes de cambiar la contraseña.
+  // Pedimos la contraseña actual para relanzar las credenciales y hacer el cambio seguro.
+  const passActual=prompt('Por seguridad, introduce tu contraseña ACTUAL para confirmar el cambio:');
+  if(!passActual){toast('⚠️ Cambio cancelado','#f59e0b');return;}
   try{
+    const cred=firebase.auth.EmailAuthProvider.credential(currentUser.email, passActual);
+    await currentUser.reauthenticateWithCredential(cred);
     await currentUser.updatePassword(pass1);
     toast('✅ Contraseña actualizada correctamente','#10b981');
     const p1=document.getElementById('mc-pass1'); if(p1) p1.value='';
     const p2=document.getElementById('mc-pass2'); if(p2) p2.value='';
   }catch(e){
-    if(e.code==='auth/requires-recent-login'){
-      toast('⚠️ Por seguridad, cierra sesión, vuelve a entrar y cambia la contraseña.','#f59e0b');
+    if(e.code==='auth/wrong-password'||e.code==='auth/invalid-credential'){
+      toast('❌ La contraseña actual introducida no es correcta.','#ef4444');
+    } else if(e.code==='auth/requires-recent-login'){
+      toast('⚠️ Por seguridad, cierra sesión, vuelve a entrar e intenta de nuevo.','#f59e0b');
     } else {
       toast('❌ Error: '+e.message,'#ef4444');
     }
@@ -6695,12 +6762,13 @@ async function crearUsuario(){
   if(pass.length<6){toast("⚠️ Contraseña mínimo 6 caracteres","#f59e0b");return;}
   const btn=document.querySelector("#modal-user .btn-save");
   if(btn){btn.disabled=true;btn.textContent="Creando...";}
+  let secondary=null;
   try{
-    const secondary=firebase.initializeApp(firebaseConfig,"sec_"+Date.now());
+    secondary=firebase.initializeApp(firebaseConfig,"sec_"+Date.now());
     const secAuth=secondary.auth();
     const cred=await secAuth.createUserWithEmailAndPassword(email,pass);
     await db.collection("usuarios").doc(cred.user.uid).set({nombre,email,rol,creadoEn:firebase.firestore.FieldValue.serverTimestamp()});
-    await secAuth.signOut();await secondary.delete();
+    await secAuth.signOut();
     document.getElementById("modal-user").style.display="none";
     ["nu-nombre","nu-email","nu-pass"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
     toast("✅ Usuario creado correctamente","#10b981");
@@ -6711,6 +6779,8 @@ async function crearUsuario(){
     else if(e.code==="auth/weak-password") toast("⚠️ Contraseña demasiado débil (mínimo 6 caracteres)","#f59e0b");
     else toast("❌ Error: "+e.message,"#ef4444");
   }finally{
+    // Siempre eliminar la instancia secundaria para evitar fugas de memoria
+    if(secondary){ try{ await secondary.delete(); }catch(_){} }
     if(btn){btn.disabled=false;btn.textContent="Crear usuario";}
   }
 }
