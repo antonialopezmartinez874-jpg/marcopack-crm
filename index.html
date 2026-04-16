@@ -1025,7 +1025,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 <script>
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  MARCOPACK CRM — index.html                                  ║
-// ║  Build: v3.2_CHART_PAGINACION                                ║
+// ║  Build: v5.1_ESPAÑOL_COMPLETO                                ║
 // ║                                                              ║
 // ║  SECCIONES:                                                  ║
 // ║  [1] FIREBASE + ONEDRIVE          línea ~884                 ║
@@ -1685,6 +1685,10 @@ function doLogout(){
   llCalDiaSel=null;
   // Limpiar cache de historial de comerciales
   _compHistorial=[];
+  // Limpiar token MSAL en memoria (no el Client ID guardado, que es configuración)
+  msalToken=null; msalInstance=null;
+  // Limpiar caché de usuarios para que no quede visible a otro usuario del mismo equipo
+  window._usuariosCache=[];
   auth.signOut();
 }
 
@@ -5066,12 +5070,25 @@ function exportarExcel(){
     "Llamadas":o.numLlamadas||0,
     "Último resultado":o.ultimoResultado||"",
     "Última llamada":o.ultimaLlamada||"",
-    "Notas":o.notas||"",
+    "Notas":(()=>{
+      if(!o.notas) return "";
+      const SEP="\n%%LLAMADAS%%\n", SEP_OLD="\n---\n";
+      if(o.notas.includes(SEP)) return o.notas.split(SEP)[0].trim();
+      if(o.notas.includes(SEP_OLD)) return o.notas.split(SEP_OLD)[0].trim();
+      return o.notas;
+    })(),
+    "Historial llamadas":(()=>{
+      if(!o.notas) return "";
+      const SEP="\n%%LLAMADAS%%\n", SEP_OLD="\n---\n";
+      if(o.notas.includes(SEP)) return o.notas.split(SEP).slice(1).join(" | ");
+      if(o.notas.includes(SEP_OLD)) return o.notas.split(SEP_OLD).slice(1).join(" | ");
+      return "";
+    })(),
     "Archivos adjuntos":(o.archivos||[]).map(a=>a.name).join(", ")
   }));
   const wb=XLSX.utils.book_new();
   const ws=XLSX.utils.json_to_sheet(datos);
-  ws["!cols"]=[{wch:14},{wch:28},{wch:20},{wch:14},{wch:14},{wch:26},{wch:16},{wch:14},{wch:18},{wch:18},{wch:30},{wch:16},{wch:12},{wch:16},{wch:18},{wch:20},{wch:14},{wch:16},{wch:18},{wch:24},{wch:16},{wch:10},{wch:24},{wch:14},{wch:40},{wch:40}];
+  ws["!cols"]=[{wch:14},{wch:28},{wch:20},{wch:14},{wch:14},{wch:26},{wch:16},{wch:14},{wch:18},{wch:18},{wch:30},{wch:16},{wch:12},{wch:16},{wch:18},{wch:20},{wch:14},{wch:16},{wch:18},{wch:24},{wch:16},{wch:10},{wch:24},{wch:14},{wch:30},{wch:30},{wch:40}];
   XLSX.utils.book_append_sheet(wb,ws,"Ofertas");
   XLSX.writeFile(wb,`Marcopack_CRM_${new Date().toISOString().split("T")[0]}.xlsx`);
   toast(`✅ Exportadas ${rows.length} ofertas`,"#10b981");
@@ -6999,6 +7016,25 @@ function renderRanking(){
 }
 
 // Arranque: verificar sesión activa
+
+// ── Tecla Escape global: cierra el modal más reciente abierto ────────────────
+document.addEventListener("keydown", function(e){
+  if(e.key !== "Escape") return;
+  const modales = [
+    {id:"modal-det",      cerrar:()=>{ document.getElementById("modal-det").style.display="none"; }},
+    {id:"modal",          cerrar:cerrarModal},
+    {id:"modal-llamada",  cerrar:()=>{ document.getElementById("modal-llamada").style.display="none"; llamadaOfertaId=null; }},
+    {id:"modal-empresa",  cerrar:()=>{ document.getElementById("modal-empresa").style.display="none"; }},
+    {id:"modal-user",     cerrar:()=>{ document.getElementById("modal-user").style.display="none"; }},
+    {id:"modal-micuenta", cerrar:()=>{ document.getElementById("modal-micuenta").style.display="none"; }},
+  ];
+  for(const m of modales){
+    const el=document.getElementById(m.id);
+    if(el && (el.style.display==="flex"||el.style.display==="block")){
+      m.cerrar(); e.preventDefault(); return;
+    }
+  }
+});
 </script>
 </body>
 </html>
