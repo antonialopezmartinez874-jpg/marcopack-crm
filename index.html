@@ -1912,7 +1912,6 @@ function renderStats(){
   document.getElementById("stats-row").innerHTML=`
     <div class="stat-card clickable" onclick="setVista('tabla')"><div class="stat-val" style="color:var(--accent)">${ofertas.length}</div><div class="stat-lbl">Total Ofertas</div></div>
     <div class="stat-card clickable" onclick="setVista('tabla')"><div class="stat-val" style="color:#10b981">${gan}</div><div class="stat-lbl">Ganadas</div><div class="stat-trend" style="color:#10b981">Tasa: ${tasa}%</div></div>
-    <div class="stat-card clickable" onclick="setVista('estadistas')"><div class="stat-val" style="color:var(--purple)">${ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado)).length}</div><div class="stat-lbl">En cartera</div></div>
     <div class="stat-card clickable" onclick="setVista('alertas')" style="${totalRecordatorios>0?'border-color:#f97316':''}">
       <div class="stat-val" style="color:#fb923c">${totalRecordatorios}</div>
       <div class="stat-lbl">Recordatorios</div>
@@ -2203,11 +2202,7 @@ function renderDashboard(){
         <div class="lbl">Tasa de cierre</div>
         <div class="sub" style="color:#10b981">${gan.length} ganadas · ${perd.length} perdidas</div>
       </div>
-      <div class="dash-kpi" style="cursor:pointer" onclick="setVista('kanban')">
-        <div class="val" style="color:#3b82f6;font-size:${totalPipeline>999999?'20':'30'}px">${totalPipeline.toLocaleString("es-ES")} €</div>
-        <div class="lbl">Cartera activa</div>
-        <div class="sub" style="color:var(--text3)">${pend.length} oferta${pend.length!==1?'s':''} en curso</div>
-      </div>
+
       <div class="dash-kpi" style="${(venc.length+proxManana.length)>0?'border-color:#f97316;':''};cursor:pointer" onclick="setVista('alertas')">
         <div class="val" style="color:#fb923c">${venc.length}</div>
         <div class="lbl">Recordatorios vencidos</div>
