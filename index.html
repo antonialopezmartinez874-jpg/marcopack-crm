@@ -1484,21 +1484,7 @@ function borrarTipoPersonalizado(idx){
 const CE={Pendiente:"#f59e0b","En seguimiento":"#3b82f6",Interesado:"#8b5cf6","Negociación":"#f97316",Ganada:"#10b981",Perdida:"#ef4444",Descartada:"#6b7280"};
 const CG=["#38bdf8","#10b981","#f59e0b","#8b5cf6","#f97316","#ef4444","#06b6d4","#84cc16","#ec4899","#6366f1"];
 // Coordenadas absolutas para viewBox 960×780 — posición real en España
-const PROV_POS={
-  "Madrid":[462,390],"Barcelona":[800,240],"Valencia":[710,445],"Sevilla":[230,575],
-  "Málaga":[320,635],"Zaragoza":[630,255],"Murcia":[672,510],"Alicante":[718,490],
-  "La Coruña":[88,165],"Bilbao":[500,175],"Granada":[400,600],"Córdoba":[300,530],
-  "Valladolid":[350,310],"Palencia":[370,270],"Burgos":[430,235],"León":[255,230],
-  "Salamanca":[270,355],"Ávila":[360,370],"Segovia":[400,340],"Toledo":[415,430],
-  "Cáceres":[200,430],"Badajoz":[165,490],"Huelva":[165,570],"Cádiz":[198,645],
-  "Jaén":[400,545],"Almería":[470,620],"Cuenca":[515,415],"Albacete":[560,480],
-  "Ciudad Real":[385,490],"Guadalajara":[468,360],"Lugo":[155,178],"Ourense":[168,240],
-  "Pontevedra":[118,228],"Zamora":[268,295],"Lleida":[685,240],"Girona":[835,198],
-  "Tarragona":[745,318],"Huesca":[625,210],"Teruel":[598,370],"Navarra":[565,182],
-  "La Rioja":[510,220],"Islas Baleares":[835,460],"Las Palmas":[72,720],
-  "Santa Cruz de Tenerife":[45,720],"Asturias":[265,168],"Cantabria":[368,168],
-  "Vizcaya":[488,172],"Guipúzcoa":[540,168],"Álava":[508,195],"Castellón":[705,388],"Soria":[488,278]
-};
+// PROV_POS eliminado (código no utilizado - el mapa usa Leaflet con PROV_LATLNG)
 const DIAS_ALERTA=60; // días sin actividad para generar alerta
 
 // ===== ESTADO =====
@@ -1714,7 +1700,7 @@ function renderProvOpciones(filtro=""){
   if(!container)return;
   const lista=filtro?PROVINCIAS.filter(p=>p.toLowerCase().includes(filtro.toLowerCase())):PROVINCIAS;
   container.innerHTML=lista.map(p=>`
-    <label style="display:flex;align-items:center;gap:7px;padding:5px 6px;border-radius:6px;cursor:pointer;font-size:12px;color:var(--text);${provinciasSeleccionadas.has(p)?'background:var(--border2);':''}hover:background:var(--surface2)">
+    <label style="display:flex;align-items:center;gap:7px;padding:5px 6px;border-radius:6px;cursor:pointer;font-size:12px;color:var(--text);${provinciasSeleccionadas.has(p)?'background:var(--border2);':''}">
       <input type="checkbox" value="${p}" ${provinciasSeleccionadas.has(p)?'checked':''} onchange="toggleProvincia('${p}')" style="accent-color:var(--accent);cursor:pointer"/>
       ${p}
     </label>`).join('');
@@ -1857,8 +1843,14 @@ function acSeleccionar(i){
 function escucharOfertas(){
   // Cancelar listener anterior si existe (evita duplicados y errores de permiso al re-login)
   if(_ofertasUnsub){ try{ _ofertasUnsub(); }catch(_){} _ofertasUnsub=null; }
-  _ofertasUnsub=db.collection("ofertas").orderBy("fechaOferta","desc").onSnapshot(snap=>{
-    ofertas=snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>!o.eliminado);
+  // NOTA: orderBy("fechaOferta") en Firestore excluye docs donde fechaOferta es null/undefined.
+  // Solución: ordenar en cliente para no perder ninguna oferta.
+  _ofertasUnsub=db.collection("ofertas").onSnapshot(snap=>{
+    ofertas=snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>!o.eliminado)
+      .sort((a,b)=>{
+        const fa=a.fechaOferta||"", fb=b.fechaOferta||"";
+        if(fb>fa) return 1; if(fa>fb) return -1; return 0;
+      });
     acReconstruirIndice();
     const fr=document.getElementById("f-resp"),frm=document.getElementById("f-resp-form");
     const nombres=[...new Set(ofertas.map(o=>o.responsableNombre).filter(Boolean))].sort();
@@ -2898,6 +2890,7 @@ function renderEstadisticasResumen(){
     ${barras("💶 Importe por estado (€)",topImp.map(([k,v])=>[k,Math.round(v)]),maxImp,(l)=>CE[l]||"#64748b")}
     ${barras("🏭 Nº de ofertas por tipo de máquina",topMaquinas,maxMaquina,(l,i)=>CG[(i+2)%CG.length])}
     ${barras("💰 Importe total por tipo de máquina (€)",topImpMaquina.map(([k,v])=>[k,Math.round(v)]),maxImpMaquina,(l,i)=>CG[(i+5)%CG.length])}
+    ${topMotivos.length?barras("❌ Motivos de pérdida / descarte",topMotivos,maxMotivo,(l,i)=>"#ef4444"):""}
   `;
 }
 
@@ -3771,9 +3764,11 @@ async function llBorrarHistorialIds(ids){
 let llBusqueda="";
 
 function renderLlamadas(){
+  // Resetear selección de historial al re-renderizar para evitar checkboxes en estado incorrecto
+  llHistSel.clear();
   const hoy=fechaLocal();
   const manana=getFechaManana();
-  const activas=ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado));
+  const activas=ofertas.filter(o=>["Ganada","Perdida","Descartada"].includes(o.estado)?false:true);
 
   // Filtro de búsqueda
   const q=llBusqueda.toLowerCase();
@@ -4136,8 +4131,23 @@ async function guardarLlamada(){
   if(estadoNuevo&&estadoNuevo!==o.estado)update.estado=estadoNuevo;
   if(accion)update.proximaAccion=accion;
   const nota_nueva=`[${new Date().toLocaleDateString("es-ES")}] ${resultado}${notas?": "+notas:""}${accion?" → Próx: "+accion:""}`;
-  // Usar separador único para distinguir entradas de llamadas (%%LLAMADAS%%) en vez de "---"
-  update.notas=(o.notas?o.notas+"\n%%LLAMADAS%%\n":"")+nota_nueva;
+  // Separar notas libres del historial existente antes de añadir la nueva entrada
+  const SEP_LLAMADAS="\n%%LLAMADAS%%\n";
+  let notasLibresActuales="", historialPrevio="";
+  if(o.notas && o.notas.includes(SEP_LLAMADAS)){
+    const partes=o.notas.split(SEP_LLAMADAS);
+    notasLibresActuales=partes[0];
+    historialPrevio=partes.slice(1).join(SEP_LLAMADAS);
+  } else if(o.notas && o.notas.includes("\n---\n")){
+    const partes=o.notas.split("\n---\n");
+    notasLibresActuales=partes[0];
+    historialPrevio=partes.slice(1).join(SEP_LLAMADAS);
+  } else {
+    notasLibresActuales=o.notas||"";
+  }
+  // Reconstruir: notas libres + nueva entrada + historial previo
+  const partesNotas=[notasLibresActuales, nota_nueva, historialPrevio].filter(Boolean);
+  update.notas=partesNotas.join(SEP_LLAMADAS);
   try{
     await db.collection("ofertas").doc(llamadaOfertaId).update(update);
     await db.collection("historial").add({
@@ -5592,7 +5602,16 @@ function abrirModal(o){
   document.getElementById("f-next").value=o?.proximaAccion||"";
   document.getElementById("f-nextdate").value=o?.fechaProximaAccion||"";
   document.getElementById("f-motivo").value=o?.motivoPerdida||"";
-  document.getElementById("f-notas").value=o?.notas||"";
+  // Mostrar SOLO las notas libres en el formulario, sin el historial de llamadas
+  (function(){
+    const rawNotas=o?.notas||"";
+    const SEP="\n%%LLAMADAS%%\n";
+    const SEP_OLD="\n---\n";
+    let notasLibres=rawNotas;
+    if(rawNotas.includes(SEP)) notasLibres=rawNotas.split(SEP)[0];
+    else if(rawNotas.includes(SEP_OLD)) notasLibres=rawNotas.split(SEP_OLD)[0];
+    document.getElementById("f-notas").value=notasLibres;
+  })();
   document.getElementById("f-referencia").value=o?.referencia||"";
   renderArchivos();
   _familiaActiva=null;
