@@ -2215,7 +2215,7 @@ function renderDashboard(){
     <!-- ── Fila 1: Gráfica mensual (ancho completo) ── -->
     <div class="charts-grid" style="grid-template-columns:1fr;margin-bottom:14px">
       <div class="chart-card">
-        <h3>📈 Evolución mensual — ofertas e importe</h3>
+        <h3>📈 Evolución mensual de ofertas</h3>
         <div style="position:relative;height:200px">
           <canvas id="chart-mensual"></canvas>
         </div>
@@ -2309,7 +2309,7 @@ function renderDashboard(){
                 <div style="display:flex;gap:10px;font-size:11px;min-width:200px;flex-wrap:wrap">
                   <span style="color:var(--text2);font-weight:600">${d.total} oferta${d.total!==1?"s":""}</span>
                   <span style="color:#10b981;font-weight:700">✓ ${d.ganadas} ganadas</span>
-                  <span style="color:var(--text3)">${d.importe>0?d.importe.toLocaleString("es-ES")+" €":""}</span>
+
                 </div>
               </div>`;
             }).join("")}
@@ -2337,8 +2337,7 @@ function renderDashboard(){
         data:{
           labels:mesesFmt,
           datasets:[
-            {type:"bar",label:"Importe (€)",data:mesesImporte,backgroundColor:"rgba(21,101,192,0.18)",borderColor:"#1565c0",borderWidth:1.5,borderRadius:4,yAxisID:"y2",order:2},
-            {type:"line",label:"Nº Ofertas",data:mesesCount,borderColor:"#10b981",backgroundColor:"rgba(16,185,129,0.1)",borderWidth:2.5,pointRadius:4,pointBackgroundColor:"#10b981",tension:0.35,fill:true,yAxisID:"y1",order:1}
+            {type:"line",label:"Nº Ofertas",data:mesesCount,borderColor:"#10b981",backgroundColor:"rgba(16,185,129,0.1)",borderWidth:2.5,pointRadius:4,pointBackgroundColor:"#10b981",tension:0.35,fill:true,order:1}
           ]
         },
         options:{
@@ -2346,12 +2345,11 @@ function renderDashboard(){
           interaction:{mode:"index",intersect:false},
           plugins:{
             legend:{labels:{color:fontColor,font:{size:11},boxWidth:12}},
-            tooltip:{callbacks:{label:ctx=>ctx.dataset.label+": "+(ctx.dataset.yAxisID==="y2"?ctx.parsed.y.toLocaleString("es-ES")+" €":ctx.parsed.y)}}
+            tooltip:{callbacks:{label:ctx=>ctx.dataset.label+": "+ctx.parsed.y}}
           },
           scales:{
             x:{ticks:{color:fontColor,font:{size:10}},grid:{color:gridColor}},
-            y1:{type:"linear",position:"left",ticks:{color:"#10b981",font:{size:10}},grid:{color:gridColor},title:{display:true,text:"Ofertas",color:"#10b981",font:{size:10}}},
-            y2:{type:"linear",position:"right",ticks:{color:"#1565c0",font:{size:10},callback:v=>v>=1000?Math.round(v/1000)+"k €":v+" €"},grid:{drawOnChartArea:false},title:{display:true,text:"Importe",color:"#1565c0",font:{size:10}}}
+            y:{ticks:{color:"#10b981",font:{size:10},precision:0},grid:{color:gridColor},title:{display:true,text:"Ofertas",color:"#10b981",font:{size:10}}}
           }
         }
       });
