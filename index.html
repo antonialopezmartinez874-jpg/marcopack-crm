@@ -768,7 +768,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       <div id="stats-builder"></div>
     </div>
 
-    <div style="margin-top:14px;color:var(--text3);font-size:11px">Versión: <b style="color:var(--accent)">v5.1_ESPAÑOL_COMPLETO</b></div>
+    <div style="margin-top:14px;color:var(--text3);font-size:11px">Versión: <b style="color:var(--accent)">v5.2_ESPAÑOL_COMPLETO</b></div>
   </div>
 </div></div>
   <div id="vista-mapa" style="display:none;padding:16px 20px 28px">
@@ -1116,7 +1116,7 @@ auth.setPersistence(firebase.auth.Auth.Persistence.NONE).catch(()=>{});
 // El Client ID se guarda en localStorage para no repetir configuracion.
 
 const MSAL_AUTHORITY  = "https://login.microsoftonline.com/common";
-const MSAL_SCOPES     = ["Files.ReadWrite", "User.Read"];
+const MSAL_SCOPES     = ["Files.ReadWrite", "Files.ReadWrite.All", "Sites.ReadWrite.All", "User.Read"];
 const ONEDRIVE_FOLDER = "CRM_Marcopack";
 const OD_CONFIG_KEY      = "crm_msal_client_id";
 const OD_SHARED_LINK_KEY  = "crm_od_shared_link";
@@ -3296,9 +3296,9 @@ function renderEstadisticasCustom(){
 
   window._stSetPeriodo = function(v){
     const hoy=new Date();
-    let desde='',hasta=hoy.toISOString().split('T')[0];
-    if(v==='mes'){const d=new Date(hoy.getFullYear(),hoy.getMonth(),1);desde=d.toISOString().split('T')[0];}
-    else if(v==='trimestre'){const tri=Math.floor(hoy.getMonth()/3);const d=new Date(hoy.getFullYear(),tri*3,1);desde=d.toISOString().split('T')[0];}
+    let desde='',hasta=fechaLocal(hoy);
+    if(v==='mes'){const d=new Date(hoy.getFullYear(),hoy.getMonth(),1);desde=fechaLocal(d);}
+    else if(v==='trimestre'){const tri=Math.floor(hoy.getMonth()/3);const d=new Date(hoy.getFullYear(),tri*3,1);desde=fechaLocal(d);}
     else if(v==='anio'){desde=hoy.getFullYear()+'-01-01';}
     else{desde='';hasta='';}
     $('st-from').value=desde; $('st-to').value=hasta;
@@ -3308,8 +3308,8 @@ function renderEstadisticasCustom(){
     const mes=parseInt($('st-preset-mes-sel').value,10);
     const anio=parseInt($('st-preset-mes-anio').value,10);
     const f=new Date(anio,mes,1); const t=new Date(anio,mes+1,0);
-    $('st-from').value=f.toISOString().split('T')[0];
-    $('st-to').value=t.toISOString().split('T')[0];
+    $('st-from').value=fechaLocal(f);
+    $('st-to').value=fechaLocal(t);
     run();
   };
 
@@ -5502,15 +5502,24 @@ function mostrarPrevistaImport(raw){
     empresa:mapCol(row,["Empresa","empresa","EMPRESA","Company","Razón Social"]),
     contacto:mapCol(row,["Contacto","contacto","Nombre contacto"]),
     telefono:mapCol(row,["Teléfono","telefono","Tel","Phone"]),
+    telefonoMovil:mapCol(row,["Teléfono Móvil","Telefono Movil","telefonoMovil","Movil","Mobile"]),
     email:mapCol(row,["Correo","email","Correo"]),
     provincia:mapCol(row,["Provincia","provincia"]),
+    pais:mapCol(row,["País","Pais","pais","Country"])||"",
     tipoMaquina:mapCol(row,["Tipo Máquina","tipo_maquina","Tipo","Máquina"]),
+    otros:mapCol(row,["Otros","otros"])||"",
     descripcion:mapCol(row,["Descripción","descripcion","Description"]),
+    referencia:mapCol(row,["Referencia","referencia"])||"",
     importe:parseFloat(mapCol(row,["Importe €","Importe","importe","Amount"]))||0,
     estado:mapCol(row,["Estado","estado","Status"])||"Pendiente",
+    origenContacto:mapCol(row,["Origen del contacto","origenContacto","Origen"])||"",
+    motivoPerdida:mapCol(row,["Motivo Pérdida","motivoPerdida","Motivo"])||"",
     responsableNombre:mapCol(row,["Responsable","responsable","Comercial"])||currentProfile.nombre,
-    fechaOferta:mapCol(row,["Fecha Oferta","fecha_oferta","Fecha","Date"])||new Date().toISOString().split("T")[0],
-    fechaRecordatorio:mapCol(row,["Fecha Recordatorio","recordatorio"]),
+    fechaOferta:mapCol(row,["Fecha Oferta","fecha_oferta","Fecha","Date"])||fechaLocal(),
+    fechaRecordatorio:mapCol(row,["Fecha Recordatorio","recordatorio"])||null,
+    fechaPrevistaCierre:mapCol(row,["Fecha Prevista Cierre","fechaPrevistaCierre"])||null,
+    proximaAccion:mapCol(row,["Próxima Acción","proximaAccion","Proxima Accion"])||"",
+    fechaProximaAccion:mapCol(row,["Fecha Próxima Acción","fechaProximaAccion"])||null,
     notas:mapCol(row,["Notas","notas","Observaciones"]),
   })).filter(r=>r.empresa);
   window._importData=mapeadas;
@@ -6683,7 +6692,7 @@ function mcRenderOneDrive(){
             <div style="color:var(--text);font-size:12px;font-weight:700;margin-bottom:3px">Añade los permisos necesarios</div>
             <div style="color:var(--text3);font-size:11px;line-height:1.6">
               En el registro ve a <b style="color:var(--text2)">Permisos de API</b> → <b style="color:var(--text2)">Agregar un permiso</b> → <b style="color:var(--text2)">Microsoft Graph</b> → <b style="color:var(--text2)">Permisos delegados</b>.<br>
-              Busca y añade: <b style="color:var(--accent)">Files.ReadWrite</b> y <b style="color:var(--accent)">User.Read</b>.
+              Busca y añade: <b style="color:var(--accent)">Files.ReadWrite</b>, <b style="color:var(--accent)">Files.ReadWrite.All</b>, <b style="color:var(--accent)">Sites.ReadWrite.All</b> y <b style="color:var(--accent)">User.Read</b>.
               Después haz clic en <b style="color:var(--green)">Conceder consentimiento de administrador</b>.
             </div>
           </div>
@@ -7545,7 +7554,7 @@ async function _mostrarConflictoEdicion(modal, ofertaId, lockInfo){
   if(existing) existing.remove();
   const banner = document.createElement('div');
   banner.className='conflict-banner';
-  banner.innerHTML=`⚠️ <strong>${lockInfo.nombre}</strong> también está editando esta oferta. Los cambios del último en guardar prevalecen.`;
+  banner.innerHTML=`⚠️ <strong>${_esc(lockInfo.nombre||"Otro usuario")}</strong> también está editando esta oferta. Los cambios del último en guardar prevalecen.`;
   const titulo = modal.querySelector('h2');
   if(titulo) titulo.after(banner);
 }
