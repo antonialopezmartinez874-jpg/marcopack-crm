@@ -261,7 +261,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 .sb-grid .field{margin:0}
 .sb-grid .field label{margin-bottom:5px}
 .sb-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-.sb-btn{border:none;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:900;cursor:pointer}
+.sb-btn{border:none;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:900;cursor:pointer;font-family:inherit}
 .sb-btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:white}
 .sb-btn.ghost{background:var(--surface2);border:1px solid var(--border);color:var(--text2)}
 .sb-btn.danger{background:var(--red-bg);border:1px solid #fca5a5;color:var(--red)}
@@ -276,6 +276,17 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 .sb-badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:900;border:1px solid var(--border);background:var(--surface2);color:var(--text2)}
 .sb-bar{height:18px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);overflow:hidden}
 .sb-bar > div{height:100%;border-radius:8px;background:linear-gradient(90deg,var(--accent),#5b21b6)}
+
+/* ===== PRESENCIA USUARIOS EN TIEMPO REAL ===== */
+#presence-bar{display:flex;align-items:center;gap:6px;padding:4px 24px;background:var(--surface2);border-bottom:1px solid var(--border);flex-wrap:wrap;min-height:28px}
+.presence-dot{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;color:white;border:2px solid white;box-shadow:0 0 0 1.5px #10b981;cursor:default;transition:transform .2s;position:relative}
+.presence-dot:hover{transform:scale(1.15)}
+.presence-dot::after{content:'';width:8px;height:8px;background:#10b981;border-radius:50%;position:absolute;bottom:0;right:0;border:1.5px solid white}
+.presence-lbl{font-size:10px;color:var(--text3);font-weight:600}
+
+/* ===== CONFLICTO EDICIÓN SIMULTÁNEA ===== */
+.conflict-banner{background:linear-gradient(135deg,#fffbeb,#fefce8);border:1.5px solid #fde68a;border-radius:10px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;font-size:12px;color:#92400e;font-weight:600}
+.conflict-banner strong{color:#b45309}
 
 /* ===== DASHBOARD ===== */
 .dashboard{padding:14px 24px 28px}
@@ -606,6 +617,12 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 
   <div class="stats" id="stats-row"></div>
 
+  <!-- BARRA DE PRESENCIA — usuarios conectados ahora -->
+  <div id="presence-bar" style="display:none">
+    <span class="presence-lbl">👥 Ahora conectados:</span>
+    <div id="presence-avatars" style="display:flex;gap:4px;align-items:center"></div>
+  </div>
+
   <!-- BANNER PREAVISO RECORDATORIOS (se muestra/oculta dinámicamente) -->
   <div id="banner-recordatorios" style="display:none;margin:8px 24px 0;background:linear-gradient(135deg,#fff7ed,#fffbeb);border:1.5px solid #fed7aa;border-radius:var(--radius);padding:12px 18px;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 2px 8px rgba(249,115,22,.12)">
     <div style="display:flex;align-items:center;gap:10px">
@@ -659,7 +676,46 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
     </div>
     <select id="f-est" onchange="paginaActual=1;renderVista()"><option value="">Todos los estados</option></select>
     <select id="f-resp" onchange="paginaActual=1;renderVista()"><option value="">Todos los responsables</option></select>
-    <button class="btn-clear" onclick="limpiarFiltros()">✕ Limpiar</button>
+    <!-- Filtro Tipo de Máquina -->
+    <select id="f-tipo-filtro" onchange="paginaActual=1;renderVista()" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:7px 11px;color:var(--text);font-size:12px;font-family:inherit;transition:border-color .2s">
+      <option value="">🔧 Todos los tipos</option>
+    </select>
+    <!-- Filtro rango importe -->
+    <div style="position:relative;display:inline-block" id="importe-dropdown-wrap">
+      <button onclick="toggleImporteDropdown()" id="importe-btn" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px;cursor:pointer;min-width:140px;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:6px">
+        <span id="importe-btn-label">💶 Importe</span><span style="color:var(--text3)">▾</span>
+      </button>
+      <div id="importe-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;z-index:500;min-width:240px;padding:12px;box-shadow:0 8px 30px rgba(0,0,0,.15)">
+        <div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Rango de importe (€)</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="number" id="f-imp-min" placeholder="Mín" min="0" oninput="paginaActual=1;actualizarLabelImporte();renderVista()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;font-family:inherit"/>
+          <span style="color:var(--text3);font-size:12px">–</span>
+          <input type="number" id="f-imp-max" placeholder="Máx" min="0" oninput="paginaActual=1;actualizarLabelImporte();renderVista()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;font-family:inherit"/>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+          ${[["<5K","0","5000"],["5K-20K","5000","20000"],["20K-100K","20000","100000"],[">100K","100000",""]].map(([l,mn,mx])=>`<button onclick="document.getElementById('f-imp-min').value='${mn}';document.getElementById('f-imp-max').value='${mx}';actualizarLabelImporte();paginaActual=1;renderVista()" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit">${l}</button>`).join("")}
+        </div>
+      </div>
+    </div>
+    <!-- Filtro rango fechas -->
+    <div style="position:relative;display:inline-block" id="fecha-dropdown-wrap">
+      <button onclick="toggleFechaDropdown()" id="fecha-btn" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px;cursor:pointer;min-width:130px;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:6px">
+        <span id="fecha-btn-label">📅 Fecha</span><span style="color:var(--text3)">▾</span>
+      </button>
+      <div id="fecha-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;z-index:500;min-width:240px;padding:12px;box-shadow:0 8px 30px rgba(0,0,0,.15)">
+        <div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Rango de fechas</div>
+        <div style="display:grid;gap:6px">
+          <div><label style="font-size:10px;color:var(--text3);font-weight:700">Desde</label><input type="date" id="f-fecha-desde" oninput="paginaActual=1;actualizarLabelFecha();renderVista()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;font-family:inherit"/></div>
+          <div><label style="font-size:10px;color:var(--text3);font-weight:700">Hasta</label><input type="date" id="f-fecha-hasta" oninput="paginaActual=1;actualizarLabelFecha();renderVista()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;font-family:inherit"/></div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+          ${[["Este mes","mes"],["Este año","anio"],["Últimos 30d","30d"],["Últimos 90d","90d"]].map(([l,v])=>`<button onclick="aplicarAtajoFecha('${v}')" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit">${l}</button>`).join("")}
+        </div>
+      </div>
+    </div>
+    <button class="btn-clear" onclick="limpiarFiltros()">✕ Limpiar todo</button>
+    <!-- Contador de resultados -->
+    <div id="filtro-count" style="color:var(--text3);font-size:11px;font-weight:600;padding:0 4px;align-self:center"></div>
   </div>
 
   <!-- NOTIFICACIÓN INTELIGENTE (se inyecta dinámicamente al cargar) -->
@@ -1653,6 +1709,7 @@ function showErr(msg){
   setTimeout(()=>el.style.display="none",6000);
 }
 function doLogout(){
+  _presenceDetener();
   if(_ofertasUnsub){ try{ _ofertasUnsub(); }catch(_){} _ofertasUnsub=null; }
   ofertas=[];
   _smartNotifMostrada=false;
@@ -1747,6 +1804,18 @@ document.addEventListener("click",function(e){
   if(paisWrap&&!paisWrap.contains(e.target)){
     const dp=document.getElementById("pais-dropdown");
     if(dp)dp.style.display="none";
+  }
+  // Cerrar dropdown de importe
+  const importeWrap=document.getElementById("importe-dropdown-wrap");
+  if(importeWrap&&!importeWrap.contains(e.target)){
+    const di=document.getElementById("importe-dropdown");
+    if(di)di.style.display="none";
+  }
+  // Cerrar dropdown de fechas
+  const fechaWrap=document.getElementById("fecha-dropdown-wrap");
+  if(fechaWrap&&!fechaWrap.contains(e.target)){
+    const df=document.getElementById("fecha-dropdown");
+    if(df)df.style.display="none";
   }
 });
 
@@ -1857,6 +1926,15 @@ function escucharOfertas(){
     // Actualizar selector de filtro siempre
     fr.innerHTML='<option value="">Todos los responsables</option>';
     nombres.forEach(n=>fr.add(new Option(n,n)));
+    // Actualizar selector de tipo de máquina
+    const fTipoFiltro=document.getElementById("f-tipo-filtro");
+    if(fTipoFiltro){
+      const valActual=fTipoFiltro.value;
+      const tipos=[...new Set(ofertas.map(o=>o.tipoMaquina).filter(Boolean))].sort();
+      fTipoFiltro.innerHTML='<option value="">🔧 Todos los tipos</option>';
+      tipos.forEach(t=>fTipoFiltro.add(new Option(t,t)));
+      if(valActual&&tipos.includes(valActual))fTipoFiltro.value=valActual;
+    }
     // Actualizar selector del formulario solo si el modal no está abierto (evita reset de selección activa)
     // Usamos window._modalOfertaAbierto como flag fiable en vez de leer style.display
     // (style.display puede ser vacío o transitorio durante animaciones de apertura/cierre)
@@ -1877,6 +1955,8 @@ function escucharOfertas(){
       window._contadorSincronizado=true;
       _sincronizarContador();
     }
+    // Iniciar presencia (una sola vez)
+    if(!_presenceHeartbeat) _presenceIniciar();
   }, err=>{
     // Si Firestore devuelve permission-denied (p.ej. sesión caducada), silenciar
     if(err.code==='permission-denied'||err.code==='unauthenticated'){
@@ -1983,15 +2063,23 @@ function getFiltradas(){
   const q=document.getElementById("busqueda").value.toLowerCase();
   const fe=document.getElementById("f-est").value;
   const fr=document.getElementById("f-resp").value;
-  return ofertas.filter(o=>{
-    const m=!q||[o.empresa,o.contacto,o.numeroOferta,o.provincia,o.descripcion,o.pais].some(v=>v?.toLowerCase().includes(q));
+  const fTipo=document.getElementById("f-tipo-filtro")?.value||"";
+  const fImpMin=parseFloat(document.getElementById("f-imp-min")?.value)||0;
+  const fImpMax=parseFloat(document.getElementById("f-imp-max")?.value)||Infinity;
+  const fFechaDesde=document.getElementById("f-fecha-desde")?.value||"";
+  const fFechaHasta=document.getElementById("f-fecha-hasta")?.value||"";
+  const resultado=ofertas.filter(o=>{
+    const m=!q||[o.empresa,o.contacto,o.numeroOferta,o.provincia,o.descripcion,o.pais,o.tipoMaquina,o.referencia].some(v=>v?.toLowerCase().includes(q));
     const provOk=provinciasSeleccionadas.size===0||provinciasSeleccionadas.has(o.provincia);
     const paisOk=paisesSeleccionados.size===0||paisesSeleccionados.has(o.pais);
-    return m&&provOk&&paisOk&&(!fe||o.estado===fe)&&(!fr||o.responsableNombre===fr);
+    const tipoOk=!fTipo||o.tipoMaquina===fTipo;
+    const imp=o.importe||0;
+    const impOk=imp>=fImpMin&&(fImpMax===Infinity||imp<=fImpMax);
+    const fechaOk=(!fFechaDesde||(o.fechaOferta&&o.fechaOferta>=fFechaDesde))&&(!fFechaHasta||(o.fechaOferta&&o.fechaOferta<=fFechaHasta));
+    return m&&provOk&&paisOk&&tipoOk&&impOk&&fechaOk&&(!fe||o.estado===fe)&&(!fr||o.responsableNombre===fr);
   }).sort((a,b)=>{
     const va=a[ordenCampo]??"",vb=b[ordenCampo]??"";
     if(ordenCampo==="numeroOferta"){
-      // Extrae el número de cualquier formato: OF-2026-001, OF-2026-1000, OF2026-001, etc.
       const extraerNum=s=>{const m=String(s).match(/(\d+)$/);return m?parseInt(m[1],10):0;};
       const extraerAnio=s=>{const m=String(s).match(/(20\d{2})/);return m?parseInt(m[1],10):0;};
       const da=extraerAnio(va)-extraerAnio(vb);
@@ -2001,14 +2089,72 @@ function getFiltradas(){
     }
     return ordenDir==="asc"?(va<vb?-1:va>vb?1:0):(va>vb?-1:va<vb?1:0);
   });
+  // Actualizar contador de resultados
+  const cEl=document.getElementById("filtro-count");
+  if(cEl){
+    const activos=hayFiltrosActivos();
+    cEl.textContent=activos?`${resultado.length} resultado${resultado.length!==1?"s":""}`:"";}
+  return resultado;
+}
+function hayFiltrosActivos(){
+  const q=document.getElementById("busqueda").value;
+  const fe=document.getElementById("f-est").value;
+  const fr=document.getElementById("f-resp").value;
+  const fTipo=document.getElementById("f-tipo-filtro")?.value||"";
+  const fImpMin=document.getElementById("f-imp-min")?.value||"";
+  const fImpMax=document.getElementById("f-imp-max")?.value||"";
+  const fFD=document.getElementById("f-fecha-desde")?.value||"";
+  const fFH=document.getElementById("f-fecha-hasta")?.value||"";
+  return !!(q||fe||fr||fTipo||fImpMin||fImpMax||fFD||fFH||provinciasSeleccionadas.size||paisesSeleccionados.size);
+}
+function actualizarLabelImporte(){
+  const mn=document.getElementById("f-imp-min")?.value||"";
+  const mx=document.getElementById("f-imp-max")?.value||"";
+  const lbl=document.getElementById("importe-btn-label");
+  if(!lbl)return;
+  if(!mn&&!mx)lbl.textContent="💶 Importe";
+  else if(mn&&mx)lbl.textContent=`💶 ${parseInt(mn).toLocaleString("es-ES")}–${parseInt(mx).toLocaleString("es-ES")} €`;
+  else if(mn)lbl.textContent=`💶 ≥${parseInt(mn).toLocaleString("es-ES")} €`;
+  else lbl.textContent=`💶 ≤${parseInt(mx).toLocaleString("es-ES")} €`;
+}
+function actualizarLabelFecha(){
+  const fd=document.getElementById("f-fecha-desde")?.value||"";
+  const fh=document.getElementById("f-fecha-hasta")?.value||"";
+  const lbl=document.getElementById("fecha-btn-label");
+  if(!lbl)return;
+  if(!fd&&!fh)lbl.textContent="📅 Fecha";
+  else if(fd&&fh)lbl.textContent=`📅 ${fd.slice(5)}–${fh.slice(5)}`;
+  else if(fd)lbl.textContent=`📅 Desde ${fd.slice(5)}`;
+  else lbl.textContent=`📅 Hasta ${fh.slice(5)}`;
+}
+function aplicarAtajoFecha(v){
+  const hoy=new Date();
+  let desde="", hasta=fechaLocal(hoy);
+  if(v==="mes"){const d=new Date(hoy.getFullYear(),hoy.getMonth(),1);desde=fechaLocal(d);}
+  else if(v==="anio"){desde=hoy.getFullYear()+"-01-01";}
+  else if(v==="30d"){const d=new Date(hoy);d.setDate(d.getDate()-30);desde=fechaLocal(d);}
+  else if(v==="90d"){const d=new Date(hoy);d.setDate(d.getDate()-90);desde=fechaLocal(d);}
+  const dEl=document.getElementById("f-fecha-desde");const hEl=document.getElementById("f-fecha-hasta");
+  if(dEl)dEl.value=desde;if(hEl)hEl.value=hasta;
+  actualizarLabelFecha();paginaActual=1;renderVista();
+}
+function toggleImporteDropdown(){
+  const d=document.getElementById("importe-dropdown");
+  d.style.display=d.style.display==="none"?"block":"none";
+}
+function toggleFechaDropdown(){
+  const d=document.getElementById("fecha-dropdown");
+  d.style.display=d.style.display==="none"?"block":"none";
 }
 function limpiarFiltros(){
   document.getElementById("busqueda").value="";
-  ["f-est","f-resp"].forEach(id=>document.getElementById(id).value="");
+  ["f-est","f-resp","f-tipo-filtro","f-imp-min","f-imp-max","f-fecha-desde","f-fecha-hasta"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
   provinciasSeleccionadas.clear();
   paisesSeleccionados.clear();
   actualizarLabelProv();
   actualizarLabelPais();
+  actualizarLabelImporte();
+  actualizarLabelFecha();
   renderProvOpciones();
   renderPaisOpciones();
   paginaActual=1;
@@ -2105,6 +2251,7 @@ function togglePaisDropdown(){
 // ===== VISTAS =====
 function setVista(v){
   vistaActual=v;
+  _presenceSetVista(v);
   const vistas=["dashboard","tabla","kanban","estadistas","mapa","llamadas","comparativa","ranking","alertas","historial","admin"];
   vistas.forEach(x=>{
     const el=document.getElementById("vista-"+x);
@@ -2951,115 +3098,259 @@ function statsDownloadCSV(headers, rows){
   a.download='Marcopack_stats_'+new Date().toISOString().split('T')[0]+'.csv';
   document.body.appendChild(a);a.click();a.remove();
 }
+// ============================================================
+// ESTADÍSTICAS PERSONALIZADAS — Versión CEO Pro
+// Rediseñada para máxima claridad visual y facilidad de uso
+// ============================================================
+let _stCustomChart = null;   // instancia Chart.js activa en el panel custom
+function _destroyStCustomChart(){ try{ if(_stCustomChart){ _stCustomChart.destroy(); _stCustomChart=null; }}catch(_){} }
+
 function renderEstadisticasCustom(){
   const wrap=document.getElementById('stats-builder');
   if(!wrap) return;
   const st=statsLoad();
-  const state={scope:st.scope||'all',dateField:st.dateField||'fechaOferta',from:st.from||'',to:st.to||'',dim1:st.dim1||'provincia',dim2:st.dim2||'',metric:st.metric||'count',timeGroup:st.timeGroup||'none',topN:st.topN||15,sortDir:st.sortDir||'desc'};
+  const state={scope:st.scope||'all',dateField:st.dateField||'fechaOferta',from:st.from||'',to:st.to||'',dim1:st.dim1||'responsable',dim2:st.dim2||'',metric:st.metric||'count',chartType:st.chartType||'bar',topN:st.topN||10,sortDir:st.sortDir||'desc'};
 
-  // Generar opciones de años disponibles (últimos 6 años)
   const anioActual=new Date().getFullYear();
   const aniosOpts=[...Array(6)].map((_,i)=>anioActual-i).map(y=>`<option value="${y}">${y}</option>`).join('');
-  const mesesNombres=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const MESES_N=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const mesActual=new Date().getMonth();
-  const mesesOpts=mesesNombres.map((m,i)=>`<option value="${i}"${i===mesActual?' selected':''}>${m}</option>`).join('');
+  const mesesOpts=MESES_N.map((m,i)=>`<option value="${i}"${i===mesActual?' selected':''}>${m}</option>`).join('');
+
+  // Presets de CEO: informes de un clic
+  const PRESETS_CEO = [
+    { icon:'🏆', label:'Rendimiento Comerciales',  scope:'all',     dim1:'responsable',  metric:'sum_importe', chartType:'bar' },
+    { icon:'📅', label:'Ventas por Mes',            scope:'ganadas', dim1:'mes',          metric:'sum_importe', chartType:'line'},
+    { icon:'🏭', label:'Top Tipos de Máquina',      scope:'all',     dim1:'tipoMaquina',  metric:'count',       chartType:'bar' },
+    { icon:'📍', label:'Ofertas por Provincia',     scope:'all',     dim1:'provincia',    metric:'count',       chartType:'bar' },
+    { icon:'💶', label:'Ingresos por Provincia',    scope:'ganadas', dim1:'provincia',    metric:'sum_importe', chartType:'bar' },
+    { icon:'🎯', label:'Tasa de Cierre (%)',        scope:'all',     dim1:'responsable',  metric:'win_rate',    chartType:'bar' },
+    { icon:'🌍', label:'Ventas por País',           scope:'ganadas', dim1:'pais',         metric:'sum_importe', chartType:'doughnut'},
+    { icon:'📊', label:'Evolución Mensual',         scope:'all',     dim1:'mes',          metric:'count',       chartType:'line'},
+  ];
 
   wrap.innerHTML=`
-    <div class="sb-wrap">
+  <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+
+    <!-- Panel izquierdo: configuración -->
+    <div style="flex:0 0 320px;min-width:260px">
       <div class="sb-panel">
-        <h3>🎛️ Estadística personalizada</h3>
-        <div class="sb-mini">Crea estadísticas por provincia, empresa, tipo de máquina… Filtra por mes, año o rango libre. Exporta a CSV.</div>
+        <h3 style="font-size:14px;font-weight:900;color:var(--accent);margin-bottom:12px">🎛️ Configurar informe</h3>
 
-        <!-- PRESETS RÁPIDOS -->
-        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:10px 0">
-          <div style="color:var(--text3);font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">⚡ Acceso rápido</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-            <button class="sb-btn ghost" id="st-preset-mes">🗓 Este mes</button>
-            <button class="sb-btn ghost" id="st-preset-ano">📅 Este año</button>
-            <span style="color:var(--border2);font-size:16px">|</span>
-            <select id="st-preset-mes-sel" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 8px;font-size:12px;color:var(--text);font-family:inherit">${mesesOpts}</select>
-            <select id="st-preset-mes-anio" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 8px;font-size:12px;color:var(--text);font-family:inherit">${aniosOpts}</select>
-            <button class="sb-btn ghost" id="st-preset-mes-custom">Ver mes</button>
-            <span style="color:var(--border2);font-size:16px">|</span>
-            <select id="st-preset-anio-sel" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 8px;font-size:12px;color:var(--text);font-family:inherit">${aniosOpts}</select>
-            <button class="sb-btn ghost" id="st-preset-anio-custom">Ver año</button>
+        <!-- PRESETS CEO -->
+        <div style="margin-bottom:14px">
+          <div style="color:var(--text3);font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">⚡ Informes de un clic para el CEO</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">
+            ${PRESETS_CEO.map((p,i)=>`<button onclick="_applyPresetCEO(${i})" class="ceo-preset-btn" data-idx="${i}" style="background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;text-align:left;transition:all .15s;color:var(--text2);display:flex;align-items:center;gap:6px">
+              <span style="font-size:14px">${p.icon}</span><span>${p.label}</span>
+            </button>`).join('')}
           </div>
         </div>
 
-        <div class="sb-grid" style="margin-top:10px">
-          <div class="field"><label>Conjunto</label>
-            <select id="st-scope"><option value="all">Todas</option><option value="activas">Activas</option><option value="cerradas">Cerradas</option><option value="ganadas">Ganadas</option><option value="perdidas">Perdidas/descartadas</option></select>
+        <div style="border-top:1px solid var(--border);margin:12px 0;padding-top:12px">
+          <div style="color:var(--text3);font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">🗓 Filtro de periodo</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+            <button onclick="_stSetPeriodo('mes')" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:7px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Este mes</button>
+            <button onclick="_stSetPeriodo('trimestre')" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:7px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Trimestre</button>
+            <button onclick="_stSetPeriodo('anio')" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:7px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Este año</button>
+            <button onclick="_stSetPeriodo('todo')" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:7px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Todo</button>
           </div>
-          <div class="field"><label>Campo de fecha</label>
-            <select id="st-dateField"><option value="fechaOferta">Fecha oferta</option><option value="fechaRecordatorio">Fecha recordatorio</option><option value="ultimaLlamada">Última llamada</option><option value="creadoEn">Creado en</option></select>
+          <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
+            <select id="st-preset-mes-sel" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:5px 7px;font-size:11px;color:var(--text);font-family:inherit">${mesesOpts}</select>
+            <select id="st-preset-mes-anio" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:5px 7px;font-size:11px;color:var(--text);font-family:inherit">${aniosOpts}</select>
+            <button onclick="_stSetMes()" style="background:var(--accent);color:white;border:none;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">Ver mes</button>
           </div>
-          <div class="field"><label>Desde</label><input type="date" id="st-from"/></div>
-          <div class="field"><label>Hasta</label><input type="date" id="st-to"/></div>
-          <div class="field"><label>Agrupar por</label>
-            <select id="st-dim1"><option value="provincia">Provincia</option><option value="empresa">Empresa</option><option value="responsable">Responsable</option><option value="estado">Estado</option><option value="tipoMaquina">Tipo máquina</option><option value="pais">País</option><option value="mes">Mes (fecha oferta)</option><option value="anio">Año (fecha oferta)</option></select>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <div><label style="font-size:10px;color:var(--text3);font-weight:700;display:block;margin-bottom:3px">Desde</label><input type="date" id="st-from" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 7px;font-size:11px;color:var(--text);font-family:inherit"/></div>
+            <div><label style="font-size:10px;color:var(--text3);font-weight:700;display:block;margin-bottom:3px">Hasta</label><input type="date" id="st-to" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 7px;font-size:11px;color:var(--text);font-family:inherit"/></div>
           </div>
-          <div class="field"><label>2ª dimensión (pivot)</label>
-            <select id="st-dim2"><option value="">— Ninguna —</option><option value="provincia">Provincia</option><option value="empresa">Empresa</option><option value="responsable">Responsable</option><option value="estado">Estado</option><option value="tipoMaquina">Tipo máquina</option><option value="pais">País</option></select>
-          </div>
-          <div class="field"><label>Métrica</label>
-            <select id="st-metric"><option value="count">Nº ofertas</option><option value="sum_importe">Suma importe (€)</option><option value="avg_importe">Importe medio (€)</option><option value="win_rate">% cierre</option></select>
-          </div>
-          <div class="field"><label>Serie temporal</label>
-            <select id="st-timeGroup"><option value="none">No</option><option value="month">Por mes</option><option value="year">Por año</option></select>
-          </div>
-          <div class="field"><label>Top N</label><input type="number" min="3" max="50" id="st-topN"/></div>
-          <div class="field"><label>Orden</label><select id="st-sortDir"><option value="desc">Desc</option><option value="asc">Asc</option></select></div>
         </div>
-        <div class="sb-actions">
-          <button class="sb-btn primary" id="st-run">▶ Generar</button>
-          <button class="sb-btn danger" id="st-reset">⟲ Limpiar</button>
+
+        <div style="border-top:1px solid var(--border);margin:12px 0;padding-top:12px">
+          <div style="color:var(--text3);font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">⚙️ Opciones avanzadas</div>
+          <div style="display:grid;gap:8px">
+            <div class="field" style="margin:0"><label>Ofertas a incluir</label>
+              <select id="st-scope"><option value="all">📋 Todas las ofertas</option><option value="activas">🔵 Solo activas</option><option value="cerradas">🔒 Solo cerradas</option><option value="ganadas">✅ Solo ganadas</option><option value="perdidas">❌ Solo perdidas/descartadas</option></select>
+            </div>
+            <div class="field" style="margin:0"><label>Agrupar resultados por</label>
+              <select id="st-dim1">
+                <option value="responsable">👷 Comercial/Responsable</option>
+                <option value="provincia">📍 Provincia</option>
+                <option value="pais">🌍 País</option>
+                <option value="tipoMaquina">🔧 Tipo de máquina</option>
+                <option value="empresa">🏢 Empresa</option>
+                <option value="estado">📌 Estado de oferta</option>
+                <option value="mes">📅 Mes</option>
+                <option value="anio">🗓 Año</option>
+              </select>
+            </div>
+            <div class="field" style="margin:0"><label>Métrica a mostrar</label>
+              <select id="st-metric">
+                <option value="count">🔢 Nº de ofertas</option>
+                <option value="sum_importe">💶 Importe total (€)</option>
+                <option value="avg_importe">📊 Importe medio (€)</option>
+                <option value="win_rate">🎯 Tasa de cierre (%)</option>
+              </select>
+            </div>
+            <div class="field" style="margin:0"><label>Tipo de gráfica</label>
+              <select id="st-chartType">
+                <option value="bar">📊 Barras (horizontal)</option>
+                <option value="bar_v">📈 Barras (vertical)</option>
+                <option value="line">📉 Líneas (tendencia)</option>
+                <option value="doughnut">🍩 Donut (proporción)</option>
+              </select>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              <div class="field" style="margin:0"><label>Top N resultados</label><input type="number" min="3" max="50" id="st-topN" style="text-align:center"/></div>
+              <div class="field" style="margin:0"><label>Ordenar</label><select id="st-sortDir"><option value="desc">↓ Mayor primero</option><option value="asc">↑ Menor primero</option></select></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <button class="sb-btn primary" id="st-run" style="flex:1">▶ Generar informe</button>
+          <button onclick="statsDownloadCSV_last()" class="sb-btn ghost" id="st-csv-btn" title="Descargar CSV">⬇️ CSV</button>
+          <button class="sb-btn danger" id="st-reset" title="Limpiar">↺</button>
         </div>
       </div>
-      <div>
-        <div class="sb-kpis" id="st-kpis"></div>
-        <div class="sb-card" id="st-chart"></div>
-        <div class="sb-card" style="margin-top:14px" id="st-table"></div>
+    </div>
+
+    <!-- Panel derecho: resultados -->
+    <div style="flex:1;min-width:300px">
+      <!-- KPIs -->
+      <div id="st-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px"></div>
+      <!-- Gráfica Chart.js -->
+      <div class="sb-card" id="st-chart" style="min-height:260px">
+        <div style="text-align:center;color:var(--text3);padding:60px 20px">
+          <div style="font-size:40px;margin-bottom:12px">📊</div>
+          <div style="font-size:14px;font-weight:700">Selecciona un informe rápido o configura los parámetros</div>
+          <div style="font-size:12px;margin-top:6px">y pulsa <strong>Generar informe</strong></div>
+        </div>
       </div>
-    </div>`;
+      <!-- Tabla -->
+      <div class="sb-card" style="margin-top:12px;overflow:auto" id="st-table"></div>
+    </div>
+  </div>`;
 
   const $=(id)=>document.getElementById(id);
-  $('st-scope').value=state.scope; $('st-dateField').value=state.dateField; $('st-from').value=state.from; $('st-to').value=state.to;
-  $('st-dim1').value=state.dim1; $('st-dim2').value=state.dim2; $('st-metric').value=state.metric; $('st-timeGroup').value=state.timeGroup;
-  $('st-topN').value=state.topN; $('st-sortDir').value=state.sortDir;
+  $('st-scope').value=state.scope;
+  $('st-from').value=state.from; $('st-to').value=state.to;
+  $('st-dim1').value=state.dim1;
+  $('st-metric').value=state.metric;
+  $('st-chartType').value=state.chartType||'bar';
+  $('st-topN').value=state.topN;
+  $('st-sortDir').value=state.sortDir;
+
+  // Presets CEO
+  window._ceoPresets = PRESETS_CEO;
+  window._applyPresetCEO = function(i){
+    const p=PRESETS_CEO[i];
+    $('st-scope').value=p.scope;
+    $('st-dim1').value=p.dim1;
+    $('st-metric').value=p.metric;
+    $('st-chartType').value=p.chartType||'bar';
+    // Highlight button
+    document.querySelectorAll('.ceo-preset-btn').forEach((b,j)=>{
+      b.style.background=j===i?'var(--accent-light)':'var(--surface2)';
+      b.style.borderColor=j===i?'var(--accent)':'var(--border)';
+      b.style.color=j===i?'var(--accent)':'var(--text2)';
+    });
+    run();
+  };
+
+  window._stSetPeriodo = function(v){
+    const hoy=new Date();
+    let desde='',hasta=hoy.toISOString().split('T')[0];
+    if(v==='mes'){const d=new Date(hoy.getFullYear(),hoy.getMonth(),1);desde=d.toISOString().split('T')[0];}
+    else if(v==='trimestre'){const tri=Math.floor(hoy.getMonth()/3);const d=new Date(hoy.getFullYear(),tri*3,1);desde=d.toISOString().split('T')[0];}
+    else if(v==='anio'){desde=hoy.getFullYear()+'-01-01';}
+    else{desde='';hasta='';}
+    $('st-from').value=desde; $('st-to').value=hasta;
+    run();
+  };
+  window._stSetMes = function(){
+    const mes=parseInt($('st-preset-mes-sel').value,10);
+    const anio=parseInt($('st-preset-mes-anio').value,10);
+    const f=new Date(anio,mes,1); const t=new Date(anio,mes+1,0);
+    $('st-from').value=f.toISOString().split('T')[0];
+    $('st-to').value=t.toISOString().split('T')[0];
+    run();
+  };
 
   function collect(){
-    const out={scope:$('st-scope').value,dateField:$('st-dateField').value,from:$('st-from').value,to:$('st-to').value,dim1:$('st-dim1').value,dim2:$('st-dim2').value,metric:$('st-metric').value,timeGroup:$('st-timeGroup').value,topN:Math.max(3,Math.min(50,parseInt($('st-topN').value||'15',10))),sortDir:$('st-sortDir').value};
-    statsSave(out); return out;
+    return {
+      scope:$('st-scope').value,
+      dateField:'fechaOferta',
+      from:$('st-from').value,
+      to:$('st-to').value,
+      dim1:$('st-dim1').value,
+      metric:$('st-metric').value,
+      chartType:$('st-chartType').value||'bar',
+      topN:Math.max(3,Math.min(50,parseInt($('st-topN').value||'10',10))),
+      sortDir:$('st-sortDir').value
+    };
   }
-  function formatMetric(v, metric){
+
+  function fmtM(v,metric){
     if(metric==='win_rate') return `${Math.round(v)}%`;
-    if(metric==='sum_importe' || metric==='avg_importe') return `${Math.round(v).toLocaleString('es-ES')} €`;
-    return (typeof v==='number') ? v.toLocaleString('es-ES') : String(v);
+    if(metric==='sum_importe'||metric==='avg_importe') return `${Math.round(v).toLocaleString('es-ES')} €`;
+    return typeof v==='number'?v.toLocaleString('es-ES'):String(v);
   }
+
+  // CSV download — guarda última exportación
+  let _lastCSVData=null;
+  window.statsDownloadCSV_last=function(){
+    if(!_lastCSVData){toast('⚠️ Genera un informe primero','#f59e0b');return;}
+    statsDownloadCSV(_lastCSVData.headers,_lastCSVData.rows);
+  };
 
   function run(){
     const s=collect();
+    statsSave(s);
     const from=s.from?new Date(s.from+'T00:00:00'):null;
     const to=s.to?new Date(s.to+'T23:59:59'):null;
     let base=[...ofertas];
     const cerrados=["Ganada","Perdida","Descartada"];
     if(s.scope==='activas') base=base.filter(o=>!cerrados.includes(o.estado));
-    if(s.scope==='cerradas') base=base.filter(o=>cerrados.includes(o.estado));
-    if(s.scope==='ganadas') base=base.filter(o=>o.estado==='Ganada');
-    if(s.scope==='perdidas') base=base.filter(o=>o.estado==='Perdida' || o.estado==='Descartada');
+    else if(s.scope==='cerradas') base=base.filter(o=>cerrados.includes(o.estado));
+    else if(s.scope==='ganadas') base=base.filter(o=>o.estado==='Ganada');
+    else if(s.scope==='perdidas') base=base.filter(o=>o.estado==='Perdida'||o.estado==='Descartada');
 
-    base=base.filter(o=>{ const d=statsGetDate(o,s.dateField); if(!d) return (!from && !to); return statsInRange(d,from,to); });
+    if(from||to) base=base.filter(o=>{
+      const d=statsGetDate(o,s.dateField);
+      if(!d) return !from&&!to;
+      return statsInRange(d,from,to);
+    });
 
     const total=base.length;
     const totalImp=base.reduce((a,o)=>a+(o.importe||0),0);
     const gan=base.filter(o=>o.estado==='Ganada');
     const cerr=base.filter(o=>cerrados.includes(o.estado));
     const winRate=cerr.length?Math.round(gan.length/cerr.length*100):0;
-    document.getElementById('st-kpis').innerHTML=`
-      <div class="sb-card"><div style="color:var(--accent);font-size:26px;font-weight:900">${total}</div><div style="color:var(--text3);font-size:11px;font-weight:800">OFERTAS</div></div>
-      <div class="sb-card"><div style="color:#34d399;font-size:22px;font-weight:900">${Math.round(totalImp).toLocaleString('es-ES')} €</div><div style="color:var(--text3);font-size:11px;font-weight:800">IMPORTE</div></div>
-      <div class="sb-card"><div style="color:var(--purple);font-size:22px;font-weight:900">${winRate}%</div><div style="color:var(--text3);font-size:11px;font-weight:800">CIERRE</div></div>`;
+    const ticketMedio=gan.length?Math.round(gan.reduce((a,o)=>a+(o.importe||0),0)/gan.length):0;
 
+    // KPIs visuales
+    const kpiData=[
+      {val:total,           lbl:'Ofertas analizadas', color:'var(--accent)',  icon:'📋'},
+      {val:fmtM(totalImp,'sum_importe'), lbl:'Importe total',    color:'#0a7c5c',      icon:'💶'},
+      {val:gan.length,      lbl:'Ofertas ganadas',    color:'#10b981',       icon:'✅'},
+      {val:winRate+'%',     lbl:'Tasa de cierre',     color:'var(--purple)',  icon:'🎯'},
+      {val:fmtM(ticketMedio,'sum_importe'), lbl:'Ticket medio (gan.)', color:'#f59e0b', icon:'📊'},
+    ];
+    $('st-kpis').innerHTML=kpiData.map(k=>`
+      <div class="sb-card" style="text-align:center;padding:16px 12px">
+        <div style="font-size:18px;margin-bottom:4px">${k.icon}</div>
+        <div style="font-size:${String(k.val).length>7?'14':'20'}px;font-weight:900;color:${k.color};line-height:1.1">${k.val}</div>
+        <div style="font-size:10px;color:var(--text3);font-weight:700;margin-top:4px;text-transform:uppercase;letter-spacing:.04em">${k.lbl}</div>
+      </div>`).join('');
+
+    if(!total){
+      $('st-chart').innerHTML=`<div style="text-align:center;color:var(--text3);padding:40px"><div style="font-size:32px">🔍</div><div style="margin-top:8px">Sin datos para los filtros seleccionados</div></div>`;
+      $('st-table').innerHTML='';
+      return;
+    }
+
+    // Agrupación
     function metricAgg(items){
       const impSum=items.reduce((a,o)=>a+(o.importe||0),0);
       if(s.metric==='count') return items.length;
@@ -3068,78 +3359,126 @@ function renderEstadisticasCustom(){
       if(s.metric==='win_rate'){
         const c=items.filter(o=>cerrados.includes(o.estado));
         const w=c.filter(o=>o.estado==='Ganada');
-        return c.length? (w.length/c.length*100):0;
+        return c.length?(w.length/c.length*100):0;
       }
       return items.length;
     }
-    const metricLabel=({count:'Nº ofertas',sum_importe:'Importe total (€)',avg_importe:'Importe medio (€)',win_rate:'% cierre'})[s.metric]||'Valor';
 
-    // Serie temporal
-    if(s.timeGroup!=='none'){
-      const bucket={};
-      base.forEach(o=>{ const d=statsGetDate(o,s.dateField)||statsGetDate(o,'fechaOferta'); if(!d) return; const key=s.timeGroup==='year'?String(d.getFullYear()):statsFmtYM(d); (bucket[key]=bucket[key]||[]).push(o);});
-      const labels=Object.keys(bucket).sort();
-      const values=labels.map(k=>metricAgg(bucket[k]));
-      const max=Math.max(...values,1);
-      document.getElementById('st-chart').innerHTML=`<h4>🗓 Evolución ${s.timeGroup==='year'?'anual':'mensual'} — ${metricLabel}</h4>
-        <div style="display:flex;align-items:flex-end;gap:8px;height:200px;padding:10px 4px 0">${labels.map((lab,i)=>{const v=values[i];const h=Math.round(v/max*150)+8;const top=s.metric==='win_rate'?Math.round(v)+'%':(s.metric.includes('importe')?Math.round(v).toLocaleString('es-ES'):v);return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:16px"><div style="font-size:10px;color:var(--accent);font-weight:900">${top}</div><div class="sb-bar" style="width:100%"><div style="width:100%;height:${h}px"></div></div><div style="font-size:10px;color:var(--text3);white-space:nowrap">${lab}</div></div>`;}).join('')}</div>
-        <div class="sb-actions" style="margin-top:12px"><button class="sb-btn ghost" id="st-csv">⬇️ CSV</button></div>`;
-      const rows=labels.map((lab,i)=>({periodo:lab, valor:values[i]}));
-      document.getElementById('st-table').innerHTML=`<h4>📋 Tabla</h4><table class="sb-table"><thead><tr><th>Periodo</th><th>${metricLabel}</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.periodo}</td><td>${formatMetric(r.valor,s.metric)}</td></tr>`).join('')}</tbody></table>`;
-      document.getElementById('st-csv').onclick=()=>statsDownloadCSV(['periodo','valor'],rows);
-      return;
-    }
+    const DIM_LABELS={responsable:'Comercial',provincia:'Provincia',pais:'País',tipoMaquina:'Tipo de máquina',empresa:'Empresa',estado:'Estado',mes:'Mes',anio:'Año'};
+    const METRIC_LABELS={count:'Nº Ofertas',sum_importe:'Importe (€)',avg_importe:'Importe medio (€)',win_rate:'Tasa cierre (%)'};
+    const metricLabel=METRIC_LABELS[s.metric]||'Valor';
+    const dimLabel=DIM_LABELS[s.dim1]||s.dim1;
 
-    // Pivot
-    if(s.dim2){
-      const map={}; const rowKeys=new Set(); const colKeys=new Set();
-      base.forEach(o=>{const r=statsVal(o,s.dim1); const c=statsVal(o,s.dim2); rowKeys.add(r); colKeys.add(c); map[r]=map[r]||{}; (map[r][c]=map[r][c]||[]).push(o);});
-      const rowsK=[...rowKeys].sort(); const colsK=[...colKeys].sort();
-      const rowTotals=rowsK.map(r=>({r,total:metricAgg(colsK.flatMap(c=>map[r][c]||[]))}));
-      rowTotals.sort((a,b)=>s.sortDir==='asc'?a.total-b.total:b.total-a.total);
-      const showRows=rowTotals.slice(0,s.topN).map(x=>x.r);
-      const headers=[s.dim1, ...colsK, 'total'];
-      const exportRows=showRows.map(r=>{const obj={}; obj[s.dim1]=r; colsK.forEach(c=>obj[c]=metricAgg(map[r][c]||[])); obj.total=metricAgg(colsK.flatMap(c=>map[r][c]||[])); return obj;});
-      document.getElementById('st-chart').innerHTML=`<h4>🧩 Pivot — ${metricLabel}</h4><div class="sb-actions" style="margin-top:12px"><button class="sb-btn ghost" id="st-csv">⬇️ CSV</button></div>`;
-      const headCols=colsK.map(c=>`<th>${c}</th>`).join('');
-      const body=showRows.map(r=>{const tds=colsK.map(c=>`<td>${formatMetric(metricAgg(map[r][c]||[]),s.metric)}</td>`).join(''); const tot=metricAgg(colsK.flatMap(c=>map[r][c]||[])); return `<tr><td><b>${r}</b></td>${tds}<td><b>${formatMetric(tot,s.metric)}</b></td></tr>`;}).join('');
-      document.getElementById('st-table').innerHTML=`<h4>📋 Tabla pivot</h4><div style="overflow:auto"><table class="sb-table" style="min-width:760px"><thead><tr><th>${s.dim1}</th>${headCols}<th>Total</th></tr></thead><tbody>${body}</tbody></table></div>`;
-      document.getElementById('st-csv').onclick=()=>statsDownloadCSV(headers,exportRows);
-      return;
-    }
-
-    // Grouped
-    const bucket={}; base.forEach(o=>{const k=statsVal(o,s.dim1); (bucket[k]=bucket[k]||[]).push(o);});
-    const items=Object.entries(bucket).map(([k,list])=>({label:k,value:metricAgg(list),count:list.length,imp:list.reduce((a,o)=>a+(o.importe||0),0)}));
+    const bucket={};
+    base.forEach(o=>{const k=statsVal(o,s.dim1); (bucket[k]=bucket[k]||[]).push(o);});
+    const items=Object.entries(bucket).map(([k,list])=>({
+      label:k,
+      value:metricAgg(list),
+      count:list.length,
+      imp:list.reduce((a,o)=>a+(o.importe||0),0),
+      ganadas:list.filter(o=>o.estado==='Ganada').length
+    }));
     items.sort((a,b)=>s.sortDir==='asc'?a.value-b.value:b.value-a.value);
     const shown=items.slice(0,s.topN);
-    const max=Math.max(...shown.map(x=>x.value),1);
-    document.getElementById('st-chart').innerHTML=`<h4>📌 ${metricLabel} por ${s.dim1}</h4><div style="margin-top:12px">${shown.map(it=>{const w=Math.round(it.value/max*100);return `<div style="display:flex;align-items:center;gap:10px;margin:8px 0"><div style="min-width:160px;max-width:220px;color:var(--text2);font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${it.label}">${it.label}</div><div class="sb-bar" style="flex:1"><div style="width:${w}%"></div></div><div style="min-width:120px;text-align:right;color:var(--text);font-weight:900;font-size:12px">${formatMetric(it.value,s.metric)}</div></div>`;}).join('')}</div><div class="sb-actions" style="margin-top:12px"><button class="sb-btn ghost" id="st-csv">⬇️ CSV</button></div>`;
-    document.getElementById('st-table').innerHTML=`<h4>📋 Tabla</h4><table class="sb-table"><thead><tr><th>${s.dim1}</th><th>${metricLabel}</th><th>Nº</th><th>Importe</th></tr></thead><tbody>${shown.map(it=>`<tr><td><b>${it.label}</b></td><td>${formatMetric(it.value,s.metric)}</td><td>${it.count}</td><td>${Math.round(it.imp).toLocaleString('es-ES')} €</td></tr>`).join('')}</tbody></table>`;
-    const exportRows=shown.map(it=>({[s.dim1]:it.label, valor:it.value, count:it.count, importe:it.imp}));
-    document.getElementById('st-csv').onclick=()=>statsDownloadCSV([s.dim1,'valor','count','importe'],exportRows);
+
+    // Guardar para CSV
+    _lastCSVData={
+      headers:[dimLabel,metricLabel,'Nº ofertas','Importe €','Ganadas'],
+      rows:shown.map(it=>({[dimLabel]:it.label,[metricLabel]:Math.round(it.value*100)/100,'Nº ofertas':it.count,'Importe €':Math.round(it.imp),'Ganadas':it.ganadas}))
+    };
+
+    // Colores Chart.js
+    const CHART_COLORS=['#1565c0','#0a7c5c','#5b21b6','#c2490b','#0e7490','#92400e','#065f46','#9d174d','#1e40af','#047857'];
+    const labels=shown.map(x=>x.label);
+    const values=shown.map(x=>s.metric==='win_rate'?Math.round(x.value*10)/10:Math.round(x.value));
+
+    _destroyStCustomChart();
+    $('st-chart').innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <h4 style="margin:0;color:var(--accent);font-size:14px;font-weight:900">${PRESETS_CEO.find(p=>p.dim1===s.dim1&&p.metric===s.metric)?.icon||'📌'} ${metricLabel} por ${dimLabel}</h4>
+      <div style="color:var(--text3);font-size:11px">${shown.length} resultados${from||to?' · Periodo filtrado':''}</div>
+    </div>
+    <div style="position:relative;${['bar','bar_v','line'].includes(s.chartType)?'height:300px':'height:280px'}">
+      <canvas id="st-canvas"></canvas>
+    </div>`;
+
+    const ctx=document.getElementById('st-canvas')?.getContext('2d');
+    if(!ctx) return;
+
+    const isHorizontal = s.chartType==='bar';
+    const isDoughnut   = s.chartType==='doughnut';
+    const isLine       = s.chartType==='line';
+
+    if(isDoughnut){
+      _stCustomChart=new Chart(ctx,{
+        type:'doughnut',
+        data:{labels,datasets:[{data:values,backgroundColor:CHART_COLORS.slice(0,labels.length),borderWidth:2,borderColor:'white'}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11},boxWidth:14}},tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${fmtM(ctx.parsed,s.metric)}`}}}}
+      });
+    } else if(isLine){
+      _stCustomChart=new Chart(ctx,{
+        type:'line',
+        data:{labels,datasets:[{label:metricLabel,data:values,borderColor:'#1565c0',backgroundColor:'rgba(21,101,192,.1)',fill:true,tension:.4,pointBackgroundColor:'#1565c0',pointRadius:5,pointHoverRadius:8}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${fmtM(ctx.parsed.y,s.metric)}`}}},scales:{x:{ticks:{font:{size:11}}},y:{ticks:{font:{size:11},callback:(v)=>s.metric.includes('importe')?v.toLocaleString('es-ES')+' €':s.metric==='win_rate'?v+'%':v}}}}
+      });
+    } else {
+      // Barras horizontal o vertical
+      _stCustomChart=new Chart(ctx,{
+        type:'bar',
+        data:{labels,datasets:[{label:metricLabel,data:values,backgroundColor:labels.map((_,i)=>CHART_COLORS[i%CHART_COLORS.length]+'cc'),borderColor:labels.map((_,i)=>CHART_COLORS[i%CHART_COLORS.length]),borderWidth:1.5,borderRadius:5}]},
+        options:{
+          indexAxis: isHorizontal?'y':'x',
+          responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${fmtM(ctx.parsed[isHorizontal?'x':'y'],s.metric)}`}}},
+          scales:{
+            x:{ticks:{font:{size:11},callback: isHorizontal?(v)=>(s.metric.includes('importe')?Math.round(v).toLocaleString('es-ES')+' €':s.metric==='win_rate'?v+'%':v):undefined},grid:{display:!isHorizontal}},
+            y:{ticks:{font:{size:11}},grid:{display:isHorizontal}}
+          }
+        }
+      });
+    }
+
+    // Tabla de datos
+    const tbody=shown.map((it,i)=>{
+      const pct=shown[0].value>0?Math.round(it.value/shown[0].value*100):0;
+      return `<tr>
+        <td style="font-weight:700;color:var(--text)">${i+1}</td>
+        <td style="font-weight:700;color:var(--accent)">${it.label}</td>
+        <td style="font-weight:900;color:var(--text);text-align:right">${fmtM(it.value,s.metric)}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <div style="flex:1;height:8px;background:var(--surface2);border-radius:4px;overflow:hidden;min-width:60px">
+              <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:4px"></div>
+            </div>
+            <span style="font-size:10px;color:var(--text3);font-weight:700;min-width:32px">${pct}%</span>
+          </div>
+        </td>
+        <td style="color:var(--text2);text-align:right">${it.count}</td>
+        <td style="color:#10b981;font-weight:700;text-align:right">${it.ganadas}</td>
+        <td style="color:#0a7c5c;text-align:right">${Math.round(it.imp).toLocaleString('es-ES')} €</td>
+      </tr>`;
+    }).join('');
+
+    $('st-table').innerHTML=`
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+        <h4 style="margin:0;color:var(--text);font-size:13px;font-weight:900">📋 Tabla de datos</h4>
+        <button onclick="statsDownloadCSV_last()" style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:7px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">⬇️ Exportar CSV</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="sb-table" style="width:100%">
+          <thead><tr>
+            <th>#</th><th>${dimLabel}</th><th style="text-align:right">${metricLabel}</th>
+            <th>Proporción</th><th style="text-align:right">Nº</th>
+            <th style="text-align:right">Ganadas</th><th style="text-align:right">Importe €</th>
+          </tr></thead>
+          <tbody>${tbody}</tbody>
+        </table>
+      </div>`;
   }
 
-  document.getElementById('st-run').onclick=run;
-  document.getElementById('st-reset').onclick=()=>{ localStorage.removeItem(STATS_STATE_KEY); toast('✅ Reset','#10b981'); renderEstadisticasCustom(); };
-  document.getElementById('st-preset-mes').onclick=()=>{ const d=new Date(); const from=new Date(d.getFullYear(),d.getMonth(),1); const to=new Date(d.getFullYear(),d.getMonth()+1,0); document.getElementById('st-from').value=from.toISOString().split('T')[0]; document.getElementById('st-to').value=to.toISOString().split('T')[0]; run(); };
-  document.getElementById('st-preset-ano').onclick=()=>{ const d=new Date(); const from=new Date(d.getFullYear(),0,1); const to=new Date(d.getFullYear(),11,31); document.getElementById('st-from').value=from.toISOString().split('T')[0]; document.getElementById('st-to').value=to.toISOString().split('T')[0]; run(); };
-  document.getElementById('st-preset-mes-custom').onclick=()=>{
-    const mes=parseInt(document.getElementById('st-preset-mes-sel').value,10);
-    const anio=parseInt(document.getElementById('st-preset-mes-anio').value,10);
-    const from=new Date(anio,mes,1); const to=new Date(anio,mes+1,0);
-    document.getElementById('st-from').value=from.toISOString().split('T')[0];
-    document.getElementById('st-to').value=to.toISOString().split('T')[0];
-    run();
-  };
-  document.getElementById('st-preset-anio-custom').onclick=()=>{
-    const anio=parseInt(document.getElementById('st-preset-anio-sel').value,10);
-    const from=new Date(anio,0,1); const to=new Date(anio,11,31);
-    document.getElementById('st-from').value=from.toISOString().split('T')[0];
-    document.getElementById('st-to').value=to.toISOString().split('T')[0];
-    run();
-  };
-  run();
+  $('st-run').onclick=run;
+  $('st-reset').onclick=()=>{ localStorage.removeItem(STATS_STATE_KEY); toast('↺ Configuración reiniciada','#10b981'); renderEstadisticasCustom(); };
+  // Auto-generar si hay estado guardado
+  if(st.scope||st.dim1) run();
 }
 
 // ===== MAPA PROFESIONAL CON LEAFLET =====
@@ -5611,6 +5950,20 @@ function abrirModal(o){
   cargarTiposPersonalizados();
   window._modalOfertaAbierto=true;
   document.getElementById("modal").style.display="flex";
+  // Adquirir lock optimista si estamos editando
+  if(o?.id){
+    _adquirirLockEdicion(o.id);
+    // Verificar si alguien más está editando
+    _verificarLockEdicion(o.id).then(lockInfo=>{
+      if(lockInfo){
+        const modal=document.getElementById("modal");
+        _mostrarConflictoEdicion(modal, o.id, lockInfo);
+      }
+    });
+    window._editandoOfertaId = o.id;
+  } else {
+    window._editandoOfertaId = null;
+  }
 }
 function editarOferta(id){abrirModal(ofertas.find(o=>o.id===id));}
 function cerrarModal(){
@@ -5619,6 +5972,11 @@ function cerrarModal(){
   archivosTemp=[];editandoId=null;
   const dd=document.getElementById("ac-dropdown");
   if(dd) dd.classList.remove("open");
+  // Liberar lock de edición si había uno
+  if(window._editandoOfertaId){
+    _liberarLockEdicion(window._editandoOfertaId);
+    window._editandoOfertaId=null;
+  }
 }
 async function adjuntarDesdeDropzone(fileList){
   const fakeEvent={target:{files:fileList,value:""}};
@@ -7027,7 +7385,128 @@ function renderRanking(){
     </div>`;
 }
 
-// Arranque: verificar sesión activa
+// ============================================================
+// SISTEMA DE PRESENCIA EN TIEMPO REAL (Multi-usuario)
+// Detecta quién está conectado, heartbeat cada 30s,
+// limpieza automática de sesiones obsoletas (>90s)
+// ============================================================
+let _presenceUnsub = null;
+let _presenceHeartbeat = null;
+const PRESENCE_TTL = 90000; // ms sin heartbeat = usuario desconectado
+
+function _presenceIniciar(){
+  if(!currentUser || !currentProfile) return;
+  _presenciaMantener();
+  // Heartbeat cada 30 segundos
+  _presenceHeartbeat = setInterval(_presenciaMantener, 30000);
+  // Escuchar a todos los usuarios presentes
+  _presenceUnsub = db.collection('presencia').onSnapshot(snap=>{
+    const ahora = Date.now();
+    const activos = snap.docs
+      .map(d=>({id:d.id,...d.data()}))
+      .filter(u=> u.ts && (ahora - (u.ts?.toMillis?.() || u.ts) < PRESENCE_TTL))
+      .filter(u=> u.uid !== currentUser.uid); // excluir yo mismo
+    _presenceRenderBar(activos);
+  }, ()=>{});
+}
+
+function _presenciaMantener(){
+  if(!currentUser || !currentProfile) return;
+  try{
+    db.collection('presencia').doc(currentUser.uid).set({
+      uid: currentUser.uid,
+      nombre: currentProfile.nombre || currentUser.email,
+      ts: firebase.firestore.FieldValue.serverTimestamp(),
+      vista: window._vistaActualPresencia || 'dashboard'
+    }, {merge:true});
+  }catch(_){}
+}
+
+function _presenceDetener(){
+  if(_presenceHeartbeat){ clearInterval(_presenceHeartbeat); _presenceHeartbeat=null; }
+  if(_presenceUnsub){ try{_presenceUnsub();}catch(_){} _presenceUnsub=null; }
+  // Eliminar propia presencia al salir
+  if(currentUser){
+    try{ db.collection('presencia').doc(currentUser.uid).delete(); }catch(_){}
+  }
+}
+
+function _presenceRenderBar(activos){
+  const bar = document.getElementById('presence-bar');
+  const avts = document.getElementById('presence-avatars');
+  if(!bar || !avts) return;
+  if(!activos.length){ bar.style.display='none'; return; }
+  bar.style.display='flex';
+  const colorPool=['#1565c0','#0a7c5c','#5b21b6','#c2490b','#0e7490'];
+  function colorFor(uid){ let h=0; for(let i=0;i<uid.length;i++) h=(h*31+uid.charCodeAt(i))&0xffffffff; return colorPool[Math.abs(h)%colorPool.length]; }
+  function initials(nombre){ const p=(nombre||'?').trim().split(/\s+/); return p.length>=2?(p[0][0]+p[1][0]).toUpperCase():nombre.slice(0,2).toUpperCase(); }
+  avts.innerHTML = activos.map(u=>`
+    <div class="presence-dot" style="background:${colorFor(u.uid)}" title="${u.nombre} — activo ahora">
+      ${initials(u.nombre)}
+    </div>`).join('') +
+    `<span style="color:var(--text3);font-size:10px;font-weight:600;margin-left:4px">${activos.length} usuario${activos.length!==1?'s':''} activo${activos.length!==1?'s':''}</span>`;
+}
+
+// Actualizar vista en presencia cuando cambia
+function _presenceSetVista(v){
+  window._vistaActualPresencia = v;
+  _presenciaMantener();
+}
+
+// ============================================================
+// BLOQUEO OPTIMISTA PARA EDICIÓN CONCURRENTE
+// Cuando se abre el modal de edición, se marca la oferta
+// como "editando por X". Si otro usuario intenta editar
+// la misma oferta, ve un aviso pero puede continuar.
+// ============================================================
+let _editLockUnsub = null;
+
+async function _adquirirLockEdicion(ofertaId){
+  if(!currentUser || !currentProfile) return;
+  try{
+    await db.collection('editLocks').doc(ofertaId).set({
+      uid: currentUser.uid,
+      nombre: currentProfile.nombre,
+      ts: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }catch(_){}
+}
+
+async function _liberarLockEdicion(ofertaId){
+  if(!ofertaId || !currentUser) return;
+  try{
+    const doc = await db.collection('editLocks').doc(ofertaId).get();
+    if(doc.exists && doc.data()?.uid === currentUser.uid){
+      await db.collection('editLocks').doc(ofertaId).delete();
+    }
+  }catch(_){}
+}
+
+async function _verificarLockEdicion(ofertaId){
+  if(!ofertaId || !currentUser) return null;
+  try{
+    const doc = await db.collection('editLocks').doc(ofertaId).get();
+    if(!doc.exists) return null;
+    const data = doc.data();
+    if(data.uid === currentUser.uid) return null; // soy yo
+    const ahora = Date.now();
+    const ts = data.ts?.toMillis?.() || 0;
+    if(ahora - ts > 120000) return null; // lock expirado (>2 min)
+    return data; // {uid, nombre, ts}
+  }catch(_){ return null; }
+}
+
+// Inyectar aviso de conflicto en modal si otro usuario edita
+async function _mostrarConflictoEdicion(modal, ofertaId, lockInfo){
+  if(!lockInfo || !modal) return;
+  const existing = modal.querySelector('.conflict-banner');
+  if(existing) existing.remove();
+  const banner = document.createElement('div');
+  banner.className='conflict-banner';
+  banner.innerHTML=`⚠️ <strong>${lockInfo.nombre}</strong> también está editando esta oferta. Los cambios del último en guardar prevalecen.`;
+  const titulo = modal.querySelector('h2');
+  if(titulo) titulo.after(banner);
+}
 
 // ── Tecla Escape global: cierra el modal más reciente abierto ────────────────
 document.addEventListener("keydown", function(e){
@@ -7047,6 +7526,19 @@ document.addEventListener("keydown", function(e){
     }
   }
 });
+
+// ──────────────────────────────────────────────────────────────────────────
+// NOTA PARA EL ADMIN: Para activar presencia y locks de edición, añade
+// estas colecciones a las reglas de Firestore:
+//
+//   match /presencia/{uid} {
+//     allow read: if request.auth != null;
+//     allow write: if request.auth != null && request.auth.uid == uid;
+//   }
+//   match /editLocks/{ofertaId} {
+//     allow read, write: if request.auth != null;
+//   }
+// ──────────────────────────────────────────────────────────────────────────
 </script>
 </body>
 </html>
