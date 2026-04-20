@@ -1270,7 +1270,6 @@ function actualizarEstadoOneDrive(){
 const PROVINCIAS=["Álava","Albacete","Alicante","Almería","Asturias","Ávila","Badajoz","Barcelona","Burgos","Cáceres","Cádiz","Cantabria","Castellón","Ciudad Real","Córdoba","Cuenca","Girona","Granada","Guadalajara","Guipúzcoa","Huelva","Huesca","Islas Baleares","Jaén","La Coruña","La Rioja","Las Palmas","León","Lleida","Lugo","Madrid","Málaga","Murcia","Navarra","Ourense","Palencia","Pontevedra","Salamanca","Santa Cruz de Tenerife","Segovia","Sevilla","Soria","Tarragona","Teruel","Toledo","Valencia","Valladolid","Vizcaya","Zamora","Zaragoza"];
 const PAISES=["Afganistán","Albania","Alemania","Andorra","Angola","Arabia Saudí","Argelia","Argentina","Armenia","Australia","Austria","Azerbaiyán","Bahréin","Bangladesh","Bélgica","Bielorrusia","Bolivia","Bosnia y Herzegovina","Brasil","Bulgaria","Camboya","Camerún","Canadá","Chile","China","Colombia","Corea del Sur","Corea del Norte","Costa Rica","Croacia","Cuba","Dinamarca","Ecuador","Egipto","El Salvador","Emiratos Árabes Unidos","Eslovaquia","Eslovenia","España","Estados Unidos","Estonia","Etiopía","Filipinas","Finlandia","Francia","Georgia","Ghana","Grecia","Guatemala","Honduras","Hungría","India","Indonesia","Irak","Irán","Irlanda","Islandia","Israel","Italia","Jamaica","Japón","Jordania","Kazajistán","Kenia","Kuwait","Letonia","Líbano","Libia","Lituania","Luxemburgo","Macedonia del Norte","Malasia","Marruecos","México","Moldavia","Mongolia","Montenegro","Mozambique","Myanmar","Nepal","Nicaragua","Nigeria","Noruega","Nueva Zelanda","Países Bajos","Pakistán","Panamá","Paraguay","Perú","Polonia","Portugal","Puerto Rico","Qatar","Reino Unido","República Checa","República Dominicana","Rumanía","Rusia","Serbia","Singapur","Siria","Sri Lanka","Sudáfrica","Suecia","Suiza","Tailandia","Tanzania","Túnez","Turquía","Ucrania","Uganda","Uruguay","Uzbekistán","Venezuela","Vietnam","Yemen","Zimbabue"];
 // Países seleccionados para filtro
-let paisesSeleccionados=new Set();
 const ESTADOS=["Pendiente","En seguimiento","Interesado","Negociación","Ganada","Perdida","Descartada"];
 
 function toggleMotivoUI(){
@@ -1547,7 +1546,16 @@ const DIAS_ALERTA=60; // días sin actividad para generar alerta
 let currentUser=null,currentProfile=null;
 let ofertas=[],ordenCampo="fechaOferta",ordenDir="desc";
 let vistaActual="dashboard",archivosTemp=[],editandoId=null,llamadaOfertaId=null;
-let _ofertasUnsub=null; // Referencia al listener de Firestore para cancelarlo en logout
+let _ofertasUnsub=null;
+// Variables de presencia y concurrencia
+let _presenceUnsub=null, _presenceHeartbeat=null;
+// Variables de filtros
+let provinciasSeleccionadas=new Set();
+let paisesSeleccionados=new Set();
+// Selección múltiple de filas
+let ofertasSeleccionadas=new Set();
+// Variable para gráfica custom de estadísticas
+let _stCustomChart=null;
 
 // ===== PAGINACIÓN — TABLA =====
 const PAGINACION_POR_PAGINA=50;
@@ -1718,7 +1726,7 @@ function doLogout(){
   histFiltro="todos";
   histBusqueda="";
   histUsuario="todos";
-  // Limpiar filtros de tabla
+  // Limpiar filtros de tabla (incluye los nuevos)
   provinciasSeleccionadas.clear();
   paisesSeleccionados.clear();
   paginaActual=1;
@@ -1726,17 +1734,30 @@ function doLogout(){
   _kanbanFiltroResp="";
   llBusqueda="";
   llCalDiaSel=null;
+  // Limpiar filtros nuevos
+  try{
+    const ids=["busqueda","f-est","f-resp","f-tipo-filtro","f-imp-min","f-imp-max","f-fecha-desde","f-fecha-hasta"];
+    ids.forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
+    const lbl1=document.getElementById("importe-btn-label"); if(lbl1)lbl1.textContent="💶 Importe";
+    const lbl2=document.getElementById("fecha-btn-label");   if(lbl2)lbl2.textContent="📅 Fecha";
+    const lbl3=document.getElementById("prov-btn-label");    if(lbl3)lbl3.textContent="Todas las provincias";
+    const lbl4=document.getElementById("pais-btn-label");    if(lbl4)lbl4.textContent="🌍 Todos los países";
+  }catch(_){}
+  // Destruir gráfica custom de stats si existe
+  _destroyStCustomChart();
   // Limpiar cache de historial de comerciales
   _compHistorial=[];
   // Limpiar token MSAL en memoria (no el Client ID guardado, que es configuración)
   msalToken=null; msalInstance=null;
   // Limpiar caché de usuarios para que no quede visible a otro usuario del mismo equipo
   window._usuariosCache=[];
+  // Limpiar presencia
+  window._vistaActualPresencia=null;
+  window._editandoOfertaId=null;
   auth.signOut();
 }
 
 // ===== SELECTS =====
-let provinciasSeleccionadas=new Set();
 function poblarSelects(){
   const fpf=document.getElementById("f-prov-form");
   const fef=document.getElementById("f-est-form"),fe=document.getElementById("f-est");
@@ -2163,7 +2184,6 @@ function limpiarFiltros(){
 function sortBy(c){ordenDir=ordenCampo===c&&ordenDir==="asc"?"desc":"asc";ordenCampo=c;paginaActual=1;renderVista();}
 
 // ===== SELECCIÓN MÚLTIPLE Y BORRADO =====
-let ofertasSeleccionadas=new Set();
 function actualizarSeleccion(){
   ofertasSeleccionadas.clear();
   document.querySelectorAll(".row-check:checked").forEach(ch=>ofertasSeleccionadas.add(ch.dataset.id));
@@ -2252,6 +2272,8 @@ function togglePaisDropdown(){
 function setVista(v){
   vistaActual=v;
   _presenceSetVista(v);
+  // Destruir gráfica personalizada de stats si salimos de esa vista
+  if(v!=="estadistas") _destroyStCustomChart();
   const vistas=["dashboard","tabla","kanban","estadistas","mapa","llamadas","comparativa","ranking","alertas","historial","admin"];
   vistas.forEach(x=>{
     const el=document.getElementById("vista-"+x);
@@ -2275,7 +2297,11 @@ function setVista(v){
 }
 function renderVista(){
   if(vistaActual==="tabla")renderTabla();
-  else if(vistaActual==="estadistas")renderEstadisticas();
+  else if(vistaActual==="estadistas"){
+    // Destruir gráficas del dashboard si se viene de allí para liberar memoria
+    _destroyCharts();
+    renderEstadisticas();
+  }
 }
 
 // ===== DASHBOARD EJECUTIVO — Chart.js =====
@@ -2287,7 +2313,9 @@ function _destroyCharts(){
   _chartEmbudo=_chartMensual=_chartEstados=_chartResp=null;
 }
 
-renderDashboard._token=0;
+// Token para cancelar renders de dashboard obsoletos cuando se cambia de vista
+let _dashRenderToken=0;
+
 function renderDashboard(){
   _destroyCharts();
   const hoy=new Date();
@@ -2468,11 +2496,10 @@ function renderDashboard(){
   </div>`;
 
   // ── Inicializar Chart.js tras render del DOM ──
-  // Guardamos un token de renderizado para cancelar el RAF si el usuario
-  // cambia de vista antes de que se ejecute (evita crear charts sobre canvas ya eliminados)
-  const _dashRenderToken=++renderDashboard._token;
+  // Incrementamos el token global para que cualquier RAF anterior aborte
+  const _thisToken=++_dashRenderToken;
   requestAnimationFrame(()=>{
-    if(_dashRenderToken!==renderDashboard._token) return; // Vista ya cambiada, abortamos
+    if(_thisToken!==_dashRenderToken) return; // Vista ya cambiada, abortamos
     const fontColor="#4a5880";
     const gridColor="rgba(100,120,180,0.1)";
     Chart.defaults.font.family="'Plus Jakarta Sans',sans-serif";
@@ -2906,16 +2933,18 @@ function renderTabla(){
     const inactiva=diasInact!==null&&diasInact>=DIAS_ALERTA&&!["Ganada","Perdida","Descartada"].includes(o.estado);
     const filaColor=idx%2===0?"background:#ffffff":"background:#dde8f8";
     const filaBorde=idx%2!==0?"border-top:1px solid #b8cfe8;border-bottom:1px solid #b8cfe8;":"";
+    const empEsc=_esc(o.empresa);
+    const contEsc=_esc(o.contacto||"");
     return `<tr style="--ec:${inactiva?"#ef4444":col};${filaColor};${filaBorde}" onclick="verDetalle('${o.id}')">
       <td onclick="event.stopPropagation()" style="text-align:center"><input type="checkbox" class="row-check" data-id="${o.id}" onclick="actualizarSeleccion()" style="accent-color:var(--accent);cursor:pointer;width:15px;height:15px"/></td>
-      <td style="color:var(--accent);font-weight:600">${o.numeroOferta||"—"}</td>
-      <td><div style="color:var(--text);font-weight:600;cursor:pointer;text-decoration:underline;text-decoration-color:var(--border2)" onclick="event.stopPropagation();abrirFichaEmpresa('${o.empresa.replace(/'/g,"\\'")}') " title="Ver ficha de empresa">${o.empresa}</div><div style="color:var(--text3);font-size:10px">${o.contacto||""}</div></td>
-      <td style="color:var(--text2)">${o.provincia||"—"}</td>
-      <td style="color:var(--text2)">${o.pais||"—"}</td>
-      <td style="color:var(--text2)">${o.tipoMaquina||"—"}</td>
+      <td style="color:var(--accent);font-weight:600">${_esc(o.numeroOferta||"—")}</td>
+      <td><div style="color:var(--text);font-weight:600;cursor:pointer;text-decoration:underline;text-decoration-color:var(--border2)" onclick="event.stopPropagation();abrirFichaEmpresa(this.closest('tr').dataset.empresa)" title="Ver ficha de empresa" data-empresa="${empEsc}">${empEsc}</div><div style="color:var(--text3);font-size:10px">${contEsc}</div></td>
+      <td style="color:var(--text2)">${_esc(o.provincia||"—")}</td>
+      <td style="color:var(--text2)">${_esc(o.pais||"—")}</td>
+      <td style="color:var(--text2)">${_esc(o.tipoMaquina||"—")}</td>
       <td style="color:#34d399;font-weight:700">${(o.importe||0).toLocaleString("es-ES")} €</td>
-      <td><span class="badge" style="background:${col}22;color:${col};border:1px solid ${col}55">${o.estado}</span></td>
-      <td style="color:var(--text2)">${(o.responsableNombre||"—").split(" ")[0]}</td>
+      <td><span class="badge" style="background:${col}22;color:${col};border:1px solid ${col}55">${_esc(o.estado)}</span></td>
+      <td style="color:var(--text2)">${_esc((o.responsableNombre||"—").split(" ")[0])}</td>
       <td style="color:var(--text2)">${o.fechaOferta?new Date(o.fechaOferta).toLocaleDateString("es-ES"):"—"}</td>
       <td>${o.fechaRecordatorio?`<span style="color:${vence?"#fb923c":"#94a3b8"};font-weight:${vence?700:400}">${vence?"⚠️ ":"🔔 "}${new Date(o.fechaRecordatorio).toLocaleDateString("es-ES")}</span>`:"<span style='color:#334155'>—</span>"}</td>
       <td style="color:${inactiva?"#ef4444":"#64748b"};font-size:11px">${diasInact!==null?`${diasInact}d${inactiva?" ⚠️":""}`:""}</td>
@@ -3014,14 +3043,10 @@ function renderEstadisticasResumen(){
   const maxProv=topProv.length?topProv[0][1]:1,maxResp=topResp.length?topResp[0][1]:1,maxImp=topImp.length?topImp[0][1]:1,maxMes=meses.length?Math.max(...meses.map(([,v])=>v)):1;
   const estadoPie=ESTADOS.filter(e=>porEstado[e]>0).map((e,i)=>`<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)"><div style="width:10px;height:10px;border-radius:50%;background:${CE[e]};flex-shrink:0"></div>${e}: <strong style="color:var(--text)">${porEstado[e]}</strong> (${datos.length?Math.round(porEstado[e]/datos.length*100):0}%)</div>`).join("");
   document.getElementById("charts-container").innerHTML=`
-    <div class="chart-card" style="grid-column:1/-1"><h3>🗓 Evolución mensual de ofertas</h3>
-      <div style="display:flex;align-items:flex-end;gap:6px;height:130px;padding-bottom:18px">
-        ${meses.map(([mes,val])=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
-          <div style="font-size:9px;color:var(--accent);font-weight:700">${val}</div>
-          <div style="width:100%;background:linear-gradient(180deg,var(--accent),var(--accent2));border-radius:3px 3px 0 0;height:${Math.round(val/maxMes*80)+8}px"></div>
-          <div style="font-size:8px;color:var(--text3);white-space:nowrap">${mes.substring(5)+"/"+mes.substring(2,4)}</div>
-        </div>`).join("")}
-        ${meses.length===0?`<div style="color:var(--text3);font-size:13px;margin:auto">No hay datos suficientes</div>`:""}
+    <div class="chart-card" style="grid-column:1/-1">
+      <h3>🗓 Evolución mensual de ofertas</h3>
+      <div style="position:relative;height:160px">
+        <canvas id="charts-resumen-mensual"></canvas>
       </div>
     </div>
     <div class="chart-card"><h3>🎯 Distribución por estado</h3><div style="display:flex;flex-wrap:wrap;gap:8px">${estadoPie||"<span style='color:var(--text3)'>Sin datos</span>"}</div></div>
@@ -3032,6 +3057,19 @@ function renderEstadisticasResumen(){
     ${barras("💰 Importe total por tipo de máquina (€)",topImpMaquina.map(([k,v])=>[k,Math.round(v)]),maxImpMaquina,(l,i)=>CG[(i+5)%CG.length])}
     ${topMotivos.length?barras("❌ Motivos de pérdida / descarte",topMotivos,maxMotivo,(l,i)=>"#ef4444"):""}
   `;
+  // Renderizar gráfica mensual con Chart.js
+  requestAnimationFrame(()=>{
+    const ctxR=document.getElementById("charts-resumen-mensual");
+    if(ctxR&&meses.length){
+      const labels=meses.map(([m])=>m.substring(5)+"/"+m.substring(2,4));
+      const vals=meses.map(([,v])=>v);
+      new Chart(ctxR,{
+        type:"bar",
+        data:{labels,datasets:[{label:"Ofertas",data:vals,backgroundColor:"rgba(21,101,192,0.7)",borderColor:"#1565c0",borderWidth:1.5,borderRadius:4}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>" "+ctx.parsed.y+" ofertas"}}},scales:{x:{ticks:{font:{size:10}}},y:{ticks:{font:{size:10},precision:0},grid:{color:"rgba(100,120,180,0.1)"}}}}
+      });
+    }
+  });
 }
 
 
@@ -3100,9 +3138,7 @@ function statsDownloadCSV(headers, rows){
 }
 // ============================================================
 // ESTADÍSTICAS PERSONALIZADAS — Versión CEO Pro
-// Rediseñada para máxima claridad visual y facilidad de uso
 // ============================================================
-let _stCustomChart = null;   // instancia Chart.js activa en el panel custom
 function _destroyStCustomChart(){ try{ if(_stCustomChart){ _stCustomChart.destroy(); _stCustomChart=null; }}catch(_){} }
 
 function renderEstadisticasCustom(){
@@ -3481,7 +3517,8 @@ function renderEstadisticasCustom(){
   if(st.scope||st.dim1) run();
 }
 
-// ===== MAPA PROFESIONAL CON LEAFLET =====
+// abrirFichaEmpresa puede recibir un string o un elemento DOM con data-empresa
+function abrirFichaEmpresaNombre(nombre){ abrirFichaEmpresa(nombre); }
 let _mapaFiltroEstado = null;
 let _leafletMap = null;
 let _leafletMarkers = [];
@@ -4001,11 +4038,12 @@ document.addEventListener('mousemove', e=>{
 function filtrarProv(prov){
   try{
     if(prov===null){
-      provinciasSeleccionadas=new Set();
+      provinciasSeleccionadas.clear();
       actualizarLabelProv();
       renderProvOpciones(document.getElementById('prov-search')?document.getElementById('prov-search').value:'');
     } else {
-      provinciasSeleccionadas=new Set([prov]);
+      provinciasSeleccionadas.clear();
+      provinciasSeleccionadas.add(prov);
       actualizarLabelProv();
       renderProvOpciones(document.getElementById('prov-search')?document.getElementById('prov-search').value:'');
     }
@@ -4445,7 +4483,7 @@ async function guardarLlamada(){
   if(!llamadaOfertaId){toast("⚠️ Error: no hay oferta seleccionada","#f59e0b");return;}
   if(!currentUser||!currentProfile){toast("⚠️ Sesión no iniciada. Por favor recarga la página.","#f59e0b");return;}
   const o=ofertas.find(x=>x.id===llamadaOfertaId);
-  if(!o){toast("⚠️ Oferta no encontrada en el listado","#f59e0b");return;}
+  if(!o){toast("⚠️ Oferta no encontrada en el listado. Puede que haya sido eliminada.","#f59e0b");return;}
   const resultado=document.getElementById("ll-resultado").value;
   const notas=document.getElementById("ll-notas").value.trim();
   const accion=document.getElementById("ll-accion").value.trim();
@@ -4497,6 +4535,9 @@ async function guardarLlamada(){
     llamadaOfertaId=null;
     toast("📞 Llamada guardada correctamente","#10b981");
     if(vistaActual==="llamadas")renderLlamadas();
+    if(vistaActual==="alertas")renderAlertas();
+    // Actualizar contador de alertas en stats bar
+    renderStats();
   }catch(e){
     console.error("Error guardarLlamada:",e);
     // Detectar específicamente el error de permisos de Firestore
@@ -5383,6 +5424,9 @@ async function borrarHistorialTodo(){
 }
 
 // ===== EXPORTAR =====
+// Helper para escapar caracteres especiales en HTML (previene XSS)
+function _esc(str){ return String(str||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
+
 function exportarExcel(){
   const rows=getFiltradas();
   if(!rows.length){toast("⚠️ No hay datos para exportar","#f59e0b");return;}
@@ -7390,8 +7434,6 @@ function renderRanking(){
 // Detecta quién está conectado, heartbeat cada 30s,
 // limpieza automática de sesiones obsoletas (>90s)
 // ============================================================
-let _presenceUnsub = null;
-let _presenceHeartbeat = null;
 const PRESENCE_TTL = 90000; // ms sin heartbeat = usuario desconectado
 
 function _presenceIniciar(){
