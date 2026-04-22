@@ -870,7 +870,10 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       </div>
       <div class="grid2">
         <div class="field"><label>Provincia</label><select id="f-prov-form"></select></div>
-        <div class="field"><label>🌍 País</label><select id="f-pais-form"><option value="">— Seleccionar país —</option></select></div>
+        <div class="field"><label>🌍 País</label>
+          <input id="f-pais-form" list="lista-paises" placeholder="Escribe o elige un país..." autocomplete="off"/>
+          <datalist id="lista-paises"></datalist>
+        </div>
       </div>
       <div class="grid2">
         <div class="field" style="grid-column:1/-1">
@@ -1797,15 +1800,15 @@ function doLogout(){
 function poblarSelects(){
   const fpf=document.getElementById("f-prov-form");
   const fef=document.getElementById("f-est-form"),fe=document.getElementById("f-est");
-  const fpais=document.getElementById("f-pais-form");
   // Limpiar antes de poblar para evitar duplicados si el usuario hace logout+login
   if(fpf) fpf.innerHTML="";
   if(fef) fef.innerHTML="";
   if(fe)  fe.innerHTML='<option value="">Todos los estados</option>';
-  if(fpais) fpais.innerHTML='<option value="">— Seleccionar país —</option>';
   if(fpf) fpf.add(new Option("— Internacional / Sin provincia —",""));
   PROVINCIAS.forEach(p=>{if(fpf)fpf.add(new Option(p,p));});
-  PAISES.forEach(p=>{if(fpais)fpais.add(new Option(p,p));});
+  // Poblar datalist de países (el campo es ahora un input de texto libre)
+  const dlPaises=document.getElementById("lista-paises");
+  if(dlPaises){ dlPaises.innerHTML=""; PAISES.forEach(p=>{ const opt=document.createElement("option"); opt.value=p; dlPaises.appendChild(opt); }); }
   ESTADOS.forEach(e=>{if(fef)fef.add(new Option(e,e));if(fe)fe.add(new Option(e,e));});
   renderProvOpciones();
   renderPaisOpciones();
@@ -5786,6 +5789,12 @@ async function importarDesdeWord(event){
     if(datos.descripcion)_set("f-desc",       datos.descripcion);
     if(datos.fecha)      _set("f-fecha",      datos.fecha);
 
+    // País: ahora es un input de texto libre
+    if(datos.pais){
+      const elPais=document.getElementById("f-pais-form");
+      if(elPais){ elPais.value=datos.pais; camposRellenados++; }
+    }
+
     // Provincia: buscar en el select
     if(datos.provincia){
       const sel=document.getElementById("f-prov-form");
@@ -5813,6 +5822,7 @@ async function importarDesdeWord(event){
     if(datos.telefono||datos.movil) resumen.push("teléfono");
     if(datos.email)      resumen.push("email");
     if(datos.provincia)  resumen.push("provincia");
+    if(datos.pais)       resumen.push("país");
     if(datos.referencia) resumen.push("referencia");
     if(datos.fecha)      resumen.push("fecha");
 
@@ -5865,50 +5875,75 @@ function _extraerTextoDOCBinario(arrayBuffer){
 }
 
 function _extraerCamposWord(texto){
-  // Normalizar saltos de línea y espacios múltiples
-  const t=texto.replace(/\r\n/g,"\n").replace(/\r/g,"\n");
-  const lineas=t.split("\n").map(l=>l.trim()).filter(Boolean);
+  // ── Normalización robusta ──
+  // Reemplazar tabulaciones por espacio, colapsar espacios múltiples dentro de línea,
+  // y dividir en líneas reales
+  const t=texto
+    .replace(/\r\n/g,"\n").replace(/\r/g,"\n")
+    .replace(/\t/g," ");
+  const lineas=t.split("\n").map(l=>l.replace(/\s{2,}/g," ").trim()).filter(Boolean);
 
   const datos={};
 
-  // Helper: buscar valor después de una etiqueta en la misma línea o en la siguiente
-  function buscar(patron, opciones={}){
-    const {multilinea=false, maxLineas=3}=opciones;
+  /* ── Helper principal: busca la etiqueta y devuelve el valor ──────────────
+     Soporta varios formatos de plantilla:
+       Etiqueta: Valor       (mismo línea)
+       Etiqueta:             (valor en siguiente línea)
+       Etiqueta              (sin dos puntos, valor en siguiente línea)
+       Etiqueta  Valor       (separado por espacios, sin ":")
+  */
+  function buscar(patrones, opciones={}){
+    const {multilinea=false, maxLineas=4, separadores=/^[\s:·\-–—|]+/}=opciones;
+    const lista=Array.isArray(patrones)?patrones:[patrones];
     for(let i=0;i<lineas.length;i++){
       const linea=lineas[i];
-      const match=linea.match(patron);
-      if(match){
-        // Valor en la misma línea después de ":"
-        const resto=linea.replace(patron,"").replace(/^[\s:]+/,"").trim();
-        if(resto && resto.length>1) return resto;
-        // Valor en la siguiente línea(s)
-        const partes=[];
-        for(let j=i+1;j<Math.min(i+1+maxLineas,lineas.length);j++){
-          const sig=lineas[j].trim();
-          if(!sig) break;
-          // Parar si la siguiente línea parece ser otra etiqueta
-          if(/^(EMPRESA|DIRECCIÓN|ATENCIÓN|TLF|FAX|E-MAIL|EMAIL|REFERENCIA|Nº OFERTA|EQUIPO|DESCRIPCIÓN|ESTIMADO|SEGÚN)/i.test(sig)) break;
-          partes.push(sig);
-          if(!multilinea) break;
+      for(const patron of lista){
+        const match=linea.match(patron);
+        if(match){
+          // Valor en la misma línea (tras la etiqueta + separador opcional)
+          const resto=linea.replace(patron,"").replace(separadores,"").trim();
+          if(resto && resto.length>1 && !/^[\s:·\-–—]+$/.test(resto)) return resto;
+          // Valor en línea(s) siguiente(s)
+          const partes=[];
+          for(let j=i+1;j<Math.min(i+1+maxLineas,lineas.length);j++){
+            const sig=lineas[j].trim();
+            if(!sig) break;
+            // Parar si la línea siguiente parece otra etiqueta del documento
+            if(/^(EMPRESA|DIRECCI[OÓ]N|ATENCION|ATENCIÓN|TLF|TELF|TEL[EÉ]FONO|FAX|M[OÓ]VIL|CELULAR|E[\s-]?MAIL|EMAIL|REFERENCIA|N[º°]\s*OFERTA|OFERTA\s*N[º°]|EQUIPO|DESCRIPCI[OÓ]N|ESTIMADO|SEG[ÚU]N|PRECIO|IMPORTE|CONDICIONES|PLAZO|FORMA\s*DE\s*PAGO|FIRMA|ATENTAMENTE)/i.test(sig)) break;
+            partes.push(sig);
+            if(!multilinea) break;
+          }
+          if(partes.length) return partes.join(" ").trim();
         }
-        if(partes.length) return partes.join(" ").trim();
       }
     }
     return "";
   }
 
-  // ── EMPRESA ──
-  datos.empresa = buscar(/^EMPRESA\s*[:.]?\s*/i, {multilinea:true, maxLineas:4});
-  // Fallback: en .doc binario el nombre de empresa puede aparecer suelto
-  // Buscar patrón: línea que sigue inmediatamente a "DIRECCIÓN:" o "ATENCIÓN:"
-  // o buscar la palabra "EMPRESA" y coger las siguientes 2 líneas
+  /* ── Número de oferta ── */
+  const patronesOferta=[
+    /N[º°\.]\s*(?:OFERTA|OF\.?)\s*[:·]?\s*/i,
+    /OFERTA\s*N[º°\.]\s*[:·]?\s*/i,
+    /REFERENCIA\s*(?:DE\s*OFERTA)?\s*[:·]?\s*/i,
+    /REF(?:ERENCIA)?\.?\s*[:·]?\s*/i,
+  ];
+  datos.referencia=buscar(patronesOferta);
+
+  /* ── EMPRESA ── */
+  datos.empresa=buscar([
+    /^EMPRESA\s*[:·]?\s*/i,
+    /^CLIENTE\s*[:·]?\s*/i,
+    /^RAZON\s*SOCIAL\s*[:·]?\s*/i,
+    /^RAZ[OÓ]N\s*SOCIAL\s*[:·]?\s*/i,
+  ],{multilinea:true,maxLineas:3});
+
+  // Fallback 1: línea tras "EMPRESA" cuando no hay separador claro
   if(!datos.empresa){
     for(let i=0;i<lineas.length;i++){
-      if(/^EMPRESA/i.test(lineas[i])){
-        // Puede que en el binario "EMPRESA:" y el valor estén en líneas separadas sin ":" claro
+      if(/^EMPRESA\b/i.test(lineas[i])){
         for(let j=i+1;j<Math.min(i+4,lineas.length);j++){
           const sig=lineas[j].trim();
-          if(sig && !/^(DIREC|ATEN|TLF|FAX|E-MAIL|REFER|N[ºo])/i.test(sig)){
+          if(sig && !/^(DIRECC|ATEN|TLF|FAX|E-?MAIL|REFER|N[º°])/i.test(sig)){
             datos.empresa=sig; break;
           }
         }
@@ -5916,81 +5951,151 @@ function _extraerCamposWord(texto){
       }
     }
   }
-  // Último recurso: buscar líneas que contengan texto en mayúsculas sostenidas
-  // que parezcan un nombre de empresa (entre REFERENCIA y DIRECCIÓN)
+  // Fallback 2: entre REFERENCIA/OFERTA y DIRECCIÓN
   if(!datos.empresa){
-    const idxRef=lineas.findIndex(l=>/^REFERENCIA/i.test(l));
+    const idxRef=lineas.findIndex(l=>/REFERENCIA|OFERTA/i.test(l));
     const idxDir=lineas.findIndex(l=>/^DIRECCI[OÓ]N/i.test(l));
     if(idxRef>=0 && idxDir>idxRef){
-      const candidatos=lineas.slice(idxRef+1,idxDir).filter(l=>l.length>3 && !/^\d+$/.test(l));
+      const candidatos=lineas.slice(idxRef+1,idxDir)
+        .filter(l=>l.length>3 && !/^\d+$/.test(l) && !/^(N[º°]|REF)/i.test(l));
       if(candidatos.length) datos.empresa=candidatos[0];
     }
   }
 
-  // ── CONTACTO / ATENCIÓN ──
-  let atencion = buscar(/^ATEN[CÇ]IÓN\s*[:.]?\s*/i) || buscar(/^ATENCI[ÓO]N\s*[:.]?\s*/i) || buscar(/^A\/A\s*[:.]?\s*/i);
-  // Limpiar "Sr." / "Sra." y quedarse solo con el nombre
-  if(atencion) atencion=atencion.replace(/^(Sr\.?|Sra\.?|D\.?|Dña\.?)\s*/i,"").trim();
-  // Si la línea tiene teléfono pegado (ej: "Manuel 673 24 99 00"), separar
+  /* ── CONTACTO / ATENCIÓN ── */
+  let atencion=buscar([
+    /^ATENCION\s*[:·]?\s*/i,
+    /^ATENCI[OÓ]N\s*[:·]?\s*/i,
+    /^A\s*\/\s*A\s*[:·]?\s*/i,
+    /^CONTACTO\s*[:·]?\s*/i,
+    /^PERSONA\s*(?:DE\s*CONTACTO)?\s*[:·]?\s*/i,
+    /^DIRIGIDO\s*A\s*[:·]?\s*/i,
+  ]);
   if(atencion){
-    const mTel=atencion.match(/^(.+?)\s+(\d[\d\s]{8,})$/);
-    if(mTel){
-      atencion=mTel[1].trim();
-      if(!datos.movil) datos.movil=mTel[2].replace(/\s+/g,"");
-    }
+    atencion=atencion.replace(/^(Sr\.?|Sra\.?|D\.?|Dña\.?|Don\s|Doña\s)\s*/i,"").trim();
+    // Si el teléfono está pegado al nombre
+    const mTel=atencion.match(/^(.+?)\s+([+]?[\d\s.\-]{9,})$/);
+    if(mTel){ atencion=mTel[1].trim(); if(!datos.movil) datos.movil=mTel[2].replace(/[\s.\-]/g,""); }
   }
   datos.contacto=atencion;
 
-  // ── TELÉFONO FIJO ──
-  let tlf=buscar(/^TLF\s*[:.]?\s*/i) || buscar(/^TEL[EÉ]FONO\s*[:.]?\s*/i) || buscar(/^TELF\s*[:.]?\s*/i);
-  if(tlf) datos.telefono=tlf.replace(/\s+/g,"").replace(/[^\d+]/g,"");
-
-  // ── MÓVIL — buscar número que empiece por 6 o 7 (móviles españoles) ──
-  if(!datos.movil){
-    for(const linea of lineas){
-      const m=linea.match(/\b([67]\d{2}[\s.-]?\d{2}[\s.-]?\d{2}[\s.-]?\d{2})\b/);
-      if(m){ datos.movil=m[1].replace(/[\s.-]/g,""); break; }
+  /* ── TELÉFONO FIJO ── */
+  const tlfRaw=buscar([
+    /^TLF\s*[:·]?\s*/i,
+    /^TELF\s*[:·]?\s*/i,
+    /^TEL[EÉ]FONO\s*(?:FIJO)?\s*[:·]?\s*/i,
+    /^TEL\.?\s*[:·]?\s*/i,
+    /^PHONE\s*[:·]?\s*/i,
+  ]);
+  if(tlfRaw) datos.telefono=tlfRaw.replace(/[\s.\-]/g,"").replace(/[^\d+]/g,"");
+  // Si no se encontró con etiqueta, buscar número de 9 dígitos que empiece por 9 o 8
+  if(!datos.telefono){
+    for(const l of lineas){
+      const m=l.match(/\b([89]\d{2}[\s.\-]?\d{2}[\s.\-]?\d{2}[\s.\-]?\d{2})\b/);
+      if(m){ datos.telefono=m[1].replace(/[\s.\-]/g,""); break; }
     }
   }
 
-  // ── EMAIL ──
-  for(const linea of lineas){
-    const m=linea.match(/([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/);
-    if(m){ datos.email=m[1]; break; }
+  /* ── MÓVIL ── */
+  const movRaw=buscar([
+    /^M[OÓ]VIL\s*[:·]?\s*/i,
+    /^CELULAR\s*[:·]?\s*/i,
+    /^MOBILE\s*[:·]?\s*/i,
+  ]);
+  if(movRaw) datos.movil=movRaw.replace(/[\s.\-]/g,"").replace(/[^\d+]/g,"");
+  if(!datos.movil){
+    for(const l of lineas){
+      const m=l.match(/\b([67]\d{2}[\s.\-]?\d{2}[\s.\-]?\d{2}[\s.\-]?\d{2})\b/);
+      if(m){ datos.movil=m[1].replace(/[\s.\-]/g,""); break; }
+    }
   }
 
-  // ── PROVINCIA — buscar en la dirección ──
-  const PROVINCIAS_ES=PROVINCIAS; // Reutilizar la constante global (lista completa y sin duplicados)
-  const textoNorm=texto.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
-  for(const prov of PROVINCIAS_ES){
-    const provNorm=prov.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
-    if(textoNorm.includes(provNorm)){ datos.provincia=prov; break; }
+  /* ── EMAIL ── */
+  for(const l of lineas){
+    const m=l.match(/([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/);
+    if(m){ datos.email=m[1].toLowerCase(); break; }
   }
 
-  // ── REFERENCIA ──
-  datos.referencia = buscar(/^REFERENCIA\s*[:.]?\s*/i) || buscar(/^REF\s*[:.]?\s*/i);
-
-  // ── FECHA — buscar formato dd/mm/yyyy o dd-mm-yyyy ──
-  for(const linea of lineas){
-    const m=linea.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/);
+  /* ── FECHA ── formatos: dd/mm/yyyy, dd-mm-yyyy, dd.mm.yyyy, yyyy-mm-dd */
+  for(const l of lineas){
+    // Formato europeo: dd/mm/yyyy
+    let m=l.match(/\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\b/);
     if(m){
       const [,d,mo,y]=m;
       datos.fecha=`${y}-${mo.padStart(2,"0")}-${d.padStart(2,"0")}`;
       break;
     }
+    // Formato ISO: yyyy-mm-dd
+    m=l.match(/\b(20\d{2})\-(\d{2})\-(\d{2})\b/);
+    if(m){
+      datos.fecha=`${m[1]}-${m[2]}-${m[3]}`;
+      break;
+    }
+    // Formato escrito: "15 de enero de 2024", "enero 2024"
+    m=l.match(/\b(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(?:de\s+)?(\d{4})\b/i);
+    if(m){
+      const MESES={enero:"01",febrero:"02",marzo:"03",abril:"04",mayo:"05",junio:"06",julio:"07",agosto:"08",septiembre:"09",octubre:"10",noviembre:"11",diciembre:"12"};
+      datos.fecha=`${m[3]}-${MESES[m[2].toLowerCase()]}-${m[1].padStart(2,"0")}`;
+      break;
+    }
   }
 
-  // ── DESCRIPCIÓN — coger el bloque "EQUIPO SOLICITADO" o "DESCRIPCIÓN" ──
+  /* ── PROVINCIA ── buscar en todo el texto normalizando acentos */
+  const textoNorm=texto.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+  // Intentar primero en la dirección (contexto más fiable)
+  const idxDir=lineas.findIndex(l=>/^DIRECCI[OÓ]N/i.test(l));
+  const bloqueDir=idxDir>=0?lineas.slice(idxDir,idxDir+5).join(" "):texto;
+  const bloqueDirNorm=bloqueDir.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+  let provEncontrada="";
+  for(const prov of PROVINCIAS){
+    const provNorm=prov.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+    if(bloqueDirNorm.includes(provNorm)){ provEncontrada=prov; break; }
+  }
+  // Si no se encontró en dirección, buscar en todo el texto
+  if(!provEncontrada){
+    for(const prov of PROVINCIAS){
+      const provNorm=prov.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+      if(textoNorm.includes(provNorm)){ provEncontrada=prov; break; }
+    }
+  }
+  datos.provincia=provEncontrada;
+
+  /* ── PAÍS ── */
+  const paisRaw=buscar([/^PA[IÍ]S\s*[:·]?\s*/i,/^COUNTRY\s*[:·]?\s*/i]);
+  if(paisRaw) datos.pais=paisRaw;
+  // Si no se encontró explícitamente, intentar por nombre en el texto
+  if(!datos.pais){
+    for(const p of PAISES){
+      if(p==="España") continue; // España es la default, no contaminar
+      const pNorm=p.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+      if(textoNorm.includes(pNorm)){ datos.pais=p; break; }
+    }
+  }
+
+  /* ── DESCRIPCIÓN — varios encabezados posibles ── */
+  const patronesDesc=[
+    /EQUIPO\s*SOLICITADO/i,
+    /DESCRIPCI[OÓ]N\s*(?:DEL\s*(?:EQUIPO|PRODUCTO|SERVICIO))?/i,
+    /OBJETO\s*(?:DEL\s*PEDIDO)?/i,
+    /M[AÁ]QUINA\s*SOLICITADA/i,
+  ];
   for(let i=0;i<lineas.length;i++){
-    if(/EQUIPO SOLICITADO|DESCRIPCI[ÓO]N DEL EQUIPO/i.test(lineas[i])){
+    if(patronesDesc.some(p=>p.test(lineas[i]))){
       const partes=[];
-      for(let j=i+1;j<Math.min(i+6,lineas.length);j++){
+      for(let j=i+1;j<Math.min(i+8,lineas.length);j++){
         const sig=lineas[j].trim();
-        if(!sig||/^(DESCRIPCI[ÓO]N|PRECIO|IMPORTE|CONDICIONES|PLAZO|FORMA DE PAGO)/i.test(sig)) break;
+        if(!sig||/^(PRECIO|IMPORTE|CONDICIONES|PLAZO|FORMA\s*DE\s*PAGO|GARANT[IÍ]A|ENTREGA|VALIDEZ|FIRMA|ATENTAMENTE)/i.test(sig)) break;
         partes.push(sig);
       }
-      if(partes.length) datos.descripcion=partes.join(" ").trim();
-      break;
+      if(partes.length){ datos.descripcion=partes.join(" ").trim(); break; }
+    }
+  }
+
+  // Limpiar campos: quitar texto claramente erróneo
+  for(const k of Object.keys(datos)){
+    if(typeof datos[k]==="string"){
+      datos[k]=datos[k].replace(/^[\s:·\-–—]+|[\s:·\-–—]+$/g,"").trim();
+      if(datos[k].length<2) datos[k]="";
     }
   }
 
