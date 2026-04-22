@@ -1172,15 +1172,13 @@ let msalInstance = null;
 let msalToken    = null;
 
 function getMsalRedirectUri(){
-  // Si estamos en file:// o localhost, usar la URL guardada o la del origen
   const href = window.location.href;
   const origin = window.location.origin;
   if(origin && origin !== "null" && !origin.startsWith("file:")){
-    // Quitar hash y query para obtener la URL base limpia
-    return origin + window.location.pathname.replace(/\/[^\/]*$/, '/').replace(/\/$/, '') || origin;
+    const path = window.location.pathname.replace(/\/[^\/]*$/, '').replace(/\/$/, '');
+    return origin + path;
   }
-  // Fallback: usar la URL completa sin hash ni query
-  return href.split('?')[0].split('#')[0];
+  return href.split('?')[0].split('#')[0].replace(/\/$/, '');
 }
 
 async function getMsalToken(){
