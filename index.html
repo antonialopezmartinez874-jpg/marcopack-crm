@@ -5993,14 +5993,22 @@ function abrirModal(o){
   if(wordPanel) wordPanel.style.display=o?"none":"flex";
   const wordStatus=document.getElementById("import-word-status");
   if(wordStatus){wordStatus.style.display="none";wordStatus.textContent="";}
-  // Si es nueva oferta: mostrar preview provisional (no reserva número aún)
-  // El número definitivo y único se asigna en guardarOferta() vía transacción
   if(o){
     document.getElementById("f-num").value=o.numeroOferta;
     document.getElementById("f-num").removeAttribute("placeholder");
   } else {
+    // Mostrar provisional inmediatamente y reservar el número real en segundo plano
     document.getElementById("f-num").value="";
     document.getElementById("f-num").placeholder=_previewNumeroOferta();
+    // Reservar número real via transacción y rellenar el campo
+    _siguienteNumeroOferta().then(num=>{
+      const campo=document.getElementById("f-num");
+      if(campo && !editandoId && !campo.value){
+        campo.value=num;
+        campo.placeholder="";
+        campo._numeroReservado=num;
+      }
+    }).catch(()=>{});
   }
   document.getElementById("f-fecha").value=o?.fechaOferta||fechaLocal(); // fechaLocal() evita desfase UTC en España
   document.getElementById("f-empresa").value=o?.empresa||"";
@@ -6209,11 +6217,12 @@ async function guardarOferta(){
                    || "";
     } else {
       const numManual = document.getElementById("f-num").value.trim();
+      const numReservado = document.getElementById("f-num")._numeroReservado;
       if(numManual && numManual !== document.getElementById("f-num").placeholder){
-        // El usuario escribió un número manualmente → respetarlo
+        // El usuario escribió o tiene el número reservado → usarlo directamente
         numeroOferta = numManual;
       } else {
-        // Obtener número atómico (transacción Firestore — seguro para N usuarios)
+        // No hay número reservado aún → obtener uno nuevo
         toast("⏳ Reservando número de oferta...","#3b82f6");
         numeroOferta = await _siguienteNumeroOferta();
       }
