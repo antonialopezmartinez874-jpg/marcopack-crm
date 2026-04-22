@@ -5708,11 +5708,21 @@ async function _sincronizarContador(){
 // Versión local (solo para el placeholder del campo, sin tocar la BD)
 function _previewNumeroOferta(){
   const year = new Date().getFullYear();
-  const max  = ofertas.reduce((m,o)=>{
+  // Leer el contador real de Firestore y actualizar el placeholder cuando llegue
+  db.collection("contadores").doc("ofertas_"+year).get().then(doc=>{
+    const ultimo = doc.exists ? (doc.data().ultimo||0) : 0;
+    const siguiente = String(ultimo+1).padStart(3,"0");
+    const campo = document.getElementById("f-num");
+    if(campo && !editandoId && !campo.value){
+      campo.placeholder = `OF-${year}-${siguiente}`;
+    }
+  }).catch(()=>{});
+  // Estimación local inmediata mientras carga Firestore
+  const max = ofertas.reduce((m,o)=>{
     const n=parseInt((o.numeroOferta||"").split("-")[2])||0;
     return n>m?n:m;
   },0);
-  return `OF-${year}-${String(max+1).padStart(3,"0")} (provisional)`;
+  return `OF-${year}-${String(max+1).padStart(3,"0")}`;
 }
 
 // ===== IMPORTAR DESDE WORD =====
@@ -5997,18 +6007,10 @@ function abrirModal(o){
     document.getElementById("f-num").value=o.numeroOferta;
     document.getElementById("f-num").removeAttribute("placeholder");
   } else {
-    // Mostrar provisional inmediatamente y reservar el número real en segundo plano
+    // Mostrar placeholder provisional — el número real se genera SOLO al guardar
     document.getElementById("f-num").value="";
+    document.getElementById("f-num")._numeroReservado=null;
     document.getElementById("f-num").placeholder=_previewNumeroOferta();
-    // Reservar número real via transacción y rellenar el campo
-    _siguienteNumeroOferta().then(num=>{
-      const campo=document.getElementById("f-num");
-      if(campo && !editandoId && !campo.value){
-        campo.value=num;
-        campo.placeholder="";
-        campo._numeroReservado=num;
-      }
-    }).catch(()=>{});
   }
   document.getElementById("f-fecha").value=o?.fechaOferta||fechaLocal(); // fechaLocal() evita desfase UTC en España
   document.getElementById("f-empresa").value=o?.empresa||"";
@@ -6217,12 +6219,11 @@ async function guardarOferta(){
                    || "";
     } else {
       const numManual = document.getElementById("f-num").value.trim();
-      const numReservado = document.getElementById("f-num")._numeroReservado;
       if(numManual && numManual !== document.getElementById("f-num").placeholder){
-        // El usuario escribió o tiene el número reservado → usarlo directamente
+        // El usuario escribió un número manualmente → respetarlo
         numeroOferta = numManual;
       } else {
-        // No hay número reservado aún → obtener uno nuevo
+        // Generar número atómico real (transacción Firestore)
         toast("⏳ Reservando número de oferta...","#3b82f6");
         numeroOferta = await _siguienteNumeroOferta();
       }
