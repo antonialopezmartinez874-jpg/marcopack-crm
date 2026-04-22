@@ -1172,13 +1172,8 @@ let msalInstance = null;
 let msalToken    = null;
 
 function getMsalRedirectUri(){
-  const href = window.location.href;
-  const origin = window.location.origin;
-  if(origin && origin !== "null" && !origin.startsWith("file:")){
-    const path = window.location.pathname.replace(/\/[^\/]*$/, '').replace(/\/$/, '');
-    return origin + path;
-  }
-  return href.split('?')[0].split('#')[0].replace(/\/$/, '');
+  // URI fija registrada en Azure — debe coincidir exactamente
+  return "https://antonialopezmartinez874-jpg.github.io/marcopack-crm/";
 }
 
 async function getMsalToken(){
