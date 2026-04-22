@@ -1170,13 +1170,26 @@ async function uploadToSharedFolder(file, token, shared){
 let msalInstance = null;
 let msalToken    = null;
 
+function getMsalRedirectUri(){
+  // Si estamos en file:// o localhost, usar la URL guardada o la del origen
+  const href = window.location.href;
+  const origin = window.location.origin;
+  if(origin && origin !== "null" && !origin.startsWith("file:")){
+    // Quitar hash y query para obtener la URL base limpia
+    return origin + window.location.pathname.replace(/\/[^\/]*$/, '/').replace(/\/$/, '') || origin;
+  }
+  // Fallback: usar la URL completa sin hash ni query
+  return href.split('?')[0].split('#')[0];
+}
+
 async function getMsalToken(){
   const clientId = getClientId();
   if(!clientId){
     throw new Error("CLIENT_ID_NOT_SET");
   }
+  const redirectUri = getMsalRedirectUri();
   const msalConfig = {
-    auth: { clientId, authority: MSAL_AUTHORITY, redirectUri: window.location.origin || window.location.href.split("?")[0] },
+    auth: { clientId, authority: MSAL_AUTHORITY, redirectUri },
     cache: { cacheLocation: "localStorage", storeAuthStateInCookie: true }
   };
   if(!msalInstance){
@@ -1198,12 +1211,32 @@ async function getMsalToken(){
       const resp=await msalInstance.acquireTokenSilent({scopes:MSAL_SCOPES,account:accounts[0]});
       msalToken=resp.accessToken;
       return msalToken;
-    }catch(e){}
+    }catch(e){
+      // Token expirado o error silencioso → forzar popup
+      msalInstance=null;
+    }
   }
-  // Popup de login Microsoft — solo el admin lo ve la primera vez
-  const resp=await msalInstance.loginPopup({scopes:MSAL_SCOPES});
-  msalToken=resp.accessToken;
-  return msalToken;
+  // Popup de login Microsoft
+  if(!msalInstance){
+    msalInstance=new msal.PublicClientApplication(msalConfig);
+    await msalInstance.initialize();
+  }
+  try{
+    const resp=await msalInstance.loginPopup({scopes:MSAL_SCOPES, redirectUri});
+    msalToken=resp.accessToken;
+    return msalToken;
+  }catch(e){
+    // Mejorar mensajes de error comunes
+    if(e.errorCode==="popup_window_error") throw new Error("El navegador bloqueó el popup. Permite popups para esta página e inténtalo de nuevo.");
+    if(e.errorCode==="user_cancelled") throw new Error("Login cancelado por el usuario.");
+    if(e.errorCode==="redirect_uri_mismatch" || (e.message||"").includes("redirect")){
+      throw new Error("URI de redirección incorrecta. En Azure Entra, añade esta URL como SPA: " + redirectUri);
+    }
+    if(e.errorCode==="invalid_client" || (e.message||"").includes("AADSTS70011")){
+      throw new Error("Client ID incorrecto o sin permisos configurados en Azure Entra.");
+    }
+    throw e;
+  }
 }
 
 function getMsalAccountName(){
@@ -7239,9 +7272,21 @@ async function testOneDriveLogin(){
     const u=await r.json();
     toast("✅ OneDrive conectado como: "+(u.displayName||u.userPrincipalName),"#10b981");
     actualizarEstadoOneDrive();
+    mcActualizarEstadoOD && mcActualizarEstadoOD();
   }catch(e){
-    if(e.message==="CLIENT_ID_NOT_SET") toast("⚠️ Guarda primero el ID de aplicación","#f59e0b");
-    else toast("❌ Error: "+e.message,"#ef4444");
+    if(e.message==="CLIENT_ID_NOT_SET"){
+      toast("⚠️ Guarda primero el ID de aplicación","#f59e0b");
+    } else {
+      // Mostrar error detallado en un alert para que sea visible durante la presentación
+      const redirectUri = getMsalRedirectUri();
+      const msg = e.message || String(e);
+      if(msg.includes("URI de redirección") || msg.includes("redirect")){
+        alert("⚠️ ERROR DE REDIRECCIÓN\n\nEn Azure Entra → tu app → Autenticación → URIs de redirección (SPA), añade exactamente esta URL:\n\n" + redirectUri + "\n\nGuarda los cambios en Azure y vuelve a intentarlo.");
+      } else {
+        alert("❌ Error al conectar con Microsoft:\n\n" + msg + "\n\nURI de redirección usada: " + redirectUri);
+      }
+      toast("❌ Error Microsoft: "+msg.substring(0,80),"#ef4444");
+    }
   }
 }
 
