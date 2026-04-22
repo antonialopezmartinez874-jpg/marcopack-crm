@@ -1803,6 +1803,7 @@ function poblarSelects(){
   if(fef) fef.innerHTML="";
   if(fe)  fe.innerHTML='<option value="">Todos los estados</option>';
   if(fpais) fpais.innerHTML='<option value="">— Seleccionar país —</option>';
+  if(fpf) fpf.add(new Option("— Internacional / Sin provincia —",""));
   PROVINCIAS.forEach(p=>{if(fpf)fpf.add(new Option(p,p));});
   PAISES.forEach(p=>{if(fpais)fpais.add(new Option(p,p));});
   ESTADOS.forEach(e=>{if(fef)fef.add(new Option(e,e));if(fe)fe.add(new Option(e,e));});
@@ -6018,7 +6019,7 @@ function abrirModal(o){
   document.getElementById("f-tel").value=o?.telefono||"";
   document.getElementById("f-movil").value=o?.telefonoMovil||"";
   document.getElementById("f-email").value=o?.email||"";
-  document.getElementById("f-prov-form").value=o?.provincia||"Madrid";
+  document.getElementById("f-prov-form").value=o?.provincia||"";
   document.getElementById("f-pais-form").value=o?.pais||"";
   document.getElementById("f-tipo").value=o?.tipoMaquina||"";
   document.getElementById("f-otros").value=o?.otros||"";
