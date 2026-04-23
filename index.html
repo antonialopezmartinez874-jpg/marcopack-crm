@@ -1144,28 +1144,52 @@ function encodeSharingUrlToShareId(url){
 async function resolveSharedFolder(token){
   const link=getSharedFolderLink();
   if(!link) throw new Error('SHARED_FOLDER_NOT_SET');
+  // Intentar caché primero
   const cached = localStorage.getItem(OD_SHARED_CACHE_KEY);
   if(cached){
-    try{ const obj=JSON.parse(cached); if(obj && obj.driveId && obj.itemId) return obj; }catch(_){ }
+    try{
+      const obj=JSON.parse(cached);
+      if(obj && obj.driveId && obj.itemId) return obj;
+    }catch(_){}
   }
+  // Resolver desde la API
   const shareId = encodeSharingUrlToShareId(link);
   const res = await fetch(`https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem`,{
     headers:{Authorization:'Bearer '+token,'Content-Type':'application/json',Prefer:'redeemSharingLink'}
   });
-  if(!res.ok) throw new Error('No se pudo resolver la carpeta compartida: '+res.status);
+  if(!res.ok){
+    // Limpiar caché corrupta y lanzar error claro
+    localStorage.removeItem(OD_SHARED_CACHE_KEY);
+    throw new Error('No se pudo resolver la carpeta compartida (error '+res.status+'). Comprueba el enlace en Mi cuenta → OneDrive.');
+  }
   const di = await res.json();
   const driveId = di && di.parentReference && di.parentReference.driveId;
   const itemId  = di && di.id;
-  if(!driveId || !itemId) throw new Error('Respuesta de carpeta compartida incompleta');
+  if(!driveId || !itemId){
+    localStorage.removeItem(OD_SHARED_CACHE_KEY);
+    throw new Error('Respuesta de carpeta compartida incompleta. Reconfigura el enlace en Mi cuenta → OneDrive.');
+  }
   const out={driveId,itemId,name:di.name||'Carpeta compartida'};
   localStorage.setItem(OD_SHARED_CACHE_KEY, JSON.stringify(out));
   return out;
 }
+
 async function uploadToSharedFolder(file, token, shared){
   const safeName=file.name.replace(/[\/\\?%\*:|"<>]/g,'_');
   const endpoint = `https://graph.microsoft.com/v1.0/drives/${shared.driveId}/items/${shared.itemId}:/${Date.now()}_${safeName}:/content`;
   const up = await fetch(endpoint,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/octet-stream'},body:file});
-  if(!up.ok) throw new Error('Error subiendo a carpeta compartida: '+up.status);
+  if(!up.ok){
+    // Si falla la carpeta compartida, limpiar caché e intentar carpeta personal como fallback
+    localStorage.removeItem(OD_SHARED_CACHE_KEY);
+    console.warn('[OneDrive] Fallo en carpeta compartida ('+up.status+'), intentando carpeta personal...');
+    await oneDriveEnsureFolder(token);
+    const endpointPersonal=`https://graph.microsoft.com/v1.0/me/drive/root:/${ONEDRIVE_FOLDER}/${Date.now()}_${safeName}:/content`;
+    const up2=await fetch(endpointPersonal,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/octet-stream'},body:file});
+    if(!up2.ok) throw new Error('Error subiendo archivo a OneDrive ('+up2.status+'). Comprueba la conexión y el enlace de carpeta compartida.');
+    const data2=await up2.json();
+    toast('⚠️ Archivo guardado en carpeta personal (carpeta compartida no disponible)','#f59e0b');
+    return {url:(data2&&data2.webUrl)?data2.webUrl:'', driveItemId:data2&&data2.id, origen:'onedrive_personal_fallback'};
+  }
   const data = await up.json();
   const url = (data && data.webUrl) ? data.webUrl : '';
   return {url, driveItemId:data && data.id, origen:'onedrive_shared'};
@@ -1729,8 +1753,9 @@ async function doLogin(){
   if(!email||!pass){showErr("Completa email y contraseña");return;}
   const btn=document.getElementById("btn-login");
   btn.textContent="Verificando...";btn.disabled=true;
+  // Limpiar caché de carpeta compartida para forzar resolución fresca
+  localStorage.removeItem(OD_SHARED_CACHE_KEY);
   try{
-    // Nota: setPersistence(NONE) ya se establece globalmente al iniciar la app
     await auth.signInWithEmailAndPassword(email,pass);
     // onAuthStateChanged se encarga de mostrar la app
   }catch(e){
