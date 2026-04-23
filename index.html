@@ -5798,10 +5798,9 @@ async function importarDesdeWord(event){
     if(datos.descripcion) _set("f-desc",       datos.descripcion);
     if(datos.fecha)       _set("f-fecha",      datos.fecha);
     if(datos.importe)     _set("f-importe",    datos.importe);
-    if(datos.tipoMaquina) _set("f-tipo",       datos.tipoMaquina);
 
-    // País — rellenar siempre (España es el default, pero si el Word dice otro se respeta)
-    if(datos.pais){
+    // País — España ya es predeterminado; solo sobreescribir si el Word indica otro
+    if(datos.pais && datos.pais!=="España"){
       const elPais=document.getElementById("f-pais-form");
       if(elPais){
         elPais.value=datos.pais;
@@ -5842,11 +5841,10 @@ async function importarDesdeWord(event){
     if(datos.telefono||datos.movil)resumen.push("teléfono");
     if(datos.email)                resumen.push("email");
     if(datos.provincia)            resumen.push("provincia");
-    if(datos.pais)                 resumen.push("país: "+datos.pais);
+    if(datos.pais&&datos.pais!=="España") resumen.push("país");
     if(datos.referencia)           resumen.push("referencia");
     if(datos.fecha)                resumen.push("fecha");
     if(datos.importe)              resumen.push("importe");
-    if(datos.tipoMaquina)          resumen.push("tipo de máquina");
     if(datos.descripcion)          resumen.push("descripción");
 
     if(statusEl) statusEl.innerHTML=`✅ Importado: <strong style="color:var(--accent)">${resumen.join(", ")}</strong>.<br>
@@ -5899,32 +5897,37 @@ function _extraerTextoDOCBinario(arrayBuffer){
 }
 
 function _extraerCamposWord(texto){
-  // ══════════════════════════════════════════════════════════════════
-  // PARSER PROFESIONAL v2 — Marcopack CRM
-  // Soporta: etiqueta:valor, etiqueta + línea siguiente, bloques
-  // libres, formatos internacionales, documentos sin estructura fija
-  // ══════════════════════════════════════════════════════════════════
-
-  const t=texto.replace(/\r\n/g,"\n").replace(/\r/g,"\n").replace(/\t/g,"  ");
+  // ── Normalización robusta ──
+  const t=texto
+    .replace(/\r\n/g,"\n").replace(/\r/g,"\n")
+    .replace(/\t/g,"  ");
   const lineas=t.split("\n").map(l=>l.replace(/\s{2,}/g," ").trim()).filter(Boolean);
-  const textoNorm=t.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+
   const datos={};
 
-  // ── Helper: buscar etiqueta y extraer valor ───────────────────────
-  function buscar(patrones, ops={}){
-    const {multilinea=false,maxLineas=5,
-      stopPatterns=/^(EMPRESA|CLIENTE|RAZ[OÓ]N|DIRECCI[OÓ]N|ATENCION|ATENCI[OÓ]N|TLF|TELF|TEL[EÉ]FONO|FAX|M[OÓ]VIL|CELULAR|E[\s-]?MAIL|CORREO|REFERENCIA|N[º°]\s*OFERTA|OFERTA|EQUIPO|DESCRIPCI[OÓ]N|PRECIO|IMPORTE|CONDICIONES|PLAZO|FIRMA|ATENTAMENTE|PA[IÍ]S|COUNTRY|PROVINCIA|CP|C\.P\.|CODIGO\s*POSTAL)/i
-    }=ops;
+  /* ── Helper principal: busca la etiqueta y devuelve el valor ──────────────
+     Soporta formatos:
+       Etiqueta: Valor       (mismo línea)
+       Etiqueta:             (valor en siguiente línea)
+       Etiqueta  Valor       (separado por espacios, sin ":")
+  */
+  function buscar(patrones, opciones={}){
+    const {multilinea=false, maxLineas=4, separadores=/^[\s:·\-–—|]+/}=opciones;
     const lista=Array.isArray(patrones)?patrones:[patrones];
     for(let i=0;i<lineas.length;i++){
-      for(const pat of lista){
-        if(!pat.test(lineas[i])) continue;
-        const resto=lineas[i].replace(pat,"").replace(/^[\s:·\-–—|]+/,"").trim();
-        if(resto && resto.length>1) return resto;
+      const linea=lineas[i];
+      for(const patron of lista){
+        if(!patron.test(linea)) continue;
+        // Valor en la misma línea (tras la etiqueta)
+        const resto=linea.replace(patron,"").replace(separadores,"").trim();
+        if(resto && resto.length>1 && !/^[\s:·\-–—]+$/.test(resto)) return resto;
+        // Valor en línea(s) siguiente(s)
         const partes=[];
         for(let j=i+1;j<Math.min(i+1+maxLineas,lineas.length);j++){
           const sig=lineas[j].trim();
-          if(!sig||stopPatterns.test(sig)) break;
+          if(!sig) break;
+          // Parar si parece otra etiqueta del documento
+          if(/^(EMPRESA|CLIENTE|RAZ[OÓ]N|DIRECCI[OÓ]N|ATENCION|ATENCI[OÓ]N|TLF|TELF|TEL[EÉ]FONO|FAX|M[OÓ]VIL|CELULAR|E[\s-]?MAIL|EMAIL|REFERENCIA|N[º°]\s*OFERTA|OFERTA\s*N[º°]|EQUIPO|DESCRIPCI[OÓ]N|ESTIMADO|SEG[ÚU]N|PRECIO|IMPORTE|CONDICIONES|PLAZO|FORMA\s*DE\s*PAGO|FIRMA|ATENTAMENTE|PA[IÍ]S|COUNTRY)/i.test(sig)) break;
           partes.push(sig);
           if(!multilinea) break;
         }
@@ -5934,284 +5937,237 @@ function _extraerCamposWord(texto){
     return "";
   }
 
-  // ── Helper: limpiar número de teléfono ───────────────────────────
-  function limpiarTel(s){ return s.replace(/[\s.\-()]/g,"").replace(/[^\d+]/g,""); }
-
-  // ── Helper: normalizar texto para comparación ─────────────────────
-  function norm(s){ return s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().trim(); }
-
-  // ══════════════════════════════════════════════════════════════════
-  // 1. NÚMERO DE OFERTA / REFERENCIA
-  // ══════════════════════════════════════════════════════════════════
-  datos.referencia=buscar([
+  /* ── Número de oferta / referencia ── */
+  // Patrones explícitos con etiqueta
+  const patronesOferta=[
     /N[º°\.]\s*(?:OFERTA|OF\.?)\s*[:·]?\s*/i,
     /OFERTA\s*N[º°\.]\s*[:·]?\s*/i,
-    /REF(?:ERENCIA)?\.?\s*(?:DE\s*OFERTA|INTERNA)?\s*[:·]\s*/i,
-    /N[º°]\s*(?:PRESUPUESTO|PEDIDO|SOLICITUD)\s*[:·]?\s*/i,
-    /PRESUPUESTO\s*N[º°\.]\s*[:·]?\s*/i,
-    /QUOTATION\s*(?:NO\.?|N[º°])?\s*[:·]?\s*/i,
-  ]);
+    /OFERTA\s*[:·]\s*/i,
+    /REF(?:ERENCIA)?\.?\s*(?:DE\s*OFERTA)?\s*[:·]\s*/i,
+    /N[º°]\s*PRESUPUESTO\s*[:·]?\s*/i,
+  ];
+  datos.referencia=buscar(patronesOferta);
+  // Buscar formato Marcopack OF-YYYY-NNN o similar en todo el texto
   if(!datos.referencia){
     for(const l of lineas){
-      const m=l.match(/\b(OF[-_]?\d{4}[-_]\d{2,4})\b/i)
-             ||l.match(/\b(PRE[-_]?\d{4}[-_]\d{2,})\b/i)
-             ||l.match(/\b([A-Z]{1,4}[-_]\d{4}[-_]\d{2,4})\b/);
+      const m=l.match(/\b(OF[-_]?\d{4}[-_]\d{3,4})\b/i)
+             ||l.match(/\b(\d{4}[-_]\d{3,4}[-_]\w{2,})\b/)
+             ||l.match(/\b(PRE[-_]?\d{4}[-_]\d{3,})\b/i);
       if(m){ datos.referencia=m[1]; break; }
     }
   }
 
-  // ══════════════════════════════════════════════════════════════════
-  // 2. EMPRESA / CLIENTE
-  // ══════════════════════════════════════════════════════════════════
+  /* ── EMPRESA ── */
   datos.empresa=buscar([
     /^EMPRESA\s*[:·]?\s*/i,
     /^CLIENTE\s*[:·]?\s*/i,
+    /^RAZON\s*SOCIAL\s*[:·]?\s*/i,
     /^RAZ[OÓ]N\s*SOCIAL\s*[:·]?\s*/i,
     /^DESTINATARIO\s*[:·]?\s*/i,
     /^SOCIEDAD\s*[:·]?\s*/i,
-    /^COMPANY\s*[:·]?\s*/i,
-    /^NOMBRE\s*(?:DE\s*EMPRESA|EMPRESA|COMERCIAL)?\s*[:·]?\s*/i,
   ],{multilinea:true,maxLineas:3});
-  // Fallback: línea con forma jurídica S.L., S.A., etc.
+
+  // Fallback 1: línea inmediatamente después de "EMPRESA" sin separador
+  if(!datos.empresa){
+    for(let i=0;i<lineas.length;i++){
+      if(/^EMPRESA\b/i.test(lineas[i])){
+        for(let j=i+1;j<Math.min(i+4,lineas.length);j++){
+          const sig=lineas[j].trim();
+          if(sig && sig.length>2 && !/^(DIRECC|ATEN|TLF|FAX|E-?MAIL|REFER|N[º°]|CLIENTE)/i.test(sig)){
+            datos.empresa=sig; break;
+          }
+        }
+        if(datos.empresa) break;
+      }
+    }
+  }
+  // Fallback 2: entre REFERENCIA/OFERTA y DIRECCIÓN
+  if(!datos.empresa){
+    const idxRef=lineas.findIndex(l=>/REFERENCIA|OFERTA|PRESUPUESTO/i.test(l));
+    const idxDir=lineas.findIndex(l=>/^DIRECCI[OÓ]N/i.test(l));
+    if(idxRef>=0 && idxDir>idxRef+1){
+      const candidatos=lineas.slice(idxRef+1,idxDir)
+        .filter(l=>l.length>2 && !/^\d+$/.test(l) && !/^(N[º°]|REF|OF-)/i.test(l));
+      if(candidatos.length) datos.empresa=candidatos[0];
+    }
+  }
+  // Fallback 3: heurística — buscar patrón típico S.A., S.L., S.A.U., S.L.U.
   if(!datos.empresa){
     for(const l of lineas){
-      if(/\b(S\.?[AL]\.?U?\.?|S\.?COOP\.?|S\.?R\.?L\.?|S\.?A\.?T\.?|GMBH|LTD\.?|INC\.?|S\.?P\.?A\.?)\b/i.test(l) && l.length<80){
+      if(/\b(S\.?A\.?U?\.?|S\.?L\.?U?\.?|S\.?A\.?T\.?|S\.?COOP\.?|S\.?R\.?L\.?)\b/i.test(l)){
         datos.empresa=l.trim(); break;
       }
     }
   }
-  // Fallback: bloque entre referencia y dirección
-  if(!datos.empresa){
-    const iRef=lineas.findIndex(l=>/REFERENCIA|N[º°]\s*OFERTA|OFERTA\s*N[º°]/i.test(l));
-    const iDir=lineas.findIndex(l=>/^DIRECCI[OÓ]N/i.test(l));
-    if(iRef>=0 && iDir>iRef+1){
-      const cands=lineas.slice(iRef+1,iDir).filter(l=>l.length>3&&!/^\d+$/.test(l)&&!/^(N[º°]|REF|OF-)/i.test(l));
-      if(cands.length) datos.empresa=cands[0];
-    }
-  }
 
-  // ══════════════════════════════════════════════════════════════════
-  // 3. CONTACTO / ATENCIÓN
-  // ══════════════════════════════════════════════════════════════════
-  let contacto=buscar([
+  /* ── CONTACTO / ATENCIÓN ── */
+  let atencion=buscar([
     /^ATENCION\s*[:·]?\s*/i,
     /^ATENCI[OÓ]N\s*[:·]?\s*/i,
-    /^A\s*\/?\s*A\s*[:·]?\s*/i,
+    /^A\s*\/\s*A\s*[:·]?\s*/i,
+    /^A\/A\s*[:·]?\s*/i,
     /^CONTACTO\s*[:·]?\s*/i,
     /^PERSONA\s*(?:DE\s*CONTACTO)?\s*[:·]?\s*/i,
     /^DIRIGIDO\s*A\s*[:·]?\s*/i,
-    /^RESPONSABLE\s*[:·]?\s*/i,
-    /^CONTACT\s*(?:PERSON)?\s*[:·]?\s*/i,
     /^PARA\s*(?:LA\s*ATENCI[OÓ]N\s*DE)?\s*[:·]?\s*/i,
   ]);
-  if(contacto){
-    contacto=contacto.replace(/^(Sr\.?a?\.?\s*|D\.?ña?\.?\s*|Don\s+|Doña\s+|Mr\.?\s*|Ms\.?\s*|Mrs\.?\s*)/i,"").trim();
-    const mTel=contacto.match(/^(.+?)\s{2,}([+]?[\d\s.\-]{9,})$/);
-    if(mTel){ contacto=mTel[1].trim(); if(!datos.movil) datos.movil=limpiarTel(mTel[2]); }
+  if(atencion){
+    atencion=atencion.replace(/^(Sr\.?|Sra\.?|D\.?|Dña\.?|Don\s|Doña\s)\s*/i,"").trim();
+    // Separar si el teléfono está pegado al nombre
+    const mTel=atencion.match(/^(.+?)\s+([+]?[\d\s.\-]{9,})$/);
+    if(mTel){ atencion=mTel[1].trim(); if(!datos.movil) datos.movil=mTel[2].replace(/[\s.\-]/g,""); }
   }
-  datos.contacto=contacto;
+  datos.contacto=atencion;
 
-  // ══════════════════════════════════════════════════════════════════
-  // 4. TELÉFONOS
-  // ══════════════════════════════════════════════════════════════════
+  /* ── TELÉFONO FIJO ── */
+  // Lista negra: números propios de Marcopack que nunca deben cogerse como teléfono del cliente
+  const TEL_PROPIOS_MARCOPACK=["968692265","968 692 265","968-692-265","968.692.265"];
+  function esNumeroPropio(tel){ return TEL_PROPIOS_MARCOPACK.some(n=>n.replace(/[\s.\-]/g,"")===(tel||"").replace(/[\s.\-]/g,"")); }
+
   const tlfRaw=buscar([
-    /^TLF\.?\s*[:·]?\s*/i, /^TELF\.?\s*[:·]?\s*/i,
+    /^TLF\.?\s*[:·]?\s*/i,
+    /^TELF\.?\s*[:·]?\s*/i,
     /^TEL[EÉ]FONO\s*(?:FIJO|PRINCIPAL)?\s*[:·]?\s*/i,
-    /^TEL\.?\s*[:·]?\s*/i, /^PHONE\s*[:·]?\s*/i,
-    /^TF\.?\s*[:·]?\s*/i,  /^TFNO\.?\s*[:·]?\s*/i,
+    /^TEL\.?\s*[:·]?\s*/i,
+    /^PHONE\s*[:·]?\s*/i,
+    /^TF\.?\s*[:·]?\s*/i,
+    /^TFNO\.?\s*[:·]?\s*/i,
   ]);
-  if(tlfRaw) datos.telefono=limpiarTel(tlfRaw);
+  if(tlfRaw){
+    const telLimpio=tlfRaw.replace(/[\s.\-]/g,"").replace(/[^\d+]/g,"");
+    if(!esNumeroPropio(telLimpio)) datos.telefono=telLimpio;
+  }
+  // Sin etiqueta: número fijo español (empieza por 8 o 9, 9 dígitos) — excluir propios
   if(!datos.telefono){
     for(const l of lineas){
-      const m=l.match(/(?:^|[\s:])([89]\d{2}[\s.\-]?\d{2}[\s.\-]?\d{2}[\s.\-]?\d{2})\b/);
-      if(m){ datos.telefono=limpiarTel(m[1]); break; }
+      const m=l.match(/\b([89]\d{2}[\s.\-]?\d{2}[\s.\-]?\d{2}[\s.\-]?\d{2})\b/);
+      if(m){
+        const telLimpio=m[1].replace(/[\s.\-]/g,"");
+        if(!esNumeroPropio(telLimpio)){ datos.telefono=telLimpio; break; }
+      }
     }
   }
+
+  /* ── MÓVIL ── */
   const movRaw=buscar([
-    /^M[OÓ]VIL\s*[:·]?\s*/i, /^CELULAR\s*[:·]?\s*/i,
-    /^MOBILE\s*[:·]?\s*/i,   /^WHATSAPP\s*[:·]?\s*/i,
-    /^GSM\s*[:·]?\s*/i,
+    /^M[OÓ]VIL\s*[:·]?\s*/i,
+    /^CELULAR\s*[:·]?\s*/i,
+    /^MOBILE\s*[:·]?\s*/i,
+    /^WHATSAPP\s*[:·]?\s*/i,
   ]);
-  if(movRaw) datos.movil=limpiarTel(movRaw);
+  if(movRaw) datos.movil=movRaw.replace(/[\s.\-]/g,"").replace(/[^\d+]/g,"");
   if(!datos.movil){
     for(const l of lineas){
-      const m=l.match(/(?:^|[\s:])([67]\d{2}[\s.\-]?\d{2}[\s.\-]?\d{2}[\s.\-]?\d{2})\b/);
-      if(m){ datos.movil=limpiarTel(m[1]); break; }
+      const m=l.match(/\b([67]\d{2}[\s.\-]?\d{2}[\s.\-]?\d{2}[\s.\-]?\d{2})\b/);
+      if(m){ datos.movil=m[1].replace(/[\s.\-]/g,""); break; }
     }
   }
-  // Evitar duplicar fijo y móvil
+  // Evitar duplicar fijo como móvil
   if(datos.movil && datos.telefono && datos.movil===datos.telefono) datos.movil="";
 
-  // ══════════════════════════════════════════════════════════════════
-  // 5. EMAIL
-  // ══════════════════════════════════════════════════════════════════
+  /* ── EMAIL ── */
   for(const l of lineas){
     const m=l.match(/([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/);
     if(m){ datos.email=m[1].toLowerCase(); break; }
   }
 
-  // ══════════════════════════════════════════════════════════════════
-  // 6. FECHA
-  // ══════════════════════════════════════════════════════════════════
-  const MESES_ES={enero:"01",febrero:"02",marzo:"03",abril:"04",mayo:"05",junio:"06",julio:"07",agosto:"08",septiembre:"09",octubre:"10",noviembre:"11",diciembre:"12"};
+  /* ── FECHA ── formatos: dd/mm/yyyy, dd-mm-yyyy, dd.mm.yyyy, yyyy-mm-dd, "15 de enero de 2024" */
   for(const l of lineas){
-    let m=l.match(/\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](20\d{2})\b/);
-    if(m){datos.fecha=`${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;break;}
-    m=l.match(/\b(20\d{2})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})\b/);
-    if(m){datos.fecha=`${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;break;}
-    m=l.match(/\b(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(?:de\s+)?(20\d{2})\b/i);
-    if(m){datos.fecha=`${m[3]}-${MESES_ES[m[2].toLowerCase()]}-${m[1].padStart(2,"0")}`;break;}
+    let m=l.match(/\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\b/);
+    if(m){ const[,d,mo,y]=m; datos.fecha=`${y}-${mo.padStart(2,"0")}-${d.padStart(2,"0")}`; break; }
+    m=l.match(/\b(20\d{2})\-(\d{2})\-(\d{2})\b/);
+    if(m){ datos.fecha=`${m[1]}-${m[2]}-${m[3]}`; break; }
+    m=l.match(/\b(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(?:de\s+)?(\d{4})\b/i);
+    if(m){
+      const MESES={enero:"01",febrero:"02",marzo:"03",abril:"04",mayo:"05",junio:"06",julio:"07",agosto:"08",septiembre:"09",octubre:"10",noviembre:"11",diciembre:"12"};
+      datos.fecha=`${m[3]}-${MESES[m[2].toLowerCase()]}-${m[1].padStart(2,"0")}`;
+      break;
+    }
   }
 
-  // ══════════════════════════════════════════════════════════════════
-  // 7. IMPORTE
-  // ══════════════════════════════════════════════════════════════════
-  function parsearImporte(s){
-    if(!s) return "";
-    // Detectar si usa punto como millar o decimal
-    // Ej: "1.234,56" → 1234.56 | "1,234.56" → 1234.56 | "1234.56" → 1234.56
-    let num=s.replace(/[^\d.,]/g,"");
-    if(/\d{1,3}(\.\d{3})+(,\d+)?$/.test(num)) num=num.replace(/\./g,"").replace(",",".");
-    else if(/\d{1,3}(,\d{3})+(\.\d+)?$/.test(num)) num=num.replace(/,/g,"");
-    else num=num.replace(",",".");
-    const f=parseFloat(num);
-    return (!isNaN(f)&&f>0)?f.toFixed(2):"";
+  /* ── IMPORTE ── detectar precio/importe numérico en el texto */
+  const patronesImporte=[
+    /^(?:PRECIO|IMPORTE|TOTAL|COSTE?|VALOR)\s*(?:TOTAL|NETO|OFERTA|PRESUPUESTO)?\s*[:·]?\s*/i,
+    /^OFERTA\s*(?:ECON[OÓ]MICA)?\s*[:·]?\s*/i,
+  ];
+  const impRaw=buscar(patronesImporte);
+  if(impRaw){
+    // Extraer solo el número (acepta 1.234,56 o 1234.56 o 1234)
+    const mNum=impRaw.match(/([\d.,]+)/);
+    if(mNum){
+      // Normalizar: separador decimal → punto
+      let num=mNum[1].replace(/\./g,"").replace(",",".");
+      if(!isNaN(parseFloat(num))) datos.importe=parseFloat(num).toFixed(2);
+    }
   }
-  const impRaw=buscar([
-    /^(?:PRECIO|IMPORTE)\s*(?:TOTAL|NETO|FINAL|OFERTA|PRESUPUESTO)?\s*[:·]?\s*/i,
-    /^TOTAL\s*(?:OFERTA|PRESUPUESTO|NETO|BRUTO)?\s*[:·]?\s*/i,
-    /^COSTE?\s*(?:TOTAL)?\s*[:·]?\s*/i,
-    /^VALOR\s*(?:TOTAL)?\s*[:·]?\s*/i,
-    /^AMOUNT\s*[:·]?\s*/i,
-  ]);
-  if(impRaw) datos.importe=parsearImporte(impRaw);
-  // Fallback: buscar cantidad con símbolo €
+  // Fallback: buscar "€ NNN" o "NNN €" en el texto
   if(!datos.importe){
-    // Buscar el importe más alto con € (suele ser el total)
-    let maxVal=0;
     for(const l of lineas){
-      const matches=[...l.matchAll(/(?:€|EUR)\s*([\d.,]+)|([\d.,]+)\s*(?:€|EUR)/gi)];
-      for(const m of matches){
-        const raw=m[1]||m[2];
-        const parsed=parsearImporte(raw);
-        const val=parseFloat(parsed)||0;
-        if(val>maxVal&&val>50){maxVal=val;datos.importe=parsed;}
+      const m=l.match(/(?:€|EUR)\s*([\d.,]+)|([\d.,]+)\s*(?:€|EUR)/i);
+      if(m){
+        const raw=(m[1]||m[2]).replace(/\./g,"").replace(",",".");
+        if(!isNaN(parseFloat(raw)) && parseFloat(raw)>100){ datos.importe=parseFloat(raw).toFixed(2); break; }
       }
     }
   }
 
-  // ══════════════════════════════════════════════════════════════════
-  // 8. PROVINCIA
-  // ══════════════════════════════════════════════════════════════════
-  // Priorizar bloque DIRECCIÓN
-  const iDir=lineas.findIndex(l=>/^DIRECCI[OÓ]N/i.test(l));
-  const bloqueDir=(iDir>=0?lineas.slice(iDir,iDir+8):lineas).join(" ");
-  const bloqueDirN=norm(bloqueDir);
+  /* ── PROVINCIA ── buscar en todo el texto normalizando acentos */
+  const textoNorm=texto.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+  // Priorizar bloque DIRECCIÓN (contexto más fiable)
+  const idxDir=lineas.findIndex(l=>/^DIRECCI[OÓ]N/i.test(l));
+  const bloqueDir=idxDir>=0?lineas.slice(idxDir,idxDir+6).join(" "):texto;
+  const bloqueDirNorm=bloqueDir.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
   let provEncontrada="";
-  // Ordenar provincias por longitud desc para evitar matches parciales (ej: "León" antes que "le")
-  const provOrdenadas=[...PROVINCIAS].sort((a,b)=>b.length-a.length);
-  for(const prov of provOrdenadas){
-    if(bloqueDirN.includes(norm(prov))){provEncontrada=prov;break;}
+  for(const prov of PROVINCIAS){
+    const provNorm=prov.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+    if(bloqueDirNorm.includes(provNorm)){ provEncontrada=prov; break; }
   }
   if(!provEncontrada){
-    for(const prov of provOrdenadas){
-      if(textoNorm.includes(norm(prov))){provEncontrada=prov;break;}
+    for(const prov of PROVINCIAS){
+      const provNorm=prov.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+      if(textoNorm.includes(provNorm)){ provEncontrada=prov; break; }
     }
   }
   datos.provincia=provEncontrada;
 
-  // ══════════════════════════════════════════════════════════════════
-  // 9. PAÍS
-  // ══════════════════════════════════════════════════════════════════
-  // Buscar etiqueta explícita primero
-  const paisRaw=buscar([
-    /^PA[IÍ]S\s*[:·]?\s*/i,
-    /^COUNTRY\s*[:·]?\s*/i,
-    /^NACI[OÓ]N\s*[:·]?\s*/i,
-  ]);
+  /* ── PAÍS ── Solo cambia si hay etiqueta explícita "País:" en el documento.
+     Si no hay etiqueta, siempre España. El usuario lo cambia manualmente si hace falta. */
+  const paisRaw=buscar([/^PA[IÍ]S\s*[:·]?\s*/i,/^COUNTRY\s*[:·]?\s*/i,/^NACI[OÓ]N\s*[:·]?\s*/i]);
   if(paisRaw){
-    // Verificar si coincide con lista conocida
-    const paisNorm=norm(paisRaw);
-    const encontrado=PAISES.find(p=>norm(p)===paisNorm||norm(p).includes(paisNorm)||paisNorm.includes(norm(p)));
+    const paisNorm=paisRaw.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().trim();
+    const encontrado=PAISES.find(p=>p.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase()===paisNorm);
     datos.pais=encontrado||paisRaw;
+  } else {
+    // Sin etiqueta explícita → siempre España, sin buscar en el texto
+    datos.pais="España";
   }
-  // Buscar nombre de país en el texto (orden por longitud desc para evitar falsos positivos)
-  if(!datos.pais){
-    const paisesOrdenados=[...PAISES].filter(p=>p!=="España").sort((a,b)=>b.length-a.length);
-    for(const p of paisesOrdenados){
-      const pn=norm(p);
-      if(pn.length<4) continue; // evitar matches cortos como "Chad", "Mali"
-      // Verificar palabra completa
-      const re=new RegExp("\\b"+pn.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b");
-      if(re.test(textoNorm)){datos.pais=p;break;}
-    }
-  }
-  // Default: España
-  if(!datos.pais) datos.pais="España";
 
-  // ══════════════════════════════════════════════════════════════════
-  // 10. TIPO DE MÁQUINA
-  // ══════════════════════════════════════════════════════════════════
-  datos.tipoMaquina=buscar([
-    /^TIPO\s*(?:DE\s*)?M[AÁ]QUINA\s*[:·]?\s*/i,
-    /^M[AÁ]QUINA\s*[:·]?\s*/i,
-    /^MODELO\s*[:·]?\s*/i,
-    /^EQUIPO\s*[:·]?\s*/i,
-    /^PRODUCTO\s*[:·]?\s*/i,
-    /^ARTÍCULO\s*[:·]?\s*/i,
-    /^REFERENCIA\s*(?:DE\s*)?(?:PRODUCTO|EQUIPO|M[AÁ]QUINA)\s*[:·]?\s*/i,
-  ]);
-
-  // ══════════════════════════════════════════════════════════════════
-  // 11. DESCRIPCIÓN (multilinea inteligente)
-  // ══════════════════════════════════════════════════════════════════
+  /* ── DESCRIPCIÓN — varios encabezados posibles ── */
   const patronesDesc=[
-    /^DESCRIPCI[OÓ]N\s*(?:DEL\s*(?:EQUIPO|PRODUCTO|SERVICIO|TRABAJO|PEDIDO))?\s*[:·]?\s*/i,
-    /^EQUIPO\s*SOLICITADO\s*[:·]?\s*/i,
-    /^M[AÁ]QUINA\s*SOLICITADA\s*[:·]?\s*/i,
-    /^OBJETO\s*(?:DEL\s*(?:PEDIDO|CONTRATO|ENCARGO))?\s*[:·]?\s*/i,
-    /^ALCANCE\s*(?:DEL\s*SUMINISTRO)?\s*[:·]?\s*/i,
-    /^SUMINISTRO\s*(?:DE)?\s*[:·]?\s*/i,
-    /^DETALLE\s*[:·]?\s*/i,
-    /^ESPECIFICACI[OÓ]N(?:ES)?\s*[:·]?\s*/i,
+    /EQUIPO\s*SOLICITADO/i,
+    /DESCRIPCI[OÓ]N\s*(?:DEL\s*(?:EQUIPO|PRODUCTO|SERVICIO|TRABAJO))?/i,
+    /OBJETO\s*(?:DEL\s*PEDIDO)?/i,
+    /M[AÁ]QUINA\s*SOLICITADA/i,
+    /(?:EL\s*)?OBJETO\s*DE\s*LA\s*PRESENTE/i,
+    /SUMINISTRO\s*DE\s*/i,
+    /ALCANCE\s*(?:DEL\s*SUMINISTRO)?/i,
   ];
-  const STOP_DESC=/^(PRECIO|IMPORTE|TOTAL|CONDICIONES|PLAZO|FORMA\s*DE\s*PAGO|GARANT[IÍ]A|ENTREGA|VALIDEZ|FIRMA|ATENTAMENTE|OBSERVACIONES|NOTAS|IVA|DESCUENTO)/i;
   for(let i=0;i<lineas.length;i++){
-    const lineaActual=lineas[i];
-    const patronMatch=patronesDesc.find(p=>p.test(lineaActual));
-    if(patronMatch){
-      // Valor en la misma línea
-      const enMismaLinea=lineaActual.replace(patronMatch,"").replace(/^[\s:·\-–—]+/,"").trim();
-      const partes=enMismaLinea?[enMismaLinea]:[];
-      for(let j=i+1;j<Math.min(i+10,lineas.length);j++){
+    if(patronesDesc.some(p=>p.test(lineas[i]))){
+      const partes=[];
+      for(let j=i+1;j<Math.min(i+8,lineas.length);j++){
         const sig=lineas[j].trim();
-        if(!sig||STOP_DESC.test(sig)) break;
+        if(!sig||/^(PRECIO|IMPORTE|CONDICIONES|PLAZO|FORMA\s*DE\s*PAGO|GARANT[IÍ]A|ENTREGA|VALIDEZ|FIRMA|ATENTAMENTE|TOTAL|COSTE)/i.test(sig)) break;
         partes.push(sig);
       }
-      if(partes.length){datos.descripcion=partes.join(" ").trim();break;}
-    }
-  }
-  // Fallback descripción: bloque después de "les ofrecemos" / "objeto de la presente"
-  if(!datos.descripcion){
-    for(let i=0;i<lineas.length;i++){
-      if(/(?:les\s+ofrecemos|objeto\s+de\s+la\s+presente|siguiente\s+oferta|a\s+continuaci[oó]n)/i.test(lineas[i])){
-        const partes=[];
-        for(let j=i+1;j<Math.min(i+8,lineas.length);j++){
-          const sig=lineas[j].trim();
-          if(!sig||STOP_DESC.test(sig)) break;
-          partes.push(sig);
-        }
-        if(partes.length){datos.descripcion=partes.join(" ").trim();break;}
-      }
+      if(partes.length){ datos.descripcion=partes.join(" ").trim(); break; }
     }
   }
 
-  // ══════════════════════════════════════════════════════════════════
-  // 12. LIMPIEZA FINAL
-  // ══════════════════════════════════════════════════════════════════
+  // ── Limpieza final: quitar ruido en bordes ──
   for(const k of Object.keys(datos)){
     if(typeof datos[k]==="string"){
-      datos[k]=datos[k].replace(/^[\s:·\-–—|]+|[\s:·\-–—|]+$/g,"").trim();
+      datos[k]=datos[k].replace(/^[\s:·\-–—]+|[\s:·\-–—]+$/g,"").trim();
       if(datos[k].length<2) datos[k]="";
     }
   }
@@ -6583,34 +6539,10 @@ async function eliminarOferta(id){
     await db.collection("historial").add({ofertaId:id,empresa:o?.empresa,numeroOferta:o?.numeroOferta,usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,accion:"eliminada",fecha:firebase.firestore.FieldValue.serverTimestamp()});
     await db.collection("ofertas").doc(id).update({eliminado:true,eliminadoEn:firebase.firestore.FieldValue.serverTimestamp(),eliminadoPor:currentUser.uid});
     toast("🗑 Oferta enviada a la papelera","#f59e0b");
-    // Recalcular contador al máximo real tras borrar
-    _recalcularContadorTrasEliminar(o?.numeroOferta);
   }catch(e){
     if(e.code==="permission-denied"){ mostrarErrorPermisos(); }
     else { toast("❌ Error al eliminar: "+e.message,"#ef4444"); }
   }
-}
-
-async function _recalcularContadorTrasEliminar(numeroEliminado){
-  try{
-    const year = new Date().getFullYear();
-    const prefix = `OF-${year}-`;
-    // Esperar un momento para que Firestore actualice la lista local
-    await new Promise(r=>setTimeout(r,800));
-    const max = ofertas
-      .filter(o=>!o.eliminado && o.numeroOferta && o.numeroOferta.startsWith(prefix))
-      .reduce((m,o)=>{
-        const n=parseInt(o.numeroOferta.split("-")[2])||0;
-        return n>m?n:m;
-      },0);
-    const ref = db.collection("contadores").doc("ofertas_"+year);
-    await db.runTransaction(async tx=>{
-      const doc=await tx.get(ref);
-      const actual=doc.exists?(doc.data().ultimo||0):0;
-      // Bajar el contador si el número eliminado era el último
-      if(max<actual) tx.set(ref,{ultimo:max,year},{merge:true});
-    });
-  }catch(e){ console.warn('[CRM] _recalcularContadorTrasEliminar:', e.message); }
 }
 
 // ===== MI CUENTA — PANEL DE CONTROL =====
@@ -7482,7 +7414,6 @@ async function eliminarDefinitivamente(id,empresa,num){
     await db.collection("historial").add({ofertaId:id,empresa,numeroOferta:num,usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,accion:"eliminada",valorNuevo:"borrado definitivo",fecha:firebase.firestore.FieldValue.serverTimestamp()});
     await db.collection("ofertas").doc(id).delete();
     toast("🗑 Oferta eliminada permanentemente","#ef4444");
-    _recalcularContadorTrasEliminar(num);
     cargarPapelera();
   }catch(e){toast("❌ Error: "+e.message,"#ef4444");}
 }
