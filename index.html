@@ -1495,6 +1495,155 @@ async function subirArchivoOneDrive(file, token){
 
 
 // Reset de emergencia para adjuntos bloqueados — visible en UI para el usuario
+// ── DIAGNÓSTICO COMPLETO DE ONEDRIVE ──────────────────────────────────────
+// Prueba paso a paso cada operación y muestra el resultado exacto en pantalla.
+// Permite saber exactamente en qué paso falla sin tener que abrir la consola.
+async function diagnosticarOneDrive(){
+  const panel = document.getElementById('od-diag-panel');
+  if(!panel) return;
+  panel.style.display = 'block';
+  panel.textContent   = '';
+
+  function log(msg, color){
+    const line = document.createElement('div');
+    line.style.color = color || '#cdd6f4';
+    line.textContent = msg;
+    panel.appendChild(line);
+    panel.scrollTop = panel.scrollHeight;
+  }
+
+  log('═══════════════════════════════════════════');
+  log('  DIAGNÓSTICO ONEDRIVE — ' + new Date().toLocaleTimeString('es-ES'));
+  log('═══════════════════════════════════════════');
+
+  // PASO 1 — Token
+  log('\n▶ PASO 1: Obtener token Microsoft...');
+  let token;
+  try{
+    token = await getMsalToken();
+    log('  ✅ Token obtenido correctamente', '#a6e3a1');
+  }catch(e){
+    log('  ❌ FALLO token: ' + e.message, '#f38ba8');
+    log('\n⛔ Sin token no se puede continuar. Pulsa "Conectar con Microsoft" primero.', '#f38ba8');
+    return;
+  }
+
+  // PASO 2 — Identidad del usuario autenticado
+  log('\n▶ PASO 2: Identificando cuenta Microsoft...');
+  try{
+    const r = await fetch('https://graph.microsoft.com/v1.0/me', {
+      headers:{ Authorization:'Bearer '+token }
+    });
+    if(r.ok){
+      const d = await r.json();
+      log('  ✅ Cuenta: ' + (d.displayName||'?') + ' <' + (d.userPrincipalName||'?') + '>', '#a6e3a1');
+      log('  ℹ️  ID: ' + (d.id||'?'), '#89b4fa');
+    } else {
+      log('  ❌ Error obteniendo perfil: HTTP ' + r.status, '#f38ba8');
+    }
+  }catch(e){ log('  ❌ ' + e.message, '#f38ba8'); }
+
+  // PASO 3 — ¿Tiene OneDrive personal?
+  log('\n▶ PASO 3: Comprobando acceso a OneDrive personal (/me/drive)...');
+  let driveOk = false;
+  try{
+    const r = await fetch('https://graph.microsoft.com/v1.0/me/drive', {
+      headers:{ Authorization:'Bearer '+token }
+    });
+    const txt = await r.text();
+    if(r.ok){
+      const d = JSON.parse(txt);
+      log('  ✅ OneDrive personal accesible', '#a6e3a1');
+      log('  ℹ️  Tipo: ' + (d.driveType||'?') + ' | ID drive: ' + (d.id||'?'), '#89b4fa');
+      log('  ℹ️  Cuota: ' + (d.quota ? Math.round((d.quota.used||0)/1024/1024) + ' MB usados de ' + Math.round((d.quota.total||0)/1024/1024/1024) + ' GB' : 'no disponible'), '#89b4fa');
+      driveOk = true;
+    } else {
+      log('  ❌ HTTP ' + r.status + ' — ' + txt.slice(0,300), '#f38ba8');
+      if(r.status===403) log('  ⚠️  403 = la cuenta NO tiene licencia OneDrive o no tiene permisos Files.ReadWrite', '#fab387');
+      if(r.status===404) log('  ⚠️  404 = esta cuenta no tiene OneDrive asignado', '#fab387');
+    }
+  }catch(e){ log('  ❌ ' + e.message, '#f38ba8'); }
+
+  // PASO 4 — ¿Existe la carpeta CRM_Marcopack?
+  log('\n▶ PASO 4: Comprobando carpeta CRM_Marcopack en OneDrive personal...');
+  if(!driveOk){
+    log('  ⏭️  Saltado — OneDrive personal no accesible', '#6c7086');
+  } else {
+    try{
+      const r = await fetch('https://graph.microsoft.com/v1.0/me/drive/root:/CRM_Marcopack', {
+        headers:{ Authorization:'Bearer '+token }
+      });
+      const txt = await r.text();
+      if(r.ok){
+        const d = JSON.parse(txt);
+        log('  ✅ Carpeta CRM_Marcopack existe', '#a6e3a1');
+        log('  ℹ️  ID ítem: ' + (d.id||'?'), '#89b4fa');
+      } else if(r.status===404){
+        log('  ⚠️  Carpeta NO existe todavía (se creará al subir el primer archivo)', '#fab387');
+      } else {
+        log('  ❌ HTTP ' + r.status + ' — ' + txt.slice(0,300), '#f38ba8');
+      }
+    }catch(e){ log('  ❌ ' + e.message, '#f38ba8'); }
+  }
+
+  // PASO 5 — Prueba de escritura real: subir un archivo de 10 bytes
+  log('\n▶ PASO 5: Prueba de escritura real en OneDrive personal...');
+  if(!driveOk){
+    log('  ⏭️  Saltado — OneDrive personal no accesible', '#6c7086');
+  } else {
+    try{
+      const testBytes = new TextEncoder().encode('CRM_TEST_OK');
+      const testName  = 'crm_test_' + Date.now() + '.txt';
+      const ep = `https://graph.microsoft.com/v1.0/me/drive/root:/CRM_Marcopack/${testName}:/content`;
+      const r = await fetch(ep, {
+        method:'PUT',
+        headers:{ Authorization:'Bearer '+token, 'Content-Type':'text/plain' },
+        body: testBytes
+      });
+      const txt = await r.text();
+      if(r.ok){
+        const d = JSON.parse(txt);
+        log('  ✅ ESCRITURA OK — archivo de prueba subido correctamente', '#a6e3a1');
+        log('  ℹ️  URL: ' + (d.webUrl||'no disponible'), '#89b4fa');
+        // Borrar el archivo de prueba para no ensuciar
+        const delR = await fetch('https://graph.microsoft.com/v1.0/me/drive/items/'+d.id, {
+          method:'DELETE', headers:{ Authorization:'Bearer '+token }
+        }).catch(()=>null);
+        log('  ℹ️  Archivo de prueba eliminado' + (delR&&delR.ok?' ✅':' (no se pudo eliminar)'), '#6c7086');
+        log('\n🎉 OneDrive PERSONAL FUNCIONA CORRECTAMENTE', '#a6e3a1');
+      } else {
+        log('  ❌ ESCRITURA FALLÓ — HTTP ' + r.status, '#f38ba8');
+        log('  Respuesta completa: ' + txt.slice(0,400), '#f38ba8');
+        if(r.status===403) log('  ⚠️  403 = permisos insuficientes. El registro Azure necesita: Files.ReadWrite y Files.ReadWrite.All', '#fab387');
+        if(r.status===507) log('  ⚠️  507 = OneDrive lleno (sin espacio)', '#fab387');
+        if(r.status===423) log('  ⚠️  423 = recurso bloqueado', '#fab387');
+      }
+    }catch(e){ log('  ❌ ' + e.message, '#f38ba8'); }
+  }
+
+  // PASO 6 — Carpeta compartida (si está configurada)
+  const sharedLink = getSharedFolderLink();
+  log('\n▶ PASO 6: Carpeta compartida...');
+  if(!sharedLink){
+    log('  ℹ️  No configurada (opcional)', '#6c7086');
+  } else {
+    log('  ℹ️  Enlace: ' + sharedLink.slice(0,80)+'...', '#89b4fa');
+    try{
+      const shared = await resolveSharedFolder(token);
+      log('  ✅ Carpeta compartida resuelta correctamente', '#a6e3a1');
+      log('  ℹ️  driveId: '+shared.driveId, '#89b4fa');
+      log('  ℹ️  itemId:  '+shared.itemId,  '#89b4fa');
+    }catch(e){
+      log('  ❌ Error resolviendo carpeta compartida: ' + e.message, '#f38ba8');
+    }
+  }
+
+  log('\n═══════════════════════════════════════════');
+  log('  FIN DEL DIAGNÓSTICO');
+  log('═══════════════════════════════════════════');
+  log('\n📋 Copia este texto y compártelo para resolver el problema.');
+}
+
 function _resetEmergenciaMSAL(){
   _limpiarEstadoMSAL();
   _msalLoginInProgress = false;
@@ -7100,7 +7249,13 @@ function mcRenderOneDrive(){
             style="background:var(--orange-bg);color:var(--orange);border:1px solid #fbd0b0;border-radius:8px;padding:9px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">
             🔧 Reset sesión Microsoft
           </button>
+          <button onclick="diagnosticarOneDrive()"
+            style="background:var(--purple-bg);color:var(--purple);border:1px solid #c4b5fd;border-radius:8px;padding:9px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">
+            🔍 Diagnóstico completo
+          </button>
         </div>
+        <!-- Panel de resultados del diagnóstico -->
+        <div id="od-diag-panel" style="display:none;margin-top:12px;background:#1e1e2e;border-radius:10px;padding:14px;font-family:monospace;font-size:11px;color:#cdd6f4;line-height:1.7;max-height:320px;overflow-y:auto;white-space:pre-wrap"></div>
       </div>
 
       <!-- GUÍA PASO A PASO ACTUALIZADA -->
