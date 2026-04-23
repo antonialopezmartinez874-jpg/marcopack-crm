@@ -1110,8 +1110,36 @@ console.log('[Marcopack CRM] v4.0 — Kanban + Ficha Empresa + Smart Notif');
 const auth=firebase.auth(),db=firebase.firestore();
 
 // ===== SEGURIDAD: Sesión solo dura mientras la pestaña está abierta =====
-// NONE = no se guarda NADA. Cada vez que se carga la página hay que identificarse.
 auth.setPersistence(firebase.auth.Auth.Persistence.NONE).catch(()=>{});
+
+// ===== PRE-INICIALIZAR MSAL AL ARRANCAR =====
+// MSAL ya está cargado en el <head>. Lo inicializamos aquí silenciosamente
+// para que cuando el usuario adjunte un archivo ya tenga sesión activa y no haya popup.
+window.addEventListener('DOMContentLoaded', ()=>{
+  const clientId = localStorage.getItem('crm_msal_client_id')||'';
+  if(!clientId || !window.msal) return;
+  try{
+    const cfg={
+      auth:{clientId,authority:'https://login.microsoftonline.com/common',redirectUri:'https://antonialopezmartinez874-jpg.github.io/marcopack-crm/'},
+      cache:{cacheLocation:'localStorage',storeAuthStateInCookie:true}
+    };
+    const inst=new msal.PublicClientApplication(cfg);
+    inst.initialize().then(()=>{
+      // Procesar redirección pendiente ANTES de cualquier otra operación
+      return inst.handleRedirectPromise().catch(()=>{});
+    }).then(()=>{
+      // Asignar la instancia solo DESPUÉS de handleRedirectPromise para evitar interaction_in_progress
+      if(typeof msalInstance !== 'undefined') msalInstance = inst;
+      // Si ya hay cuenta, renovar token silenciosamente en background
+      const accounts=inst.getAllAccounts();
+      if(accounts.length>0){
+        inst.acquireTokenSilent({scopes:['Files.ReadWrite','Files.ReadWrite.All','Sites.ReadWrite.All','User.Read'],account:accounts[0]})
+          .then(r=>{ if(typeof msalToken !== 'undefined') msalToken=r.accessToken; })
+          .catch(()=>{ if(typeof msalToken !== 'undefined') msalToken=null; });
+      }
+    }).catch(()=>{ if(typeof msalInstance !== 'undefined') msalInstance=null; });
+  }catch(_){ if(typeof msalInstance !== 'undefined') msalInstance=null; }
+});
 
 // ===== MICROSOFT ONEDRIVE CENTRAL (Graph API) =====
 // MODO: OneDrive central del administrador.
@@ -1195,77 +1223,131 @@ async function uploadToSharedFolder(file, token, shared){
   return {url, driveItemId:data && data.id, origen:'onedrive_shared'};
 }
 
-let msalInstance = null;
-let msalToken    = null;
+// Declaración explícita de variables de estado MSAL (globales, accesibles desde todo el script)
+var msalInstance = null;
+var msalToken    = null;
+
+// Limpia COMPLETAMENTE el estado de MSAL: instancia, token y claves residuales de localStorage
+// que pueden dejar el estado "interaction_in_progress" atascado entre intentos fallidos.
+function _limpiarEstadoMSAL(){
+  msalInstance = null;
+  msalToken    = null;
+  try{
+    // Eliminar todas las claves que MSAL escribe en localStorage para su estado interno
+    const keysToRemove = [];
+    for(let i=0; i<localStorage.length; i++){
+      const k = localStorage.key(i);
+      if(k && (
+        k.includes('msal.')         ||
+        k.includes('msal-')         ||
+        k.startsWith('login.')      ||
+        k.includes('interaction.status') ||
+        k.includes('.request.')     ||
+        k.includes('pkce')          ||
+        k.includes('authority')     ||
+        k.includes('nonce')         ||
+        k.includes('state')         ||
+        k.includes('idtoken')       ||
+        k.includes('accesstoken')   ||
+        k.includes('refreshtoken')
+      )){
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach(k=>{ try{ localStorage.removeItem(k); }catch(_){} });
+  }catch(_){}
+  try{
+    // También limpiar sessionStorage (MSAL puede usar cualquiera de los dos)
+    const skToRemove=[];
+    for(let i=0;i<sessionStorage.length;i++){
+      const k=sessionStorage.key(i);
+      if(k&&(k.includes('msal')||k.includes('interaction')||k.includes('pkce')||k.includes('nonce')||k.includes('state'))){
+        skToRemove.push(k);
+      }
+    }
+    skToRemove.forEach(k=>{ try{ sessionStorage.removeItem(k); }catch(_){} });
+  }catch(_){}
+}
+
+
 
 function getMsalRedirectUri(){
   // URI fija registrada en Azure — debe coincidir exactamente
   return "https://antonialopezmartinez874-jpg.github.io/marcopack-crm/";
 }
 
+// Flag para evitar llamadas simultáneas a loginPopup
+let _msalLoginInProgress = false;
+
 async function getMsalToken(){
   const clientId = getClientId();
-  if(!clientId){
-    throw new Error("CLIENT_ID_NOT_SET");
-  }
+  if(!clientId) throw new Error("CLIENT_ID_NOT_SET");
+
   const redirectUri = getMsalRedirectUri();
   const msalConfig = {
     auth: { clientId, authority: MSAL_AUTHORITY, redirectUri },
     cache: { cacheLocation: "localStorage", storeAuthStateInCookie: true }
   };
+
+  // Crear instancia solo una vez — MSAL ya está cargado en el <head>
   if(!msalInstance){
-    if(!window.msal){
-      // Intentar cargar MSAL desde CDN principal, con fallback a jsDelivr
-      await new Promise((res,rej)=>{
-        const s=document.createElement("script");
-        s.src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js";
-        s.onload=res;
-        s.onerror=()=>{
-          // Fallback: jsDelivr
-          const s2=document.createElement("script");
-          s2.src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js";
-          s2.onload=res;
-          s2.onerror=()=>rej(new Error("No se pudo cargar la librería de Microsoft (MSAL). Comprueba tu conexión a internet."));
-          document.head.appendChild(s2);
-        };
-        document.head.appendChild(s);
-      });
-    }
-    msalInstance=new msal.PublicClientApplication(msalConfig);
+    msalInstance = new msal.PublicClientApplication(msalConfig);
     await msalInstance.initialize();
+    // CRÍTICO: siempre esperar handleRedirectPromise antes de cualquier operación interactiva
     await msalInstance.handleRedirectPromise().catch(()=>{});
   }
-  const accounts=msalInstance.getAllAccounts();
-  if(accounts.length>0){
+
+  // Intentar token silencioso primero (no muestra popup)
+  const accounts = msalInstance.getAllAccounts();
+  if(accounts.length > 0){
     try{
-      const resp=await msalInstance.acquireTokenSilent({scopes:MSAL_SCOPES,account:accounts[0]});
-      msalToken=resp.accessToken;
+      const resp = await msalInstance.acquireTokenSilent({scopes: MSAL_SCOPES, account: accounts[0]});
+      msalToken = resp.accessToken;
       return msalToken;
     }catch(e){
-      // Token expirado o error silencioso → forzar popup
-      msalInstance=null;
+      // Token expirado o requiere interacción → necesita popup
+      // InteractionRequiredAuthError, consent_required, login_required, interaction_required
+      const needsInteraction = e.name === 'InteractionRequiredAuthError' ||
+        ['consent_required','login_required','interaction_required','invalid_grant'].includes(e.errorCode);
+      if(!needsInteraction){
+        // Error inesperado en silent → limpiar y reintentar con popup
+        console.warn('[MSAL] Error inesperado en silent, limpiando estado:', e.errorCode || e.message);
+        _limpiarEstadoMSAL();
+        msalInstance = new msal.PublicClientApplication(msalConfig);
+        await msalInstance.initialize();
+        await msalInstance.handleRedirectPromise().catch(()=>{});
+      } else {
+        console.warn('[MSAL] Token silencioso requiere interacción:', e.errorCode);
+      }
     }
   }
-  // Popup de login Microsoft
-  if(!msalInstance){
-    msalInstance=new msal.PublicClientApplication(msalConfig);
-    await msalInstance.initialize();
-  }
+
+  // Evitar doble popup simultáneo
+  if(_msalLoginInProgress) throw new Error("Ya hay una ventana de Microsoft abierta. Complétala antes de continuar.");
+  _msalLoginInProgress = true;
+
   try{
-    const resp=await msalInstance.loginPopup({scopes:MSAL_SCOPES, redirectUri});
-    msalToken=resp.accessToken;
+    const resp = await msalInstance.loginPopup({scopes: MSAL_SCOPES, redirectUri});
+    msalToken = resp.accessToken;
     return msalToken;
   }catch(e){
-    // Mejorar mensajes de error comunes
-    if(e.errorCode==="popup_window_error") throw new Error("El navegador bloqueó el popup. Permite popups para esta página e inténtalo de nuevo.");
-    if(e.errorCode==="user_cancelled") throw new Error("Login cancelado por el usuario.");
-    if(e.errorCode==="redirect_uri_mismatch" || (e.message||"").includes("redirect")){
-      throw new Error("URI de redirección incorrecta. En Azure Entra, añade esta URL como SPA: " + redirectUri);
+    // Limpiar COMPLETAMENTE el estado de MSAL: instancia, token y estado interno de localStorage
+    // Esto evita que "interaction_in_progress" quede atascado entre intentos
+    _limpiarEstadoMSAL();
+    _msalLoginInProgress = false;
+    if(e.errorCode === "popup_window_error" || (e.message||"").includes("popup"))
+      throw new Error("El navegador bloqueó el popup. Permite popups para esta página e inténtalo de nuevo.");
+    if(e.errorCode === "user_cancelled" || e.errorCode === "access_denied")
+      throw new Error("Login cancelado.");
+    if(e.errorCode === "interaction_in_progress"){
+      // Estado residual de MSAL en localStorage — ya limpiado, pedir reintento
+      throw new Error("Estado de sesión Microsoft bloqueado. Se ha limpiado automáticamente. Inténtalo de nuevo.");
     }
-    if(e.errorCode==="invalid_client" || (e.message||"").includes("AADSTS70011")){
-      throw new Error("Client ID incorrecto o sin permisos configurados en Azure Entra.");
-    }
-    throw e;
+    if((e.message||"").includes("redirect") || e.errorCode === "redirect_uri_mismatch")
+      throw new Error("URI de redirección incorrecta. En Azure → tu app → Autenticación → SPA, añade: " + redirectUri);
+    throw new Error("Error Microsoft: " + (e.message || e.errorCode || String(e)));
+  }finally{
+    _msalLoginInProgress = false;
   }
 }
 
@@ -1287,28 +1369,81 @@ async function oneDriveEnsureFolder(token){
 }
 
 async function subirArchivoOneDrive(file, token){
-  const sharedLink=getSharedFolderLink();
-  if(sharedLink){
-    const shared=await resolveSharedFolder(token);
-    return await uploadToSharedFolder(file, token, shared);
-  }
+  const sharedLink = getSharedFolderLink();
+  const safeName   = file.name.replace(/[\/\?%\*:|"<>]/g,'_');
+  const timestamp  = Date.now();
+
+  // ── Subida a OneDrive personal (CRM_Marcopack) — SIEMPRE ─────────────────
   await oneDriveEnsureFolder(token);
-  const safeName=file.name.replace(/[\/\?%\*:|"<>]/g,'_');
-  const endpoint=`https://graph.microsoft.com/v1.0/me/drive/root:/${ONEDRIVE_FOLDER}/${Date.now()}_${safeName}:/content`;
-  const res=await fetch(endpoint,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/octet-stream'},body:file});
-  if(!res.ok) throw new Error('Error subiendo a OneDrive: '+res.status);
-  const data=await res.json();
-  const url=(data && data.webUrl)?data.webUrl:'';
-  return {url, driveItemId:data && data.id, origen:'onedrive_personal'};
+  const endpointPersonal = `https://graph.microsoft.com/v1.0/me/drive/root:/${ONEDRIVE_FOLDER}/${timestamp}_${safeName}:/content`;
+  const resPersonal = await fetch(endpointPersonal, {
+    method:'PUT',
+    headers:{Authorization:'Bearer '+token,'Content-Type':'application/octet-stream'},
+    body: file
+  });
+  if(!resPersonal.ok) throw new Error('Error subiendo a OneDrive personal: '+resPersonal.status);
+  const dataPersonal = await resPersonal.json();
+  const urlPersonal  = (dataPersonal && dataPersonal.webUrl) ? dataPersonal.webUrl : '';
+
+  // ── Subida a carpeta compartida — TAMBIÉN, si está configurada ────────────
+  if(sharedLink){
+    try{
+      const shared = await resolveSharedFolder(token);
+      // Mismo nombre con mismo timestamp para que coincidan en ambas ubicaciones
+      const endpointShared = `https://graph.microsoft.com/v1.0/drives/${shared.driveId}/items/${shared.itemId}:/${timestamp}_${safeName}:/content`;
+      const resShared = await fetch(endpointShared, {
+        method:'PUT',
+        headers:{Authorization:'Bearer '+token,'Content-Type':'application/octet-stream'},
+        body: file
+      });
+      if(resShared.ok){
+        const dataShared = await resShared.json();
+        const urlShared  = (dataShared && dataShared.webUrl) ? dataShared.webUrl : urlPersonal;
+        // Éxito en los DOS sitios: devolver URL de carpeta compartida como principal
+        return {
+          url:           urlShared,
+          urlPersonal:   urlPersonal,
+          driveItemId:   dataShared && dataShared.id,
+          driveItemIdPersonal: dataPersonal && dataPersonal.id,
+          origen:        'onedrive_ambos'
+        };
+      } else {
+        // La carpeta compartida falló pero el personal ya está subido — avisar sin error
+        localStorage.removeItem(OD_SHARED_CACHE_KEY);
+        console.warn('[OneDrive] Carpeta compartida falló ('+resShared.status+'), archivo guardado solo en personal.');
+        toast('⚠️ Guardado en OneDrive personal. La carpeta compartida no respondió ('+resShared.status+')','#f59e0b');
+      }
+    }catch(errShared){
+      // Error resolviendo la carpeta compartida — el personal ya está OK
+      console.warn('[OneDrive] Error en carpeta compartida:', errShared.message);
+      toast('⚠️ Guardado en OneDrive personal. Error en carpeta compartida: '+errShared.message,'#f59e0b');
+    }
+  }
+
+  // Sin carpeta compartida (o falló) → devolver resultado del personal
+  return {
+    url:         urlPersonal,
+    driveItemId: dataPersonal && dataPersonal.id,
+    origen:      'onedrive_personal'
+  };
 }
 
+
+// Reset de emergencia para adjuntos bloqueados — visible en UI para el usuario
+function _resetEmergenciaMSAL(){
+  _limpiarEstadoMSAL();
+  _msalLoginInProgress = false;
+  toast("🔧 Sesión Microsoft reiniciada. Vuelve a pulsar el adjunto para reconectar.","#f59e0b");
+  mcActualizarEstadoOD();
+}
 
 async function desconectarOneDrive(){
   if(msalInstance){
     const accounts=msalInstance.getAllAccounts();
     if(accounts.length>0){ try{ await msalInstance.logoutPopup({account:accounts[0]}); }catch(e){} }
   }
-  msalInstance=null; msalToken=null;
+  // Limpiar estado completo independientemente del resultado del logout
+  _limpiarEstadoMSAL();
   toast("✅ OneDrive desconectado","#10b981");
   actualizarEstadoOneDrive();
 }
@@ -1811,8 +1946,9 @@ function doLogout(){
   _destroyStCustomChart();
   // Limpiar cache de historial de comerciales
   _compHistorial=[];
-  // Limpiar token MSAL en memoria (no el Client ID guardado, que es configuración)
-  msalToken=null; msalInstance=null;
+  // Limpiar COMPLETAMENTE el estado MSAL en memoria y localStorage
+  // (evita que otro usuario del mismo equipo herede la sesión Microsoft)
+  _limpiarEstadoMSAL();
   // Limpiar caché de usuarios para que no quede visible a otro usuario del mismo equipo
   window._usuariosCache=[];
   // Limpiar presencia
@@ -6330,11 +6466,18 @@ async function adjuntar(e){
     try{
       const ext=f.name.split(".").pop().toLowerCase();
       const icono=ext==="pdf"?"📕":ext==="doc"||ext==="docx"?"📘":ext==="xls"||ext==="xlsx"?"📗":ext==="png"||ext==="jpg"||ext==="jpeg"?"🖼️":"📄";
-      const {url}=await subirArchivoOneDrive(f,token);
+      const resultado=await subirArchivoOneDrive(f,token);
       clearInterval(interval);
       if(progressBar) progressBar.style.width="100%";
       if(progressPct) progressPct.textContent="100%";
-      archivosTemp.push({name:f.name,size:f.size,fecha:new Date().toLocaleDateString("es-ES"),url,icono,origen:"onedrive",subidoPor:nombreUsuario});
+      archivosTemp.push({
+        name:f.name, size:f.size,
+        fecha:new Date().toLocaleDateString("es-ES"),
+        url:resultado.url,
+        urlPersonal:resultado.urlPersonal||resultado.url,
+        icono, origen:resultado.origen||"onedrive",
+        subidoPor:nombreUsuario
+      });
       ok++;
     }catch(err){
       clearInterval(interval);
@@ -6349,7 +6492,10 @@ async function adjuntar(e){
     else statusEl.textContent=`✅ ${ok} subido${ok!==1?"s":""} · ⚠️ ${errores} con error`;
     setTimeout(()=>{if(statusEl)statusEl.textContent="";},4000);
   }
-  if(ok>0) toast(`✅ ${ok} archivo${ok!==1?"s":""} subido${ok!==1?"s":""} a OneDrive`,"#10b981");
+  if(ok>0){
+    const destino = getSharedFolderLink() ? "OneDrive (carpeta compartida + personal)" : "OneDrive";
+    toast(`✅ ${ok} archivo${ok!==1?"s":""} subido${ok!==1?"s":""} a ${destino}`,"#10b981");
+  }
 }
 function eliminarArchivo(i){
   archivosTemp.splice(i,1);
@@ -6362,14 +6508,22 @@ function renderArchivos(){
   lista.innerHTML=archivosTemp.map((f,i)=>{
     const kb=f.size?Math.round(f.size/1024)+" KB":"";
     const quien=f.subidoPor?" · "+f.subidoPor:"";
+    const esAmbos = f.origen==='onedrive_ambos';
+    const badge = esAmbos
+      ? `<span style="color:var(--green);font-weight:700">☁️ Compartida + Personal</span>`
+      : `<span style="color:var(--accent);font-weight:700">☁️ OneDrive</span>`;
+    const btnPersonal = (esAmbos && f.urlPersonal)
+      ? `<a href="${f.urlPersonal}" target="_blank" style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap" title="Ver en tu OneDrive personal CRM_Marcopack">🏠 Personal</a>`
+      : '';
     return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:8px;font-size:12px">
       <span style="font-size:18px;flex-shrink:0">${f.icono||"📄"}</span>
       <div style="flex:1;min-width:0">
         <div style="color:var(--text);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.name}">${f.name}</div>
-        <div style="color:var(--text3);font-size:10px;margin-top:2px">${kb?kb+" · ":""}${f.fecha||""}${quien} · <span style="color:var(--accent);font-weight:700">OneDrive ☁️</span></div>
+        <div style="color:var(--text3);font-size:10px;margin-top:2px">${kb?kb+" · ":""}${f.fecha||""}${quien} · ${badge}</div>
       </div>
       <div style="display:flex;gap:4px;flex-shrink:0">
         ${f.url?`<a href="${f.url}" target="_blank" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">👁 Ver</a>`:""}
+        ${btnPersonal}
         ${f.downloadUrl||f.url?`<a href="${f.downloadUrl||f.url+(f.url.includes("?")?"&":"?")+"download=1"}" target="_blank" download="${f.name||'archivo'}" style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">⬇ Descargar</a>`:""}
         <button onclick="eliminarArchivo(${i})" title="Quitar de esta oferta" style="background:var(--red-bg);border:1px solid #fca5a5;color:var(--red);cursor:pointer;font-size:11px;padding:4px 8px;border-radius:6px;font-weight:700;white-space:nowrap;font-family:inherit">✕</button>
       </div>
@@ -6389,11 +6543,14 @@ function renderArchivosDetalle(archivos){
           ${kb?`<span>${kb}</span><span>·</span>`:""}
           ${f.fecha?`<span>${f.fecha}</span><span>·</span>`:""}
           ${quien?`<span>${quien.replace(" · ","")}</span><span>·</span>`:""}
-          <span style="background:var(--accent-light);color:var(--accent);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:800">☁️ OneDrive</span>
+          ${f.origen==='onedrive_ambos'
+            ? `<span style="background:var(--green-bg);color:var(--green);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:800">☁️ Compartida + Personal</span>`
+            : `<span style="background:var(--accent-light);color:var(--accent);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:800">☁️ OneDrive</span>`}
         </div>
       </div>
       <div style="display:flex;gap:5px;flex-shrink:0">
         ${f.url?`<a href="${f.url}" target="_blank" style="background:var(--accent);color:white;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">👁 Ver</a>`:""}
+        ${(f.origen==='onedrive_ambos' && f.urlPersonal)?`<a href="${f.urlPersonal}" target="_blank" style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap" title="Ver en OneDrive personal">🏠 Personal</a>`:""}
         ${f.downloadUrl||f.url?`<a href="${f.downloadUrl||f.url+(f.url.includes("?")?"&":"?")+"download=1"}" target="_blank" download="${f.name||'archivo'}" style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">⬇ Descargar</a>`:`<span style="color:var(--text3);font-size:10px">Sin enlace</span>`}
       </div>
     </div>`;
@@ -6872,6 +7029,11 @@ function mcRenderOneDrive(){
           <button onclick="desconectarOneDrive();mcActualizarEstadoOD()"
             style="background:transparent;color:#ef4444;border:1px solid #ef444455;border-radius:8px;padding:9px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">
             ⏏️ Desconectar
+          </button>
+          <button onclick="_resetEmergenciaMSAL()"
+            title="Si los adjuntos no suben o aparece 'interaction_in_progress', pulsa este botón"
+            style="background:var(--orange-bg);color:var(--orange);border:1px solid #fbd0b0;border-radius:8px;padding:9px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">
+            🔧 Reset sesión Microsoft
           </button>
         </div>
       </div>
