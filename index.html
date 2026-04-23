@@ -1204,15 +1204,15 @@ async function resolveSharedFolder(token){
 
 async function uploadToSharedFolder(file, token, shared){
   const safeName=file.name.replace(/[\/\\?%\*:|"<>]/g,'_');
+  const fileBuffer = await file.arrayBuffer(); // leer una vez, reutilizar en fallback
   const endpoint = `https://graph.microsoft.com/v1.0/drives/${shared.driveId}/items/${shared.itemId}:/${Date.now()}_${safeName}:/content`;
-  const up = await fetch(endpoint,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/octet-stream'},body:file});
+  const up = await fetch(endpoint,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/octet-stream'},body:fileBuffer});
   if(!up.ok){
-    // Si falla la carpeta compartida, limpiar caché e intentar carpeta personal como fallback
     localStorage.removeItem(OD_SHARED_CACHE_KEY);
     console.warn('[OneDrive] Fallo en carpeta compartida ('+up.status+'), intentando carpeta personal...');
     await oneDriveEnsureFolder(token);
     const endpointPersonal=`https://graph.microsoft.com/v1.0/me/drive/root:/${ONEDRIVE_FOLDER}/${Date.now()}_${safeName}:/content`;
-    const up2=await fetch(endpointPersonal,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/octet-stream'},body:file});
+    const up2=await fetch(endpointPersonal,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/octet-stream'},body:fileBuffer});
     if(!up2.ok) throw new Error('Error subiendo archivo a OneDrive ('+up2.status+'). Comprueba la conexión y el enlace de carpeta compartida.');
     const data2=await up2.json();
     toast('⚠️ Archivo guardado en carpeta personal (carpeta compartida no disponible)','#f59e0b');
@@ -1373,13 +1373,19 @@ async function subirArchivoOneDrive(file, token){
   const safeName   = file.name.replace(/[\/\?%\*:|"<>]/g,'_');
   const timestamp  = Date.now();
 
+  // CRÍTICO: leer el archivo UNA SOLA VEZ como ArrayBuffer.
+  // Un File/Blob usado como body de fetch queda "consumido" tras el primer envío.
+  // Si se reutiliza directamente en un segundo fetch, el body llega vacío (0 bytes).
+  // Con ArrayBuffer podemos pasarlo a los dos fetch sin problema.
+  const fileBuffer = await file.arrayBuffer();
+
   // ── Subida a OneDrive personal (CRM_Marcopack) — SIEMPRE ─────────────────
   await oneDriveEnsureFolder(token);
   const endpointPersonal = `https://graph.microsoft.com/v1.0/me/drive/root:/${ONEDRIVE_FOLDER}/${timestamp}_${safeName}:/content`;
   const resPersonal = await fetch(endpointPersonal, {
     method:'PUT',
     headers:{Authorization:'Bearer '+token,'Content-Type':'application/octet-stream'},
-    body: file
+    body: fileBuffer
   });
   if(!resPersonal.ok) throw new Error('Error subiendo a OneDrive personal: '+resPersonal.status);
   const dataPersonal = await resPersonal.json();
@@ -1389,34 +1395,30 @@ async function subirArchivoOneDrive(file, token){
   if(sharedLink){
     try{
       const shared = await resolveSharedFolder(token);
-      // Mismo nombre con mismo timestamp para que coincidan en ambas ubicaciones
       const endpointShared = `https://graph.microsoft.com/v1.0/drives/${shared.driveId}/items/${shared.itemId}:/${timestamp}_${safeName}:/content`;
       const resShared = await fetch(endpointShared, {
         method:'PUT',
         headers:{Authorization:'Bearer '+token,'Content-Type':'application/octet-stream'},
-        body: file
+        body: fileBuffer   // mismo buffer — ArrayBuffer sí se puede reutilizar
       });
       if(resShared.ok){
         const dataShared = await resShared.json();
         const urlShared  = (dataShared && dataShared.webUrl) ? dataShared.webUrl : urlPersonal;
-        // Éxito en los DOS sitios: devolver URL de carpeta compartida como principal
         return {
-          url:           urlShared,
-          urlPersonal:   urlPersonal,
-          driveItemId:   dataShared && dataShared.id,
+          url:                 urlShared,
+          urlPersonal:         urlPersonal,
+          driveItemId:         dataShared && dataShared.id,
           driveItemIdPersonal: dataPersonal && dataPersonal.id,
-          origen:        'onedrive_ambos'
+          origen:              'onedrive_ambos'
         };
       } else {
-        // La carpeta compartida falló pero el personal ya está subido — avisar sin error
         localStorage.removeItem(OD_SHARED_CACHE_KEY);
         console.warn('[OneDrive] Carpeta compartida falló ('+resShared.status+'), archivo guardado solo en personal.');
-        toast('⚠️ Guardado en OneDrive personal. La carpeta compartida no respondió ('+resShared.status+')','#f59e0b');
+        toast('⚠️ Guardado en OneDrive personal. Carpeta compartida no respondió ('+resShared.status+')','#f59e0b');
       }
     }catch(errShared){
-      // Error resolviendo la carpeta compartida — el personal ya está OK
       console.warn('[OneDrive] Error en carpeta compartida:', errShared.message);
-      toast('⚠️ Guardado en OneDrive personal. Error en carpeta compartida: '+errShared.message,'#f59e0b');
+      toast('⚠️ Guardado en OneDrive personal. Error carpeta compartida: '+errShared.message,'#f59e0b');
     }
   }
 
