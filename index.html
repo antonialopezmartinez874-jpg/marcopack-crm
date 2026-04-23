@@ -1358,14 +1358,26 @@ function getMsalAccountName(){
 }
 
 async function oneDriveEnsureFolder(token){
-  const check=await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${ONEDRIVE_FOLDER}`,{headers:{Authorization:"Bearer "+token}});
-  if(check.status===404){
-    await fetch("https://graph.microsoft.com/v1.0/me/drive/root/children",{
-      method:"POST",
-      headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},
-      body:JSON.stringify({name:ONEDRIVE_FOLDER,folder:{},["@microsoft.graph.conflictBehavior"]:"rename"})
+  const check = await fetch(
+    `https://graph.microsoft.com/v1.0/me/drive/root:/${ONEDRIVE_FOLDER}`,
+    { headers:{ Authorization:'Bearer '+token } }
+  );
+  if(check.status === 200) return; // carpeta existe
+  if(check.status === 404){
+    const crear = await fetch('https://graph.microsoft.com/v1.0/me/drive/root/children',{
+      method:'POST',
+      headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify({ name:ONEDRIVE_FOLDER, folder:{}, '@microsoft.graph.conflictBehavior':'rename' })
     });
+    if(!crear.ok){
+      const txt = await crear.text().catch(()=>'');
+      throw new Error('No se pudo crear la carpeta '+ONEDRIVE_FOLDER+' en OneDrive ('+crear.status+'): '+txt.slice(0,150));
+    }
+    return;
   }
+  // 403, 401, 500... → error con diagnóstico claro
+  const txt = await check.text().catch(()=>'');
+  throw new Error('No se puede acceder a OneDrive personal ('+check.status+'). Comprueba que la cuenta Microsoft tiene licencia OneDrive activa. Detalle: '+txt.slice(0,150));
 }
 
 async function subirArchivoOneDrive(file, token){
@@ -1373,60 +1385,111 @@ async function subirArchivoOneDrive(file, token){
   const safeName   = file.name.replace(/[\/\?%\*:|"<>]/g,'_');
   const timestamp  = Date.now();
 
-  // CRÍTICO: leer el archivo UNA SOLA VEZ como ArrayBuffer.
-  // Un File/Blob usado como body de fetch queda "consumido" tras el primer envío.
-  // Si se reutiliza directamente en un segundo fetch, el body llega vacío (0 bytes).
-  // Con ArrayBuffer podemos pasarlo a los dos fetch sin problema.
+  // ── CRÍTICO: leer el fichero UNA sola vez en memoria ─────────────────────
+  // File/Blob es un stream de uso único. Si se pasa directamente como body
+  // a dos fetch distintos, el segundo recibe 0 bytes. ArrayBuffer es reutilizable.
   const fileBuffer = await file.arrayBuffer();
 
-  // ── Subida a OneDrive personal (CRM_Marcopack) — SIEMPRE ─────────────────
-  await oneDriveEnsureFolder(token);
-  const endpointPersonal = `https://graph.microsoft.com/v1.0/me/drive/root:/${ONEDRIVE_FOLDER}/${timestamp}_${safeName}:/content`;
-  const resPersonal = await fetch(endpointPersonal, {
-    method:'PUT',
-    headers:{Authorization:'Bearer '+token,'Content-Type':'application/octet-stream'},
-    body: fileBuffer
-  });
-  if(!resPersonal.ok) throw new Error('Error subiendo a OneDrive personal: '+resPersonal.status);
-  const dataPersonal = await resPersonal.json();
-  const urlPersonal  = (dataPersonal && dataPersonal.webUrl) ? dataPersonal.webUrl : '';
+  // ── Resultado de cada destino (null = no intentado / no configurado) ──────
+  let resultadoPersonal  = null;   // { url, driveItemId } o null
+  let resultadoCompartida = null;  // { url, driveItemId } o null
+  let errorPersonal      = null;
+  let errorCompartida    = null;
 
-  // ── Subida a carpeta compartida — TAMBIÉN, si está configurada ────────────
+  // ══════════════════════════════════════════════════════════════════════════
+  // DESTINO 1 — OneDrive personal del admin (carpeta CRM_Marcopack)
+  // Siempre se intenta, independientemente de si hay carpeta compartida.
+  // ══════════════════════════════════════════════════════════════════════════
+  try{
+    // Asegurar que la carpeta existe; si no existe la crea; si hay error de permisos lo captura
+    await oneDriveEnsureFolder(token);
+    const ep = `https://graph.microsoft.com/v1.0/me/drive/root:/${ONEDRIVE_FOLDER}/${timestamp}_${safeName}:/content`;
+    const res = await fetch(ep, {
+      method: 'PUT',
+      headers: { Authorization: 'Bearer '+token, 'Content-Type': 'application/octet-stream' },
+      body: fileBuffer
+    });
+    if(!res.ok){
+      const errTxt = await res.text().catch(()=>'');
+      throw new Error('HTTP '+res.status+' — '+errTxt.slice(0,200));
+    }
+    const data = await res.json();
+    resultadoPersonal = { url: (data && data.webUrl)||'', driveItemId: data && data.id };
+    console.log('[OneDrive] ✅ Personal OK:', resultadoPersonal.url);
+  }catch(e){
+    errorPersonal = e.message;
+    console.error('[OneDrive] ❌ Personal falló:', e.message);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // DESTINO 2 — Carpeta compartida (solo si está configurada)
+  // Se intenta SIEMPRE aunque el personal haya fallado.
+  // ══════════════════════════════════════════════════════════════════════════
   if(sharedLink){
     try{
       const shared = await resolveSharedFolder(token);
-      const endpointShared = `https://graph.microsoft.com/v1.0/drives/${shared.driveId}/items/${shared.itemId}:/${timestamp}_${safeName}:/content`;
-      const resShared = await fetch(endpointShared, {
-        method:'PUT',
-        headers:{Authorization:'Bearer '+token,'Content-Type':'application/octet-stream'},
-        body: fileBuffer   // mismo buffer — ArrayBuffer sí se puede reutilizar
+      const ep = `https://graph.microsoft.com/v1.0/drives/${shared.driveId}/items/${shared.itemId}:/${timestamp}_${safeName}:/content`;
+      const res = await fetch(ep, {
+        method: 'PUT',
+        headers: { Authorization: 'Bearer '+token, 'Content-Type': 'application/octet-stream' },
+        body: fileBuffer   // ArrayBuffer — reutilizable sin problema
       });
-      if(resShared.ok){
-        const dataShared = await resShared.json();
-        const urlShared  = (dataShared && dataShared.webUrl) ? dataShared.webUrl : urlPersonal;
-        return {
-          url:                 urlShared,
-          urlPersonal:         urlPersonal,
-          driveItemId:         dataShared && dataShared.id,
-          driveItemIdPersonal: dataPersonal && dataPersonal.id,
-          origen:              'onedrive_ambos'
-        };
-      } else {
+      if(!res.ok){
         localStorage.removeItem(OD_SHARED_CACHE_KEY);
-        console.warn('[OneDrive] Carpeta compartida falló ('+resShared.status+'), archivo guardado solo en personal.');
-        toast('⚠️ Guardado en OneDrive personal. Carpeta compartida no respondió ('+resShared.status+')','#f59e0b');
+        const errTxt = await res.text().catch(()=>'');
+        throw new Error('HTTP '+res.status+' — '+errTxt.slice(0,200));
       }
-    }catch(errShared){
-      console.warn('[OneDrive] Error en carpeta compartida:', errShared.message);
-      toast('⚠️ Guardado en OneDrive personal. Error carpeta compartida: '+errShared.message,'#f59e0b');
+      const data = await res.json();
+      resultadoCompartida = { url: (data && data.webUrl)||'', driveItemId: data && data.id };
+      console.log('[OneDrive] ✅ Compartida OK:', resultadoCompartida.url);
+    }catch(e){
+      errorCompartida = e.message;
+      console.error('[OneDrive] ❌ Compartida falló:', e.message);
     }
   }
 
-  // Sin carpeta compartida (o falló) → devolver resultado del personal
+  // ══════════════════════════════════════════════════════════════════════════
+  // RESULTADO — combinar según lo que funcionó
+  // ══════════════════════════════════════════════════════════════════════════
+  const ambosFallaron = !resultadoPersonal && !resultadoCompartida;
+  if(ambosFallaron){
+    // Nada funcionó → error completo con diagnóstico
+    const detalle = [
+      errorPersonal   ? 'Personal: '+errorPersonal    : null,
+      errorCompartida ? 'Compartida: '+errorCompartida : null
+    ].filter(Boolean).join(' | ');
+    throw new Error('No se pudo subir el archivo a ningún destino. '+detalle);
+  }
+
+  if(resultadoPersonal && resultadoCompartida){
+    // ✅ Los DOS funcionaron — situación ideal
+    return {
+      url:                 resultadoCompartida.url,
+      urlPersonal:         resultadoPersonal.url,
+      driveItemId:         resultadoCompartida.driveItemId,
+      driveItemIdPersonal: resultadoPersonal.driveItemId,
+      origen:              'onedrive_ambos'
+    };
+  }
+
+  if(resultadoPersonal && !resultadoCompartida){
+    // Solo personal — avisar si la compartida estaba configurada
+    if(sharedLink) toast('⚠️ Guardado en OneDrive personal. Carpeta compartida falló: '+errorCompartida,'#f59e0b');
+    return {
+      url:         resultadoPersonal.url,
+      urlPersonal: resultadoPersonal.url,
+      driveItemId: resultadoPersonal.driveItemId,
+      origen:      'onedrive_personal'
+    };
+  }
+
+  // Solo compartida funcionó (personal falló) — avisar claramente
+  toast('⚠️ Guardado en carpeta compartida. OneDrive personal falló: '+errorPersonal,'#f59e0b');
   return {
-    url:         urlPersonal,
-    driveItemId: dataPersonal && dataPersonal.id,
-    origen:      'onedrive_personal'
+    url:         resultadoCompartida.url,
+    urlPersonal: '',
+    driveItemId: resultadoCompartida.driveItemId,
+    origen:      'onedrive_shared_only'
   };
 }
 
