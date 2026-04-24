@@ -1396,13 +1396,14 @@ async function oneDriveEnsureFolder(token){
   throw new Error('No se puede acceder a OneDrive personal ('+check.status+'). Comprueba que la cuenta Microsoft tiene licencia OneDrive activa. Detalle: '+txt.slice(0,150));
 }
 
-async function subirArchivoOneDrive(file, token, fileBuffer){
+async function subirArchivoOneDrive(file, token){
   const sharedLink = getSharedFolderLink();
   const safeName   = file.name.replace(/[\/\?%\*:|"<>]/g,'_');
   const timestamp  = Date.now();
 
-  // El buffer ya viene leído desde adjuntar(). No lo releemos del File.
-  if(!fileBuffer) fileBuffer = await file.arrayBuffer();
+  // ── CRÍTICO: leer el fichero UNA sola vez en memoria ─────────────────────
+  // File/Blob es un stream de uso único. ArrayBuffer es reutilizable en varios fetch.
+  const fileBuffer = await file.arrayBuffer();
 
   // ══════════════════════════════════════════════════════════════════════════
   // DESTINO PRINCIPAL — Carpeta compartida con el equipo (OBLIGATORIO)
@@ -6722,14 +6723,12 @@ function cerrarModal(){
 // ===== FIREBASE STORAGE — copia pública para usuarios sin cuenta Microsoft =====
 // Esta función sube una copia del archivo a Firebase Storage y devuelve
 // una URL pública de descarga. No toca OneDrive ni ninguna configuración existente.
-async function subirArchivoFirebaseStorage(file, ofertaId, fileBuffer){
+async function subirArchivoFirebaseStorage(file, ofertaId){
   const nombreSaneado = file.name.replace(/[^a-zA-Z0-9._\-]/g,"_");
   const ts = Date.now();
   const path = `adjuntos_crm/${ofertaId||"temporal"}/${ts}_${nombreSaneado}`;
   const ref = storage.ref(path);
-  // Usar el buffer pre-leído si se pasó; si no, leer del File (fallback)
-  const datos = fileBuffer ? new Blob([fileBuffer]) : file;
-  const snapshot = await ref.put(datos);
+  const snapshot = await ref.put(file);
   const urlPublica = await snapshot.ref.getDownloadURL();
   return urlPublica;
 }
@@ -6770,15 +6769,6 @@ async function adjuntar(e){
   const nombreUsuario=currentProfile?.nombre||currentUser?.email||"";
   for(let i=0;i<files.length;i++){
     const f=files[i];
-    // Leer el buffer AQUÍ, antes de cualquier fetch/put, para que esté
-    // disponible tanto para OneDrive como para Firebase sin agotarse.
-    let fileBuffer;
-    try{
-      fileBuffer = await f.arrayBuffer();
-    }catch(readErr){
-      toast(`❌ No se pudo leer ${f.name}`,"#ef4444");
-      continue;
-    }
     if(progressName) progressName.textContent=`Subiendo: ${f.name}`;
     if(progressPct) progressPct.textContent="0%";
     if(progressBar) progressBar.style.width="0%";
@@ -6793,39 +6783,36 @@ async function adjuntar(e){
     try{
       const ext=f.name.split(".").pop().toLowerCase();
       const icono=ext==="pdf"?"📕":ext==="doc"||ext==="docx"?"📘":ext==="xls"||ext==="xlsx"?"📗":ext==="png"||ext==="jpg"||ext==="jpeg"?"🖼️":"📄";
-      const resultado=await subirArchivoOneDrive(f,token,fileBuffer);
+      const resultado=await subirArchivoOneDrive(f,token);
       clearInterval(interval);
       if(progressBar) progressBar.style.width="100%";
       if(progressPct) progressPct.textContent="100%";
-      // ── Copia silenciosa a Firebase Storage ──────────────────────────
-      // Se ejecuta en segundo plano. Si falla no interrumpe ni avisa al usuario.
-      // La URL pública resultante (urlFirebase) se usa para que rol=lectura
-      // pueda ver y descargar sin necesitar cuenta Microsoft.
-      let urlFirebase = null;
-      try{
-        urlFirebase = await subirArchivoFirebaseStorage(f, editandoId||"nueva", fileBuffer);
-      }catch(fbErr){
-        console.warn("[Firebase Storage] Copia de respaldo fallida (no crítico):", fbErr.message);
-      }
+      // ── Copia a Firebase Storage en segundo plano SIN await ──────────
+      // No bloqueamos la UI esperando Firebase. Se lanza y se olvida.
+      subirArchivoFirebaseStorage(f, editandoId||"nueva")
+        .then(url=>{ const entry=archivosTemp.find(a=>a.name===f.name&&!a.urlFirebase); if(entry) entry.urlFirebase=url; })
+        .catch(fbErr=>console.warn("[Firebase Storage] Copia fallida (no crítico):", fbErr.message));
       archivosTemp.push({
         name:f.name, size:f.size,
         fecha:new Date().toLocaleDateString("es-ES"),
         url:resultado.url,
         urlPersonal:resultado.urlPersonal||resultado.url,
-        urlFirebase: urlFirebase||null,
+        urlFirebase: null,
         icono, origen:resultado.origen||"onedrive",
         subidoPor:nombreUsuario
       });
       ok++;
+      renderArchivos();
     }catch(err){
       clearInterval(interval);
       errores++;
       toast(`❌ Error subiendo ${f.name}: ${err.message}`,"#ef4444");
     }
-    renderArchivos();
   }
-  // Ocultar la barra cuando han terminado TODOS los archivos
+  // Ocultar barra cuando terminaron TODOS los archivos
   if(progressWrap) progressWrap.style.display="none";
+  if(progressBar) progressBar.style.width="0%";
+  if(progressPct) progressPct.textContent="0%";
   if(statusEl){
     if(errores===0) statusEl.textContent=`✅ ${ok} archivo${ok!==1?"s":""} subido${ok!==1?"s":""} correctamente`;
     else statusEl.textContent=`✅ ${ok} subido${ok!==1?"s":""} · ⚠️ ${errores} con error`;
