@@ -9,6 +9,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
@@ -1107,7 +1108,15 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 const firebaseConfig={apiKey:"AIzaSyB4kJsqEtQ0ypOIL4LyY9rhTBpcY_mxhnI",authDomain:"machinecrm-61b34.firebaseapp.com",projectId:"machinecrm-61b34",storageBucket:"machinecrm-61b34.firebasestorage.app",messagingSenderId:"686919580495",appId:"1:686919580495:web:019fa5682054bb089a633a"};
 firebase.initializeApp(firebaseConfig);
 console.log('[Marcopack CRM] v4.0 — Kanban + Ficha Empresa + Smart Notif');
-const auth=firebase.auth(),db=firebase.firestore();
+const auth=firebase.auth(),db=firebase.firestore(),storage=firebase.storage();
+// ── NOTA PARA ADMINISTRADOR ─────────────────────────────────────────────────
+// Firebase Storage se usa como copia pública de los adjuntos para que los
+// usuarios con rol "lectura" puedan ver y descargar sin cuenta Microsoft.
+// OneDrive NO se toca. Esta es una copia adicional en paralelo.
+// IMPORTANTE: En Firebase Console → Storage → Rules, asegúrate de tener:
+//   allow read: if true;           ← lectura pública
+//   allow write: if request.auth != null;  ← solo usuarios autenticados suben
+// ────────────────────────────────────────────────────────────────────────────
 
 // ===== SEGURIDAD: Sesión solo dura mientras la pestaña está abierta =====
 auth.setPersistence(firebase.auth.Auth.Persistence.NONE).catch(()=>{});
@@ -3294,19 +3303,25 @@ function cerrarSmartNotif(){
   if(cont)cont.innerHTML="";
 }
 
-// ===== TABLA SIN PAGINACIÓN — todas las ofertas en lista continua =====
+// ===== TABLA CON PAGINACIÓN (50 por página) =====
 function renderTabla(){
   const hoy=fechaLocal();
   const hoyCmp=new Date();
-  const rows=getFiltradas();
-  const totalRegistros=rows.length;
+  const todasLasFilas=getFiltradas();
+  const totalRegistros=todasLasFilas.length;
+  const totalPaginas=Math.max(1,Math.ceil(totalRegistros/PAGINACION_POR_PAGINA));
+
+  // Ajustar página actual si se queda fuera de rango (p.ej. al filtrar)
+  if(paginaActual>totalPaginas) paginaActual=1;
+
+  const inicio=(paginaActual-1)*PAGINACION_POR_PAGINA;
+  const fin=Math.min(inicio+PAGINACION_POR_PAGINA,totalRegistros);
+  const rows=todasLasFilas.slice(inicio,fin);
 
   const tbody=document.getElementById("tbody");
   if(!rows.length){
     tbody.innerHTML=`<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:40px">No se encontraron ofertas</td></tr>`;
-    // Limpiar barra de paginación si existe
-    const pag=document.getElementById("paginacion-bar");
-    if(pag) pag.innerHTML="";
+    _renderPaginacion(0,0,1,1);
     return;
   }
   tbody.innerHTML=rows.map((o,idx)=>{
@@ -3333,15 +3348,18 @@ function renderTabla(){
       <td>${o.fechaRecordatorio?`<span style="color:${vence?"#fb923c":"#94a3b8"};font-weight:${vence?700:400}">${vence?"⚠️ ":"🔔 "}${new Date(o.fechaRecordatorio).toLocaleDateString("es-ES")}</span>`:"<span style='color:#334155'>—</span>"}</td>
       <td style="color:${inactiva?"#ef4444":"#64748b"};font-size:11px">${diasInact!==null?`${diasInact}d${inactiva?" ⚠️":""}`:""}</td>
       <td onclick="event.stopPropagation()"><div style="display:flex;gap:3px">
-        ${currentProfile.rol!=="lectura"?`<button class="btn-sm" style="background:#1a2a1a;color:#4ade80;padding:5px 8px" onclick="abrirLlamada('${o.id}')">📞</button>`:""}
-        ${currentProfile.rol!=="lectura"?`<button class="btn-sm" style="background:var(--border2);color:var(--accent);padding:5px 8px" onclick="editarOferta('${o.id}')">✏️</button>`:""}
+        <button class="btn-sm" style="background:#1a2a1a;color:#4ade80;padding:5px 8px" onclick="abrirLlamada('${o.id}')">📞</button>
+        <button class="btn-sm" style="background:var(--border2);color:var(--accent);padding:5px 8px" onclick="editarOferta('${o.id}')">✏️</button>
         ${currentProfile.rol==="admin"?`<button class="btn-sm" style="background:#2d1515;color:#ef4444;padding:5px 8px" onclick="eliminarOferta('${o.id}')">🗑</button>`:""}
-        ${currentProfile.rol==="lectura"?`<button class="btn-sm" style="background:var(--accent-light);color:var(--accent);padding:5px 8px" onclick="verDetalle('${o.id}')">👁 Ver</button>`:""}
       </div></td>
     </tr>`;
   }).join("");
 
-  // Mostrar contador de resultados (reemplaza la paginación)
+  _renderPaginacion(inicio,fin,totalRegistros,totalPaginas);
+}
+
+function _renderPaginacion(inicio,fin,total,totalPaginas){
+  // Buscar o crear el contenedor de paginación bajo la tabla
   let pag=document.getElementById("paginacion-bar");
   if(!pag){
     pag=document.createElement("div");
@@ -3349,11 +3367,47 @@ function renderTabla(){
     const tableWrap=document.querySelector(".table-wrap");
     if(tableWrap) tableWrap.appendChild(pag);
   }
-  pag.innerHTML=`<div style="padding:10px 0 18px;font-size:12px;color:var(--text3);font-weight:600">
-    Total: <strong style="color:var(--text)">${totalRegistros}</strong> oferta${totalRegistros!==1?"s":""}
-  </div>`;
+  if(total===0){ pag.innerHTML=""; return; }
+
+  // Números de página a mostrar (máx 5 botones + primera y última)
+  const rango=2; // botones a cada lado de la página actual
+  let pagsBtns=[];
+  for(let p=Math.max(1,paginaActual-rango);p<=Math.min(totalPaginas,paginaActual+rango);p++) pagsBtns.push(p);
+
+  const btnStyle=(activo)=>`background:${activo?"var(--accent)":"var(--surface)"};color:${activo?"white":"var(--text2)"};border:1.5px solid ${activo?"var(--accent)":"var(--border)"};border-radius:var(--radius-sm);padding:5px 10px;font-size:12px;font-weight:${activo?700:600};cursor:pointer;font-family:inherit;min-width:34px;transition:all .15s`;
+  const btnDisabled=`background:var(--surface2);color:var(--text3);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:5px 10px;font-size:12px;cursor:not-allowed;min-width:34px;opacity:.5`;
+
+  pag.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:10px 0 18px">
+      <div style="font-size:12px;color:var(--text3);font-weight:600">
+        Mostrando <strong style="color:var(--text)">${inicio+1}–${fin}</strong> de <strong style="color:var(--text)">${total}</strong> ofertas
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+        <button style="${paginaActual<=1?btnDisabled:btnStyle(false)}" onclick="irPagina(1)" ${paginaActual<=1?'disabled':''} title="Primera página">«</button>
+        <button style="${paginaActual<=1?btnDisabled:btnStyle(false)}" onclick="irPagina(${paginaActual-1})" ${paginaActual<=1?'disabled':''} title="Anterior">‹</button>
+        ${pagsBtns[0]>1?`<span style="color:var(--text3);padding:0 4px">…</span>`:""}
+        ${pagsBtns.map(p=>`<button style="${btnStyle(p===paginaActual)}" onclick="irPagina(${p})">${p}</button>`).join("")}
+        ${pagsBtns[pagsBtns.length-1]<totalPaginas?`<span style="color:var(--text3);padding:0 4px">…</span>`:""}
+        <button style="${paginaActual>=totalPaginas?btnDisabled:btnStyle(false)}" onclick="irPagina(${paginaActual+1})" ${paginaActual>=totalPaginas?'disabled':''} title="Siguiente">›</button>
+        <button style="${paginaActual>=totalPaginas?btnDisabled:btnStyle(false)}" onclick="irPagina(${totalPaginas})" ${paginaActual>=totalPaginas?'disabled':''} title="Última página">»</button>
+        <span style="color:var(--text3);font-size:11px;margin-left:4px">Pág. ${paginaActual}/${totalPaginas}</span>
+      </div>
+    </div>`;
 }
-// _renderPaginacion e irPagina eliminados — la tabla ahora muestra todas las ofertas sin paginación
+
+function irPagina(p){
+  paginaActual=p;
+  // Limpiar selección al cambiar de página para evitar borrar ofertas de páginas anteriores
+  ofertasSeleccionadas.clear();
+  const cnt=document.getElementById("seleccion-count");
+  const btn=document.getElementById("btn-borrar-sel");
+  if(cnt) cnt.textContent="";
+  if(btn) btn.style.display="none";
+  renderTabla();
+  // Scroll suave al inicio de la tabla
+  const tw=document.querySelector(".table-wrap");
+  if(tw) tw.scrollIntoView({behavior:"smooth",block:"start"});
+}
 
 // ===== ESTADÍSTICAS (RESUMEN) =====
 function renderEstadisticasResumen(){
@@ -5967,8 +6021,8 @@ function verDetalle(id){
     <div style="display:flex;gap:8px;margin-top:20px;justify-content:flex-end;flex-wrap:wrap">
       <button class="btn-cancel" onclick="document.getElementById('modal-det').style.display='none'">Cerrar</button>
       <button style="background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer" onclick="document.getElementById('modal-det').style.display='none';abrirFichaEmpresa('${o.empresa.replace(/'/g,"\\'")}')">🏢 Ver empresa</button>
-      ${currentProfile.rol!=="lectura"?`<button style="background:var(--green-bg);color:var(--green);border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer" onclick="document.getElementById('modal-det').style.display='none';abrirLlamada('${o.id}')">📞 Registrar llamada</button>`:""}
-      ${currentProfile.rol!=="lectura"?`<button class="btn-save" onclick="document.getElementById('modal-det').style.display='none';editarOferta('${o.id}')">✏️ Editar</button>`:""}
+      <button style="background:var(--green-bg);color:var(--green);border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer" onclick="document.getElementById('modal-det').style.display='none';abrirLlamada('${o.id}')">📞 Registrar llamada</button>
+      <button class="btn-save" onclick="document.getElementById('modal-det').style.display='none';editarOferta('${o.id}')">✏️ Editar</button>
       ${puedeEliminar?`<button style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer" onclick="document.getElementById('modal-det').style.display='none';eliminarOferta('${o.id}')">🗑 Eliminar</button>`:""}
     </div>`;
   document.getElementById("modal-det").style.display="flex";
@@ -6099,11 +6153,10 @@ async function importarDesdeWord(event){
     if(datos.telefono)    _set("f-tel",        datos.telefono);
     if(datos.movil)       _set("f-movil",      datos.movil);
     if(datos.email)       _set("f-email",      datos.email);
-    // Referencia e Importe siempre en blanco (se rellenan manualmente)
-    // if(datos.referencia)  _set("f-referencia", datos.referencia);  // DESACTIVADO — se rellena a mano
+    if(datos.referencia)  _set("f-referencia", datos.referencia);
     if(datos.descripcion) _set("f-desc",       datos.descripcion);
     if(datos.fecha)       _set("f-fecha",      datos.fecha);
-    // if(datos.importe)     _set("f-importe",    datos.importe);  // DESACTIVADO — importe siempre en blanco
+    if(datos.importe)     _set("f-importe",    datos.importe);
 
     // País — España ya es predeterminado; solo sobreescribir si el Word indica otro
     if(datos.pais && datos.pais!=="España"){
@@ -6508,7 +6561,7 @@ function abrirModal(o){
   document.getElementById("f-tipo").value=o?.tipoMaquina||"";
   document.getElementById("f-otros").value=o?.otros||"";
   document.getElementById("f-desc").value=o?.descripcion||"";
-  document.getElementById("f-importe").value=o?.id?(o?.importe||""):""; // siempre en blanco en nueva oferta
+  document.getElementById("f-importe").value=o?.importe||"";
   document.getElementById("f-est-form").value=o?.estado||"Pendiente";
   document.getElementById("f-resp-form").value=o?.responsableNombre||currentProfile.nombre;
   document.getElementById("f-recod").value=o?.fechaRecordatorio||"";
@@ -6527,7 +6580,7 @@ function abrirModal(o){
     else if(rawNotas.includes(SEP_OLD)) notasLibres=rawNotas.split(SEP_OLD)[0];
     document.getElementById("f-notas").value=notasLibres;
   })();
-  document.getElementById("f-referencia").value=o?.id?(o?.referencia||""):""; // siempre en blanco en nueva oferta
+  document.getElementById("f-referencia").value=o?.referencia||"";
   renderArchivos();
   _familiaActiva=null;
   cargarTiposPersonalizados();
@@ -6561,6 +6614,19 @@ function cerrarModal(){
     window._editandoOfertaId=null;
   }
 }
+// ===== FIREBASE STORAGE — copia pública para usuarios sin cuenta Microsoft =====
+// Esta función sube una copia del archivo a Firebase Storage y devuelve
+// una URL pública de descarga. No toca OneDrive ni ninguna configuración existente.
+async function subirArchivoFirebaseStorage(file, ofertaId){
+  const nombreSaneado = file.name.replace(/[^a-zA-Z0-9._\-]/g,"_");
+  const ts = Date.now();
+  const path = `adjuntos_crm/${ofertaId||"temporal"}/${ts}_${nombreSaneado}`;
+  const ref = storage.ref(path);
+  const snapshot = await ref.put(file);
+  const urlPublica = await snapshot.ref.getDownloadURL();
+  return urlPublica;
+}
+
 async function adjuntarDesdeDropzone(fileList){
   const fakeEvent={target:{files:fileList,value:""}};
   await adjuntar(fakeEvent);
@@ -6615,11 +6681,22 @@ async function adjuntar(e){
       clearInterval(interval);
       if(progressBar) progressBar.style.width="100%";
       if(progressPct) progressPct.textContent="100%";
+      // ── Copia silenciosa a Firebase Storage ──────────────────────────
+      // Se ejecuta en segundo plano. Si falla no interrumpe ni avisa al usuario.
+      // La URL pública resultante (urlFirebase) se usa para que rol=lectura
+      // pueda ver y descargar sin necesitar cuenta Microsoft.
+      let urlFirebase = null;
+      try{
+        urlFirebase = await subirArchivoFirebaseStorage(f, editandoId||"nueva");
+      }catch(fbErr){
+        console.warn("[Firebase Storage] Copia de respaldo fallida (no crítico):", fbErr.message);
+      }
       archivosTemp.push({
         name:f.name, size:f.size,
         fecha:new Date().toLocaleDateString("es-ES"),
         url:resultado.url,
         urlPersonal:resultado.urlPersonal||resultado.url,
+        urlFirebase: urlFirebase||null,
         icono, origen:resultado.origen||"onedrive",
         subidoPor:nombreUsuario
       });
@@ -6677,9 +6754,15 @@ function renderArchivos(){
 }
 function renderArchivosDetalle(archivos){
   if(!archivos||!archivos.length)return`<div style="color:var(--text3);font-size:12px;padding:10px 0">Sin documentos adjuntos</div>`;
+  const esLectura = currentProfile?.rol==="lectura";
   return archivos.map(f=>{
     const kb=f.size?Math.round(f.size/1024)+" KB":"";
     const quien=f.subidoPor?" · "+f.subidoPor:"";
+    // Para rol lectura: usar urlFirebase (pública, sin login Microsoft).
+    // Para admin/comercial: usar url OneDrive como siempre.
+    const urlVer     = esLectura ? (f.urlFirebase||f.url||null) : (f.url||null);
+    const urlDescargar = esLectura ? (f.urlFirebase||f.downloadUrl||f.url||null) : (f.downloadUrl||f.url||null);
+    const sinAcceso  = esLectura && !f.urlFirebase; // archivo antiguo sin copia Firebase
     return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:6px">
       <span style="font-size:18px;flex-shrink:0">${f.icono||"📄"}</span>
       <div style="flex:1;min-width:0">
@@ -6691,12 +6774,16 @@ function renderArchivosDetalle(archivos){
           ${f.origen==='onedrive_ambos'
             ? `<span style="background:var(--green-bg);color:var(--green);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:800">☁️ Compartida + Personal</span>`
             : `<span style="background:var(--accent-light);color:var(--accent);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:800">☁️ OneDrive</span>`}
+          ${f.urlFirebase?`<span style="background:#e6f7f1;color:#0a7c5c;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:800">✅ Acceso directo</span>`:""}
         </div>
       </div>
       <div style="display:flex;gap:5px;flex-shrink:0">
-        ${f.url?`<a href="${f.url}" target="_blank" style="background:var(--accent);color:white;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">👁 Ver</a>`:""}
-        ${(f.origen==='onedrive_ambos' && f.urlPersonal)?`<a href="${f.urlPersonal}" target="_blank" style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap" title="Ver en OneDrive personal">🏠 Personal</a>`:""}
-        ${f.downloadUrl||f.url?`<a href="${f.downloadUrl||f.url+(f.url.includes("?")?"&":"?")+"download=1"}" target="_blank" download="${f.name||'archivo'}" style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">⬇ Descargar</a>`:`<span style="color:var(--text3);font-size:10px">Sin enlace</span>`}
+        ${sinAcceso
+          ? `<span style="color:var(--text3);font-size:10px;font-style:italic">Documento antiguo · pide al admin que lo reesuba</span>`
+          : `${urlVer?`<a href="${urlVer}" target="_blank" style="background:var(--accent);color:white;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">👁 Ver</a>`:""}
+             ${urlDescargar?`<a href="${urlDescargar}" target="_blank" download="${f.name||'archivo'}" style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">⬇ Descargar</a>`:""}`
+        }
+        ${!esLectura&&(f.origen==='onedrive_ambos'&&f.urlPersonal)?`<a href="${f.urlPersonal}" target="_blank" style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap" title="Ver en OneDrive personal">🏠 Personal</a>`:""}
       </div>
     </div>`;
   }).join("");
