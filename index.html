@@ -1960,8 +1960,8 @@ let ofertasSeleccionadas=new Set();
 // Variable para gráfica custom de estadísticas
 let _stCustomChart=null;
 
-// ===== SIN PAGINACIÓN — todas las ofertas en lista correlativa =====
-const PAGINACION_POR_PAGINA=99999;
+// ===== PAGINACIÓN — TABLA =====
+const PAGINACION_POR_PAGINA=50;
 let paginaActual=1;
 
 // ===== AUTH =====
@@ -3326,7 +3326,7 @@ function cerrarSmartNotif(){
   if(cont)cont.innerHTML="";
 }
 
-// ===== TABLA — todas las ofertas sin paginación =====
+// ===== TABLA CON PAGINACIÓN (50 por página) =====
 function renderTabla(){
   const hoy=fechaLocal();
   const hoyCmp=new Date();
@@ -3392,11 +3392,28 @@ function _renderPaginacion(inicio,fin,total,totalPaginas){
   }
   if(total===0){ pag.innerHTML=""; return; }
 
-  // Sin paginación: solo mostrar contador total de resultados
+  // Números de página a mostrar (máx 5 botones + primera y última)
+  const rango=2; // botones a cada lado de la página actual
+  let pagsBtns=[];
+  for(let p=Math.max(1,paginaActual-rango);p<=Math.min(totalPaginas,paginaActual+rango);p++) pagsBtns.push(p);
+
+  const btnStyle=(activo)=>`background:${activo?"var(--accent)":"var(--surface)"};color:${activo?"white":"var(--text2)"};border:1.5px solid ${activo?"var(--accent)":"var(--border)"};border-radius:var(--radius-sm);padding:5px 10px;font-size:12px;font-weight:${activo?700:600};cursor:pointer;font-family:inherit;min-width:34px;transition:all .15s`;
+  const btnDisabled=`background:var(--surface2);color:var(--text3);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:5px 10px;font-size:12px;cursor:not-allowed;min-width:34px;opacity:.5`;
+
   pag.innerHTML=`
-    <div style="display:flex;align-items:center;padding:10px 0 18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:10px 0 18px">
       <div style="font-size:12px;color:var(--text3);font-weight:600">
-        <strong style="color:var(--text)">${total}</strong> oferta${total!==1?"s":""} encontrada${total!==1?"s":""}
+        Mostrando <strong style="color:var(--text)">${inicio+1}–${fin}</strong> de <strong style="color:var(--text)">${total}</strong> ofertas
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+        <button style="${paginaActual<=1?btnDisabled:btnStyle(false)}" onclick="irPagina(1)" ${paginaActual<=1?'disabled':''} title="Primera página">«</button>
+        <button style="${paginaActual<=1?btnDisabled:btnStyle(false)}" onclick="irPagina(${paginaActual-1})" ${paginaActual<=1?'disabled':''} title="Anterior">‹</button>
+        ${pagsBtns[0]>1?`<span style="color:var(--text3);padding:0 4px">…</span>`:""}
+        ${pagsBtns.map(p=>`<button style="${btnStyle(p===paginaActual)}" onclick="irPagina(${p})">${p}</button>`).join("")}
+        ${pagsBtns[pagsBtns.length-1]<totalPaginas?`<span style="color:var(--text3);padding:0 4px">…</span>`:""}
+        <button style="${paginaActual>=totalPaginas?btnDisabled:btnStyle(false)}" onclick="irPagina(${paginaActual+1})" ${paginaActual>=totalPaginas?'disabled':''} title="Siguiente">›</button>
+        <button style="${paginaActual>=totalPaginas?btnDisabled:btnStyle(false)}" onclick="irPagina(${totalPaginas})" ${paginaActual>=totalPaginas?'disabled':''} title="Última página">»</button>
+        <span style="color:var(--text3);font-size:11px;margin-left:4px">Pág. ${paginaActual}/${totalPaginas}</span>
       </div>
     </div>`;
 }
@@ -6722,19 +6739,41 @@ async function adjuntarDesdeDropzone(fileList){
 }
 async function adjuntar(e){
   const files=Array.from(e.target.files);
+  // IMPORTANTE: Resetear el input ANTES de cualquier await para que el usuario
+  // pueda volver a seleccionar archivos si lo necesita, pero los File objects
+  // ya están capturados en el array 'files' y son seguros de usar.
   if(e.target.value!==undefined) e.target.value="";
   if(!files.length)return;
   if(!getClientId()){
     toast("⚙️ Primero configura OneDrive en Mi cuenta → OneDrive","#f59e0b");
     return;
   }
+
   const statusEl=document.getElementById("arch-upload-status");
   const progressWrap=document.getElementById("arch-progress-wrap");
   const progressBar=document.getElementById("arch-progress-bar");
   const progressName=document.getElementById("arch-progress-name");
   const progressPct=document.getElementById("arch-progress-pct");
-  if(statusEl) statusEl.textContent="⏳ Conectando con OneDrive...";
+
+  // ── PRE-LECTURA: leer todos los ArrayBuffers en memoria ANTES de cualquier
+  // llamada de red. Esto es crítico: en Chrome/Edge, resetear el input o iniciar
+  // operaciones async puede liberar los File objects del sistema operativo.
+  // Leyendo todos los buffers aquí garantizamos que los datos están en RAM.
+  if(statusEl) statusEl.textContent="⏳ Leyendo archivos...";
   if(progressWrap) progressWrap.style.display="block";
+  const fileBuffers=[];
+  for(const f of files){
+    try{
+      fileBuffers.push(await f.arrayBuffer());
+    }catch(readErr){
+      toast(`❌ No se pudo leer ${f.name}: ${readErr.message}`,"#ef4444");
+      if(progressWrap) progressWrap.style.display="none";
+      if(statusEl) statusEl.textContent="";
+      return;
+    }
+  }
+
+  if(statusEl) statusEl.textContent="⏳ Conectando con OneDrive...";
   let token;
   try{
     token=await getMsalToken();
@@ -6748,69 +6787,178 @@ async function adjuntar(e){
     }
     return;
   }
-  let ok=0,errores=0;
+
+  let ok=0, errores=0;
   const nombreUsuario=currentProfile?.nombre||currentUser?.email||"";
+
   for(let i=0;i<files.length;i++){
     const f=files[i];
-    if(progressName) progressName.textContent=`Subiendo: ${f.name}`;
+    const buf=fileBuffers[i]; // buffer ya leído, siempre disponible
+
+    // Resetear barra al 0% para este archivo
+    if(progressBar){ progressBar.style.transition="none"; progressBar.style.width="0%"; }
     if(progressPct) progressPct.textContent="0%";
-    if(progressBar) progressBar.style.width="0%";
+    // Pequeña pausa para que el navegador pinte el 0% antes de empezar la animación
+    await new Promise(r=>setTimeout(r,30));
+    if(progressBar) progressBar.style.transition="width .2s";
+
+    if(progressName) progressName.textContent=`Subiendo ${i+1}/${files.length}: ${f.name}`;
     if(statusEl) statusEl.textContent=`⏳ Subiendo ${i+1} de ${files.length}: ${f.name}`;
-    // Simular progreso visual mientras sube
+
+    // Animar barra de 0 a 90% mientras sube
     let prog=0;
     const interval=setInterval(()=>{
-      prog=Math.min(prog+Math.random()*15+5,90);
+      prog=Math.min(prog+Math.random()*12+4, 90);
       if(progressBar) progressBar.style.width=Math.round(prog)+"%";
       if(progressPct) progressPct.textContent=Math.round(prog)+"%";
     },200);
+
     try{
       const ext=f.name.split(".").pop().toLowerCase();
       const icono=ext==="pdf"?"📕":ext==="doc"||ext==="docx"?"📘":ext==="xls"||ext==="xlsx"?"📗":ext==="png"||ext==="jpg"||ext==="jpeg"?"🖼️":"📄";
-      const resultado=await subirArchivoOneDrive(f,token);
+
+      // Pasar el buffer pre-leído para evitar releer el File object
+      const resultado=await subirArchivoOneDriveConBuffer(f, buf, token);
+
       clearInterval(interval);
       if(progressBar) progressBar.style.width="100%";
       if(progressPct) progressPct.textContent="100%";
-      // ── Copia silenciosa a Firebase Storage ──────────────────────────
-      // Se ejecuta en segundo plano. Si falla no interrumpe ni avisa al usuario.
-      // La URL pública resultante (urlFirebase) se usa para que rol=lectura
-      // pueda ver y descargar sin necesitar cuenta Microsoft.
-      let urlFirebase = null;
+
+      // Copia silenciosa a Firebase Storage para rol=lectura
+      let urlFirebase=null;
       try{
-        urlFirebase = await subirArchivoFirebaseStorage(f, editandoId||"nueva");
+        urlFirebase=await subirArchivoFirebaseStorageConBuffer(buf, f.name, editandoId||"nueva");
       }catch(fbErr){
         console.warn("[Firebase Storage] Copia de respaldo fallida (no crítico):", fbErr.message);
       }
+
       archivosTemp.push({
         name:f.name, size:f.size,
         fecha:new Date().toLocaleDateString("es-ES"),
         url:resultado.url,
         urlPersonal:resultado.urlPersonal||resultado.url,
-        urlFirebase: urlFirebase||null,
+        urlFirebase:urlFirebase||null,
         icono, origen:resultado.origen||"onedrive",
         subidoPor:nombreUsuario
       });
       ok++;
+      renderArchivos(); // actualizar lista en pantalla tras cada archivo subido con éxito
+
+      // Mantener la barra en 100% un momento antes del siguiente archivo
+      await new Promise(r=>setTimeout(r,400));
+
     }catch(err){
       clearInterval(interval);
-      if(progressBar) progressBar.style.width="0%";
+      if(progressBar){ progressBar.style.transition="none"; progressBar.style.width="0%"; }
       if(progressPct) progressPct.textContent="0%";
-      if(progressWrap) progressWrap.style.display="none";
       errores++;
       toast(`❌ Error subiendo ${f.name}: ${err.message}`,"#ef4444");
     }
-    renderArchivos();
   }
-  setTimeout(()=>{if(progressWrap) progressWrap.style.display="none";},1200);
+
+  // Ocultar barra al terminar todos los archivos
+  if(progressWrap) progressWrap.style.display="none";
+  if(progressBar){ progressBar.style.transition="none"; progressBar.style.width="0%"; }
+  if(progressPct) progressPct.textContent="0%";
+  if(progressName) progressName.textContent="";
+
   if(statusEl){
     if(errores===0) statusEl.textContent=`✅ ${ok} archivo${ok!==1?"s":""} subido${ok!==1?"s":""} correctamente`;
-    else statusEl.textContent=`✅ ${ok} subido${ok!==1?"s":""} · ⚠️ ${errores} con error`;
+    else statusEl.textContent=`⚠️ ${ok} subido${ok!==1?"s":""} correctamente · ${errores} con error`;
     setTimeout(()=>{if(statusEl)statusEl.textContent="";},4000);
   }
   if(ok>0){
-    const destino = getSharedFolderLink() ? "OneDrive (carpeta compartida + personal)" : "OneDrive";
+    const destino=getSharedFolderLink()?"OneDrive (carpeta compartida + personal)":"OneDrive";
     toast(`✅ ${ok} archivo${ok!==1?"s":""} subido${ok!==1?"s":""} a ${destino}`,"#10b981");
   }
 }
+// ── Variante de subirArchivoOneDrive que recibe el ArrayBuffer ya leído ──────
+// Esto evita releer el File object (que puede haber sido liberado por el
+// navegador tras resetear el input o tras la primera lectura async).
+async function subirArchivoOneDriveConBuffer(file, fileBuffer, token){
+  const sharedLink=getSharedFolderLink();
+  const safeName=file.name.replace(/[\/\?%\*:|"<>]/g,'_');
+  const timestamp=Date.now();
+
+  if(!sharedLink){
+    throw new Error('La carpeta compartida no está configurada. Ve a Mi cuenta → OneDrive y pega el enlace de la carpeta compartida con tu equipo.');
+  }
+
+  const MAX_REINTENTOS=3;
+  let resultadoCompartida=null;
+  let ultimoErrorCompartida=null;
+
+  for(let intento=1;intento<=MAX_REINTENTOS;intento++){
+    try{
+      if(intento>1){
+        localStorage.removeItem(OD_SHARED_CACHE_KEY);
+        await new Promise(r=>setTimeout(r,2000));
+      }
+      const shared=await resolveSharedFolder(token);
+      const ep=`https://graph.microsoft.com/v1.0/drives/${shared.driveId}/items/${shared.itemId}:/${timestamp}_${safeName}:/content`;
+      const res=await fetch(ep,{
+        method:'PUT',
+        headers:{Authorization:'Bearer '+token,'Content-Type':'application/octet-stream'},
+        body:fileBuffer
+      });
+      if(!res.ok){
+        localStorage.removeItem(OD_SHARED_CACHE_KEY);
+        const errTxt=await res.text().catch(()=>'');
+        throw new Error('HTTP '+res.status+' — '+errTxt.slice(0,200));
+      }
+      const data=await res.json();
+      resultadoCompartida={url:(data&&data.webUrl)||'',driveItemId:data&&data.id};
+      break;
+    }catch(e){
+      ultimoErrorCompartida=e.message;
+      console.warn(`[OneDrive] ⚠️ Intento ${intento}/${MAX_REINTENTOS} falló:`,e.message);
+    }
+  }
+
+  if(!resultadoCompartida){
+    throw new Error(`No se pudo subir a la carpeta compartida tras ${MAX_REINTENTOS} intentos. Comprueba tu conexión o el enlace en Mi cuenta → OneDrive. Detalle: ${ultimoErrorCompartida}`);
+  }
+
+  // Copia silenciosa al OneDrive personal
+  let resultadoPersonal=null;
+  try{
+    await oneDriveEnsureFolder(token);
+    const ep=`https://graph.microsoft.com/v1.0/me/drive/root:/${ONEDRIVE_FOLDER}/${timestamp}_${safeName}:/content`;
+    const res=await fetch(ep,{
+      method:'PUT',
+      headers:{Authorization:'Bearer '+token,'Content-Type':'application/octet-stream'},
+      body:fileBuffer
+    });
+    if(res.ok){
+      const data=await res.json();
+      resultadoPersonal={url:(data&&data.webUrl)||'',driveItemId:data&&data.id};
+    }
+  }catch(e){
+    console.warn('[OneDrive] Copia personal omitida (no crítico):',e.message);
+  }
+
+  return {
+    url:resultadoCompartida.url,
+    urlPersonal:resultadoPersonal?resultadoPersonal.url:'',
+    driveItemId:resultadoCompartida.driveItemId,
+    driveItemIdPersonal:resultadoPersonal?resultadoPersonal.driveItemId:null,
+    origen:resultadoPersonal?'onedrive_ambos':'onedrive_shared'
+  };
+}
+
+// ── Variante de subirArchivoFirebaseStorage que recibe el ArrayBuffer ya leído
+async function subirArchivoFirebaseStorageConBuffer(fileBuffer, fileName, ofertaId){
+  const nombreSaneado=fileName.replace(/[^a-zA-Z0-9._\-]/g,"_");
+  const ts=Date.now();
+  const path=`adjuntos_crm/${ofertaId||"temporal"}/${ts}_${nombreSaneado}`;
+  const ref=storage.ref(path);
+  // Blob construido desde el buffer pre-leído: siempre disponible en RAM
+  const blob=new Blob([fileBuffer]);
+  const snapshot=await ref.put(blob);
+  const urlPublica=await snapshot.ref.getDownloadURL();
+  return urlPublica;
+}
+
 function eliminarArchivo(i){
   archivosTemp.splice(i,1);
   renderArchivos();
