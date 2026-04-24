@@ -834,7 +834,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
     <div id="import-word-panel" style="background:var(--accent-light);border:1.5px dashed var(--accent);border-radius:10px;padding:11px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
       <div>
         <div style="font-size:12px;font-weight:700;color:var(--accent)">📄 Importar datos desde Word</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:2px">Adjunta tu documento de oferta y se rellenarán los campos automáticamente</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">Rellena empresa, contacto, teléfono, email, <strong style="color:var(--accent)">referencia</strong>, importe y más de forma automática</div>
       </div>
       <label style="display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:white;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:12px;font-weight:700;white-space:nowrap;flex-shrink:0">
         📂 Seleccionar Word
@@ -858,7 +858,14 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
         <div class="field"><label>Contacto</label><input id="f-contacto"/></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>Referencia <span style="color:var(--text3);font-size:10px;font-weight:400">(opcional)</span></label><input id="f-referencia" placeholder="Ej: REF-2026-001, Proyecto X..."/></div>
+        <div class="field">
+          <label>
+            Referencia
+            <span style="color:var(--text3);font-size:10px;font-weight:400">(opcional)</span>
+            <span id="ref-word-badge" style="display:none;background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:20px;padding:1px 8px;font-size:10px;font-weight:700;margin-left:6px">📄 desde Word</span>
+          </label>
+          <input id="f-referencia" placeholder="Ej: REF-2026-001, OF-2026-001, Proyecto X..." oninput="document.getElementById('ref-word-badge').style.display='none'"/>
+        </div>
         <div class="field"></div>
       </div>
       <div class="grid2">
@@ -2113,7 +2120,7 @@ function showErr(msg){
   el.textContent=msg;el.style.display="block";
   setTimeout(()=>el.style.display="none",6000);
 }
-function doLogout(){
+async function doLogout(){
   _presenceDetener();
   if(_ofertasUnsub){ try{ _ofertasUnsub(); }catch(_){} _ofertasUnsub=null; }
   ofertas=[];
@@ -2152,7 +2159,9 @@ function doLogout(){
   // Limpiar presencia
   window._vistaActualPresencia=null;
   window._editandoOfertaId=null;
-  auth.signOut();
+  // Cerrar lock de edición si quedó abierto
+  if(window._editandoOfertaId) try{ await _liberarLockEdicion(window._editandoOfertaId); }catch(_){}
+  try{ await auth.signOut(); }catch(_){}
 }
 
 // ===== SELECTS =====
@@ -2611,20 +2620,34 @@ async function borrarSeleccionadas(){
   if(btn){btn.textContent="Eliminando...";btn.disabled=true;}
   let errores=0;
   try{
-    for(const id of ids){
-      try{
-        const o=ofertas.find(x=>x.id===id);
-        await db.collection("historial").add({ofertaId:id,empresa:o?.empresa,numeroOferta:o?.numeroOferta,usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,accion:"eliminada",fecha:firebase.firestore.FieldValue.serverTimestamp()});
-        await db.collection("ofertas").doc(id).update({eliminado:true,eliminadoEn:firebase.firestore.FieldValue.serverTimestamp(),eliminadoPor:currentUser.uid});
-      }catch(e){
-        console.error("[CRM] Error eliminando oferta "+id+":",e);
-        errores++;
+    // Usar batch para todas las escrituras — hasta 500 ops por batch
+    // Dividir en lotes de 240 (historial+oferta = 2 ops por item → máx 120 items seguros por lote)
+    const LOTE=120;
+    for(let start=0;start<ids.length;start+=LOTE){
+      const trozo=ids.slice(start,start+LOTE);
+      const batch=db.batch();
+      for(const id of trozo){
+        try{
+          const o=ofertas.find(x=>x.id===id);
+          // Escritura de historial en el batch
+          const histRef=db.collection("historial").doc();
+          batch.set(histRef,{ofertaId:id,empresa:o?.empresa||"",numeroOferta:o?.numeroOferta||"",usuarioUid:currentUser.uid,usuarioNombre:currentProfile.nombre,accion:"eliminada",fecha:firebase.firestore.FieldValue.serverTimestamp()});
+          // Eliminación lógica en el batch
+          batch.update(db.collection("ofertas").doc(id),{eliminado:true,eliminadoEn:firebase.firestore.FieldValue.serverTimestamp(),eliminadoPor:currentUser.uid});
+        }catch(e){
+          console.error("[CRM] Error preparando batch para oferta "+id+":",e);
+          errores++;
+        }
       }
+      await batch.commit();
     }
     ofertasSeleccionadas.clear();
     const ok=n-errores;
-    if(ok>0) toast(`🗑 ${ok} oferta${ok>1?"s":""} enviada${ok>1?"s":""} a la papelera`+(errores>0?` · ${errores} error${errores>1?"es":""}`:""),(errores>0?"#f59e0b":"#10b981"));
+    if(ok>0) toast(`🗑 ${ok} oferta${ok>1?"s":""} enviada${ok>1?"s":""} a la papelera`+(errores>0?` · ${errores} con error`:""),(errores>0?"#f59e0b":"#10b981"));
     else toast(`❌ No se pudo eliminar ninguna oferta (${errores} errores)`,"#ef4444");
+  }catch(e){
+    console.error("[CRM] Error en borrarSeleccionadas:",e);
+    toast("❌ Error al eliminar: "+e.message,"#ef4444");
   }finally{
     if(btn){btn.textContent="🗑 Eliminar seleccionadas";btn.disabled=false;btn.style.display="none";}
     const cnt=document.getElementById("seleccion-count");
@@ -2837,7 +2860,7 @@ function renderDashboard(){
         ${venc.slice(0,3).map(o=>`
           <div style="background:var(--orange-bg);border:1px solid #fbd0b0;border-radius:8px;padding:8px 12px;margin-bottom:6px;cursor:pointer;font-size:12px" onclick="verDetalle('${o.id}')">
             <div style="color:#fb923c;font-weight:600">🔔 ${_esc(o.empresa)}</div>
-            <div style="color:var(--text3)">Recordatorio: ${new Date(o.fechaRecordatorio).toLocaleDateString("es-ES")}</div>
+            <div style="color:var(--text3)">Recordatorio: ${new Date(o.fechaRecordatorio+"T12:00:00").toLocaleDateString("es-ES")}</div>
           </div>`).join("")}
         ${alertasInact.slice(0,2).map(o=>`
           <div style="background:var(--red-bg);border:1px solid #fca5a5;border-radius:8px;padding:8px 12px;margin-bottom:6px;cursor:pointer;font-size:12px" onclick="verDetalle('${o.id}')">
@@ -3076,7 +3099,7 @@ function kCardHTML(o,color){
   const resp=o.responsableNombre||"";
   const bgColor=_avatarColor(resp);
   const initials=_avatarInitials(resp);
-  const ref=o.tipoMaquina||o.provincia||"";
+  const ref=_esc(o.tipoMaquina||o.provincia||"");
   return `<div class="k-card" draggable="true"
     style="border-left-color:${color}"
     data-id="${o.id}"
@@ -3089,7 +3112,7 @@ function kCardHTML(o,color){
       <span class="k-card-imp">${o.importe?imp+" €":"—"}</span>
       <div style="display:flex;align-items:center;gap:5px">
         ${vence?`<span style="font-size:14px" title="Recordatorio vencido">🔔</span>`:""}
-        <span class="k-avatar" style="background:${bgColor}" title="${resp}">${initials}</span>
+        <span class="k-avatar" style="background:${bgColor}" title="${_esc(resp)}">${_esc(initials)}</span>
       </div>
     </div>
   </div>`;
@@ -3171,21 +3194,21 @@ function abrirFichaEmpresa(nombreEmpresa){
 
   body.innerHTML=`
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--border)">
-      <div style="width:52px;height:52px;border-radius:14px;background:${avatarCol};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:white;flex-shrink:0">${initials}</div>
+      <div style="width:52px;height:52px;border-radius:14px;background:${avatarCol};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:white;flex-shrink:0">${_esc(initials)}</div>
       <div style="flex:1">
-        <h2 style="color:var(--text);font-size:20px;font-weight:900;margin:0 0 3px">${nombreEmpresa}</h2>
+        <h2 style="color:var(--text);font-size:20px;font-weight:900;margin:0 0 3px">${_esc(nombreEmpresa)}</h2>
         <div style="color:var(--text3);font-size:12px;display:flex;flex-wrap:wrap;gap:10px">
-          ${ult.contacto?`<span>👤 ${ult.contacto}</span>`:""}
-          ${ult.telefono?`<span>📞 ${ult.telefono}</span>`:""}
-          ${ult.telefonoMovil?`<span>📱 ${ult.telefonoMovil}</span>`:""}
-          ${ult.email?`<span>📧 ${ult.email}</span>`:""}
-          ${ult.provincia?`<span>📍 ${ult.provincia}${ult.pais&&ult.pais!=="España"?" · "+ult.pais:""}</span>`:""}
+          ${ult.contacto?`<span>👤 ${_esc(ult.contacto)}</span>`:""}
+          ${ult.telefono?`<span>📞 ${_esc(ult.telefono)}</span>`:""}
+          ${ult.telefonoMovil?`<span>📱 ${_esc(ult.telefonoMovil)}</span>`:""}
+          ${ult.email?`<span>📧 ${_esc(ult.email)}</span>`:""}
+          ${ult.provincia?`<span>📍 ${_esc(ult.provincia)}${ult.pais&&ult.pais!=="España"?" · "+_esc(ult.pais):""}</span>`:""}
         </div>
         <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:5px">
-          ${responsables.map(r=>`<span style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:600">👷 ${r}</span>`).join("")}
+          ${responsables.map(r=>`<span style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:600">👷 ${_esc(r)}</span>`).join("")}
         </div>
       </div>
-      <button onclick="document.getElementById('modal-empresa').style.display='none';abrirModal();document.getElementById('f-empresa').value='${nombreEmpresa.replace(/'/g,"\\'")}'" class="btn-sm btn-add" style="white-space:nowrap;flex-shrink:0">+ Nueva oferta</button>
+      <button data-emp-nueva="${_esc(nombreEmpresa)}" onclick="(function(btn){document.getElementById('modal-empresa').style.display='none';abrirModal();document.getElementById('f-empresa').value=btn.dataset.empNueva;})(this)" class="btn-sm btn-add" style="white-space:nowrap;flex-shrink:0">+ Nueva oferta</button>
     </div>
 
     <div class="emp-kpis">
@@ -3234,7 +3257,7 @@ function abrirFichaEmpresa(nombreEmpresa){
               ${o.tipoMaquina?`<span style="color:var(--text3);font-size:11px">${_esc(o.tipoMaquina)}</span>`:""}
             </div>
             <div style="color:var(--text3);font-size:11px;margin-top:3px">
-              ${o.fechaOferta?new Date(o.fechaOferta).toLocaleDateString("es-ES"):"—"}
+              ${o.fechaOferta?new Date(o.fechaOferta+"T12:00:00").toLocaleDateString("es-ES"):"—"}
               ${o.responsableNombre?` · 👷 ${_esc(o.responsableNombre.split(" ")[0])}`:""}
               ${o.numLlamadas?` · 📞 ${o.numLlamadas} llamadas`:""}
             </div>
@@ -3344,8 +3367,8 @@ function renderTabla(){
       <td style="color:#34d399;font-weight:700">${(o.importe||0).toLocaleString("es-ES")} €</td>
       <td><span class="badge" style="background:${col}22;color:${col};border:1px solid ${col}55">${_esc(o.estado)}</span></td>
       <td style="color:var(--text2)">${_esc((o.responsableNombre||"—").split(" ")[0])}</td>
-      <td style="color:var(--text2)">${o.fechaOferta?new Date(o.fechaOferta).toLocaleDateString("es-ES"):"—"}</td>
-      <td>${o.fechaRecordatorio?`<span style="color:${vence?"#fb923c":"#94a3b8"};font-weight:${vence?700:400}">${vence?"⚠️ ":"🔔 "}${new Date(o.fechaRecordatorio).toLocaleDateString("es-ES")}</span>`:"<span style='color:#334155'>—</span>"}</td>
+      <td style="color:var(--text2)">${o.fechaOferta?new Date(o.fechaOferta+"T12:00:00").toLocaleDateString("es-ES"):"—"}</td>
+      <td>${o.fechaRecordatorio?`<span style="color:${vence?"#fb923c":"#94a3b8"};font-weight:${vence?700:400}">${vence?"⚠️ ":"🔔 "}${new Date(o.fechaRecordatorio+"T12:00:00").toLocaleDateString("es-ES")}</span>`:"<span style='color:#334155'>—</span>"}</td>
       <td style="color:${inactiva?"#ef4444":"#64748b"};font-size:11px">${diasInact!==null?`${diasInact}d${inactiva?" ⚠️":""}`:""}</td>
       <td onclick="event.stopPropagation()"><div style="display:flex;gap:3px">
         <button class="btn-sm" style="background:#1a2a1a;color:#4ade80;padding:5px 8px" onclick="abrirLlamada('${o.id}')">📞</button>
@@ -4637,7 +4660,7 @@ function renderLlamadas(){
               </div>
               <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
                 <button class="llamada-btn" onclick="abrirLlamada('${o.id}')">+ Llamada</button>
-                <button onclick="event.stopPropagation();llBorrarHistorialOferta('${o.id}','${(o.empresa||'').replace(/'/g,'').replace(/"/g,'')}')" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">🗑 Borrar</button>
+                <button data-oferta-id="${o.id}" data-empresa="${_esc(o.empresa||"")}" onclick="event.stopPropagation();llBorrarHistorialOferta(this.dataset.ofertaId,this.dataset.empresa)" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">🗑 Borrar</button>
               </div>
             </div>`;
           }).join("") : `<div style="color:var(--text3);font-size:13px;text-align:center;padding:30px 10px">Aún no hay llamadas registradas</div>`}
@@ -5125,7 +5148,7 @@ function _renderComparativaUI(){
     <div class="chart-card" style="margin-bottom:16px">
       <h3>💶 Importe ganado por comercial</h3>
       ${stats.map((s,i)=>`<div class="bar-row">
-        <div class="bar-label">${["🥇","🥈","🥉"][i]||"  "} ${s.nombre.split(" ")[0]}</div>
+        <div class="bar-label">${["🥇","🥈","🥉"][i]||"  "} ${_esc(s.nombre.split(" ")[0])}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${maxImp?Math.round(s.importeGanado/maxImp*100):0}%;background:${CG[i%CG.length]}">
           <span class="bar-val">${fmtEur(s.importeGanado)}</span></div></div>
       </div>`).join("")}
@@ -5135,7 +5158,7 @@ function _renderComparativaUI(){
     <div class="chart-card" style="margin-bottom:16px">
       <h3>⚡ Cartera activa por comercial</h3>
       ${stats.map((s,i)=>`<div class="bar-row">
-        <div class="bar-label">${s.nombre.split(" ")[0]}</div>
+        <div class="bar-label">${_esc(s.nombre.split(" ")[0])}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${maxAct?Math.round(s.importeActivo/maxAct*100):0}%;background:#3b82f6">
           <span class="bar-val">${fmtEur(s.importeActivo)} · ${s.activas} of.</span></div></div>
       </div>`).join("")}
@@ -5149,9 +5172,9 @@ function _renderComparativaUI(){
         <!-- Cabecera clicable -->
         <div class="comp-card-head" onclick="this.nextElementSibling.classList.toggle('open');this.querySelector('.comp-arrow').textContent=this.nextElementSibling.classList.contains('open')?'▲':'▼'">
           <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;flex-wrap:wrap">
-            <div style="width:40px;height:40px;border-radius:10px;background:${CG[i%CG.length]};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;color:white;flex-shrink:0">${s.nombre.split(" ").map(p=>p[0]).join("").slice(0,2).toUpperCase()}</div>
+            <div style="width:40px;height:40px;border-radius:10px;background:${CG[i%CG.length]};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;color:white;flex-shrink:0">${_esc(s.nombre.split(" ").map(p=>p[0]).join("").slice(0,2).toUpperCase())}</div>
             <div>
-              <div style="font-weight:800;font-size:14px;color:var(--text)">${["🥇 ","🥈 ","🥉 "][i]||""}${s.nombre}</div>
+              <div style="font-weight:800;font-size:14px;color:var(--text)">${["🥇 ","🥈 ","🥉 "][i]||""}${_esc(s.nombre)}</div>
               <div style="color:var(--text3);font-size:11px;margin-top:2px">${s.total} ofertas · ${fmtEur(s.importeGanado)} ganado · ${semaforo(s.tasa)}</div>
             </div>
           </div>
@@ -5203,7 +5226,7 @@ function _renderComparativaUI(){
             </div>
             ${s.masReciente?`<div style="flex:1;min-width:180px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 13px">
               <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Oferta más reciente</div>
-              <div style="font-size:12px;color:var(--accent);font-weight:700;cursor:pointer" onclick="editarOferta('${s.masReciente.id}')">${s.masReciente.empresa||"—"} · ${s.masReciente.numeroOferta||""}</div>
+              <div style="font-size:12px;color:var(--accent);font-weight:700;cursor:pointer" onclick="editarOferta('${s.masReciente.id}')">${_esc(s.masReciente.empresa||"—")} · ${_esc(s.masReciente.numeroOferta||"")}</div>
             </div>`:""}
           </div>
           <!-- Últimas acciones del historial -->
@@ -5214,9 +5237,9 @@ function _renderComparativaUI(){
               const fh=h.fecha?.toDate?.();
               return`<div class="comp-hist-item" style="border-left-color:${histColor(h.accion)}">
                 <span style="font-size:13px">${histIcono(h.accion)}</span>
-                <span style="color:${histColor(h.accion)};font-weight:700;margin-left:4px">${h.accion}</span>
-                <span style="color:var(--text2)"> — ${h.empresa||""}${h.numeroOferta?" ("+h.numeroOferta+")":""}</span>
-                ${h.campoModificado?`<span style="color:var(--text3)"> · ${h.campoModificado}: <b style="color:var(--red)">${h.campoModificado==="importe"&&h.valorAnterior&&!isNaN(Number(h.valorAnterior))?Number(h.valorAnterior).toLocaleString("es-ES")+" €":h.valorAnterior||"—"}</b> → <b style="color:var(--green)">${h.campoModificado==="importe"&&h.valorNuevo&&!isNaN(Number(h.valorNuevo))?Number(h.valorNuevo).toLocaleString("es-ES")+" €":h.valorNuevo||"—"}</b></span>`:""}
+                <span style="color:${histColor(h.accion)};font-weight:700;margin-left:4px">${_esc(h.accion)}</span>
+                <span style="color:var(--text2)"> — ${_esc(h.empresa||"")}${h.numeroOferta?" ("+_esc(h.numeroOferta)+")":""}</span>
+                ${h.campoModificado?`<span style="color:var(--text3)"> · ${_esc(h.campoModificado)}: <b style="color:var(--red)">${h.campoModificado==="importe"&&h.valorAnterior&&!isNaN(Number(h.valorAnterior))?Number(h.valorAnterior).toLocaleString("es-ES")+" €":_esc(h.valorAnterior||"—")}</b> → <b style="color:var(--green)">${h.campoModificado==="importe"&&h.valorNuevo&&!isNaN(Number(h.valorNuevo))?Number(h.valorNuevo).toLocaleString("es-ES")+" €":_esc(h.valorNuevo||"—")}</b></span>`:""}
                 <span style="color:var(--text3);font-size:11px;float:right">${fh?fh.toLocaleString("es-ES"):""}</span>
               </div>`;
             }).join("")}
@@ -5374,7 +5397,7 @@ function renderAlertas(){
         <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
           <button class="llamada-btn" onclick="event.stopPropagation();abrirLlamada('${o.id}')">📞 Llamar</button>
           <button onclick="event.stopPropagation();editarOferta('${o.id}')" style="background:var(--accent-light);color:var(--accent);border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">✏️ Editar</button>
-          <button onclick="event.stopPropagation();borrarRecordatorio('${o.id}','${(o.empresa||'').replace(/'/g,'').replace(/"/g,'')}')" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">🗑 Borrar</button>
+          <button data-oferta-id="${o.id}" data-empresa="${_esc(o.empresa||"")}" onclick="event.stopPropagation();borrarRecordatorio(this.dataset.ofertaId,this.dataset.empresa)" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">🗑 Borrar</button>
         </div>
       </div>
     </div>`;
@@ -5533,7 +5556,7 @@ function renderAlertas(){
             </div>
             <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap">
               <button onclick="event.stopPropagation();abrirLlamada('${o.id}')" style="background:linear-gradient(135deg,#0a7c5c,#0d9966);color:white;border:none;border-radius:6px;padding:3px 9px;font-size:10px;font-weight:700;cursor:pointer">📞 Llamar</button>
-              <button onclick="event.stopPropagation();borrarRecordatorio('${o.id}','${(o.empresa||'').replace(/'/g,'').replace(/"/g,'')}')" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:6px;padding:3px 9px;font-size:10px;font-weight:700;cursor:pointer">🗑 Borrar</button>
+              <button data-oferta-id="${o.id}" data-empresa="${_esc(o.empresa||"")}" onclick="event.stopPropagation();borrarRecordatorio(this.dataset.ofertaId,this.dataset.empresa)" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:6px;padding:3px 9px;font-size:10px;font-weight:700;cursor:pointer">🗑 Borrar</button>
             </div>
           </div>`;
         }).join("")
@@ -5719,20 +5742,20 @@ async function cargarHistorial(){
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:4px">
-            <span class="hist-accion-badge" style="${histBadgeStyle(h.accion)}">${histIcono(h.accion)} ${h.accion}</span>
-            <span style="color:var(--text2);font-size:12px;font-weight:600">👤 ${h.usuarioNombre||"Sistema"}</span>
+            <span class="hist-accion-badge" style="${histBadgeStyle(h.accion)}">${histIcono(h.accion)} ${_esc(h.accion)}</span>
+            <span style="color:var(--text2);font-size:12px;font-weight:600">👤 ${_esc(h.usuarioNombre||"Sistema")}</span>
             ${ofertaLink}
           </div>
           <div style="color:var(--text);font-size:13px;font-weight:700;margin-bottom:2px">
-            ${h.empresa||""}${h.numeroOferta?` <span style="color:var(--text3);font-weight:500;font-size:11px">(${h.numeroOferta})</span>`:""}
+            ${_esc(h.empresa||"")}${h.numeroOferta?` <span style="color:var(--text3);font-weight:500;font-size:11px">(${_esc(h.numeroOferta)})</span>`:""}
           </div>
           ${h.campoModificado?`<div style="color:var(--text2);font-size:12px;margin-top:2px">
-            Campo: <b>${h.campoModificado}</b> ·
-            <span style="color:var(--red)">${fmtHistVal(h.campoModificado,h.valorAnterior)}</span>
+            Campo: <b>${_esc(h.campoModificado)}</b> ·
+            <span style="color:var(--red)">${_esc(fmtHistVal(h.campoModificado,h.valorAnterior))}</span>
             <span style="color:var(--text3)"> → </span>
-            <span style="color:var(--green)">${fmtHistVal(h.campoModificado,h.valorNuevo)}</span>
+            <span style="color:var(--green)">${_esc(fmtHistVal(h.campoModificado,h.valorNuevo))}</span>
           </div>`:""}
-          ${h.accion==="llamada registrada"&&h.valorNuevo?`<div style="color:#15803d;font-size:12px;margin-top:2px;font-style:italic">Resultado: ${h.valorNuevo}</div>`:""}
+          ${h.accion==="llamada registrada"&&h.valorNuevo?`<div style="color:#15803d;font-size:12px;margin-top:2px;font-style:italic">Resultado: ${_esc(h.valorNuevo)}</div>`:""}
           <div style="color:var(--text3);font-size:11px;margin-top:4px">🕐 ${fstr}</div>
         </div>
         ${esAdmin?`<button onclick="borrarRegistroHistorial('${h.id}')" title="Borrar este registro"
@@ -5992,12 +6015,12 @@ function verDetalle(id){
     </div>
     ${vence?`<div style="background:var(--orange-bg);border:1px solid #fbd0b0;border-radius:10px;padding:10px 14px;margin-bottom:12px;color:#fb923c;font-size:13px;font-weight:600">⚠️ Recordatorio vencido — Llamar a ${_esc(o.contacto||o.empresa)}</div>`:""}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-      ${[["📋 Referencia",o.referencia],["👤 Contacto",o.contacto],["📞 Teléfono",o.telefono],["📱 Teléfono Móvil",o.telefonoMovil],["📧 Correo",o.email],["📍 Provincia",o.provincia],["🏭 Máquina",o.tipoMaquina],["💶 Importe",(o.importe||0).toLocaleString("es-ES")+" €"],["📅 Fecha",o.fechaOferta?new Date(o.fechaOferta).toLocaleDateString("es-ES"):"—"],["👷 Responsable",o.responsableNombre||"—"],["📞 Llamadas",o.numLlamadas||0],["💬 Último resultado",o.ultimoResultado||"—"]].map(([k,v])=>`<div style="background:var(--surface);border-radius:8px;padding:9px 12px"><div style="color:var(--text3);font-size:10px;font-weight:700">${_esc(k)}</div><div style="color:var(--text);font-size:13px;margin-top:2px">${_esc(String(v||"—"))}</div></div>`).join("")}
+      ${[["📋 Referencia",o.referencia],["👤 Contacto",o.contacto],["📞 Teléfono",o.telefono],["📱 Teléfono Móvil",o.telefonoMovil],["📧 Correo",o.email],["📍 Provincia",o.provincia],["🏭 Máquina",o.tipoMaquina],["💶 Importe",(o.importe||0).toLocaleString("es-ES")+" €"],["📅 Fecha",o.fechaOferta?new Date(o.fechaOferta+"T12:00:00").toLocaleDateString("es-ES"):"—"],["👷 Responsable",o.responsableNombre||"—"],["📞 Llamadas",o.numLlamadas||0],["💬 Último resultado",o.ultimoResultado||"—"]].map(([k,v])=>`<div style="background:var(--surface);border-radius:8px;padding:9px 12px"><div style="color:var(--text3);font-size:10px;font-weight:700">${_esc(k)}</div><div style="color:var(--text);font-size:13px;margin-top:2px">${_esc(String(v||"—"))}</div></div>`).join("")}
     </div>
     ${o.origenContacto?`<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:9px 12px;margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700">📣 ORIGEN DEL CONTACTO</div><div style="color:#0369a1;font-size:13px;font-weight:700;margin-top:2px">${_esc(o.origenContacto)}</div></div>`:""}
-    ${o.fechaRecordatorio?`<div style="background:${vence?"#fff0e6":"var(--accent-light)"};border:1px solid ${vence?"#fbd0b0":"#b8d0f5"};border-radius:8px;padding:9px 12px;margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700">🔔 RECORDATORIO</div><div style="color:${vence?"var(--orange)":"var(--accent)"};font-size:13px;font-weight:600;margin-top:2px">${new Date(o.fechaRecordatorio).toLocaleDateString("es-ES")}${vence?" — ¡VENCIDO!":""}</div></div>`:""}
-    ${o.fechaPrevistaCierre?`<div style="background:#f0fdf4;border:1px solid #b7e4d1;border-radius:8px;padding:9px 12px;margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700">🎯 FECHA PREVISTA DE CIERRE</div><div style="color:var(--green);font-size:13px;font-weight:700;margin-top:2px">${new Date(o.fechaPrevistaCierre).toLocaleDateString("es-ES")}</div></div>`:""}
-    ${(o.proximaAccion||o.fechaProximaAccion)?`<div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:8px;padding:9px 12px;margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700">➡️ PRÓXIMA ACCIÓN</div><div style="color:#7c3aed;font-size:13px;font-weight:600;margin-top:2px">${_esc(o.proximaAccion||"—")}${o.fechaProximaAccion?` <span style="color:var(--text3);font-size:11px;font-weight:500">· ${new Date(o.fechaProximaAccion).toLocaleDateString("es-ES")}</span>`:""}</div></div>`:""}
+    ${o.fechaRecordatorio?`<div style="background:${vence?"#fff0e6":"var(--accent-light)"};border:1px solid ${vence?"#fbd0b0":"#b8d0f5"};border-radius:8px;padding:9px 12px;margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700">🔔 RECORDATORIO</div><div style="color:${vence?"var(--orange)":"var(--accent)"};font-size:13px;font-weight:600;margin-top:2px">${new Date(o.fechaRecordatorio+"T12:00:00").toLocaleDateString("es-ES")}${vence?" — ¡VENCIDO!":""}</div></div>`:""}
+    ${o.fechaPrevistaCierre?`<div style="background:#f0fdf4;border:1px solid #b7e4d1;border-radius:8px;padding:9px 12px;margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700">🎯 FECHA PREVISTA DE CIERRE</div><div style="color:var(--green);font-size:13px;font-weight:700;margin-top:2px">${new Date(o.fechaPrevistaCierre+"T12:00:00").toLocaleDateString("es-ES")}</div></div>`:""}
+    ${(o.proximaAccion||o.fechaProximaAccion)?`<div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:8px;padding:9px 12px;margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700">➡️ PRÓXIMA ACCIÓN</div><div style="color:#7c3aed;font-size:13px;font-weight:600;margin-top:2px">${_esc(o.proximaAccion||"—")}${o.fechaProximaAccion?` <span style="color:var(--text3);font-size:11px;font-weight:500">· ${new Date(o.fechaProximaAccion+"T12:00:00").toLocaleDateString("es-ES")}</span>`:""}</div></div>`:""}
     ${o.descripcion?`<div style="margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700;margin-bottom:3px">DESCRIPCIÓN</div><div style="color:var(--text2);font-size:13px">${_esc(o.descripcion)}</div></div>`:""}
     ${(()=>{
       if(!o.notas) return "";
@@ -6020,7 +6043,7 @@ function verDetalle(id){
     <div style="margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700;margin-bottom:6px">📎 DOCUMENTOS ADJUNTOS</div>${renderArchivosDetalle(o.archivos)}</div>
     <div style="display:flex;gap:8px;margin-top:20px;justify-content:flex-end;flex-wrap:wrap">
       <button class="btn-cancel" onclick="document.getElementById('modal-det').style.display='none'">Cerrar</button>
-      <button style="background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer" onclick="document.getElementById('modal-det').style.display='none';abrirFichaEmpresa('${o.empresa.replace(/'/g,"\\'")}')">🏢 Ver empresa</button>
+      <button data-det-empresa="${_esc(o.empresa)}" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer" onclick="(function(btn){document.getElementById('modal-det').style.display='none';abrirFichaEmpresa(btn.dataset.detEmpresa);})(this)">🏢 Ver empresa</button>
       <button style="background:var(--green-bg);color:var(--green);border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer" onclick="document.getElementById('modal-det').style.display='none';abrirLlamada('${o.id}')">📞 Registrar llamada</button>
       <button class="btn-save" onclick="document.getElementById('modal-det').style.display='none';editarOferta('${o.id}')">✏️ Editar</button>
       ${puedeEliminar?`<button style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer" onclick="document.getElementById('modal-det').style.display='none';eliminarOferta('${o.id}')">🗑 Eliminar</button>`:""}
@@ -6153,7 +6176,12 @@ async function importarDesdeWord(event){
     if(datos.telefono)    _set("f-tel",        datos.telefono);
     if(datos.movil)       _set("f-movil",      datos.movil);
     if(datos.email)       _set("f-email",      datos.email);
-    if(datos.referencia)  _set("f-referencia", datos.referencia);
+    if(datos.referencia){
+      _set("f-referencia", datos.referencia);
+      // Mostrar badge visual "📄 desde Word" junto al campo
+      const badge=document.getElementById("ref-word-badge");
+      if(badge) badge.style.display="inline";
+    }
     if(datos.descripcion) _set("f-desc",       datos.descripcion);
     if(datos.fecha)       _set("f-fecha",      datos.fecha);
     if(datos.importe)     _set("f-importe",    datos.importe);
@@ -6296,23 +6324,99 @@ function _extraerCamposWord(texto){
     return "";
   }
 
-  /* ── Número de oferta / referencia ── */
-  // Patrones explícitos con etiqueta
+  /* ══════════════════════════════════════════════════════════════
+     ── Número de oferta / referencia ──────────────────────────────
+     Estrategia de 4 capas, de más específica a más genérica:
+       1) Etiqueta explícita (Nº Oferta:, Ref:, Presupuesto Nº …)
+       2) Formatos estructurados conocidos (OF-2026-001, PRE-26-001…)
+       3) Patrones alfanuméricos de referencia genérica
+       4) Código entre corchetes / paréntesis tipo [REF-XXX]
+     ══════════════════════════════════════════════════════════════ */
+
+  // ── Capa 1: Etiquetas explícitas ──────────────────────────────
   const patronesOferta=[
-    /N[º°\.]\s*(?:OFERTA|OF\.?)\s*[:·]?\s*/i,
+    // Nº / Núm de oferta
+    /N[º°\.ú]\s*(?:DE\s*)?(?:OFERTA|OF\.?)\s*[:·]?\s*/i,
     /OFERTA\s*N[º°\.]\s*[:·]?\s*/i,
-    /OFERTA\s*[:·]\s*/i,
-    /REF(?:ERENCIA)?\.?\s*(?:DE\s*OFERTA)?\s*[:·]\s*/i,
-    /N[º°]\s*PRESUPUESTO\s*[:·]?\s*/i,
+    /OFERTA\s*(?:N[º°]|NUM\.?|N[Ú]M\.?)\s*[:·]?\s*/i,
+    /N[º°]\s*OFERTA\s*[:·]?\s*/i,
+    // Solo "OFERTA:" con valor claro (no texto largo)
+    /^OFERTA\s*[:·]\s*/i,
+    // Referencia
+    /^REF(?:ERENCIA)?\.?\s*(?:OFERTA|PEDIDO|CLIENTE|INTERNA)?\s*[:·]\s*/i,
+    /^REFERENCIA\s*[:··]\s*/i,
+    // Presupuesto
+    /N[º°\.]\s*PRESUPUESTO\s*[:·]?\s*/i,
+    /PRESUPUESTO\s*N[º°\.]\s*[:·]?\s*/i,
+    /PRESUPUESTO\s*[:·]\s*/i,
+    // Cotización / Pedido / Orden
+    /N[º°\.]\s*(?:COTIZACI[OÓ]N|PEDIDO|ORDEN)\s*[:·]?\s*/i,
+    /(?:COTIZACI[OÓ]N|PEDIDO|ORDEN)\s*N[º°\.]\s*[:·]?\s*/i,
+    // Inglés
+    /(?:QUOTATION|QUOTE|ORDER|INQUIRY|ENQUIRY)\s*(?:N[º°.]|NO\.?|REF\.?)?\s*[:·]?\s*/i,
+    /(?:YOUR\s+REF(?:ERENCE)?|OUR\s+REF(?:ERENCE)?)\s*[:·]?\s*/i,
+    // Expediente / Proyecto
+    /(?:EXPEDIENTE|PROYECTO|EXP\.?)\s*N[º°.]?\s*[:·]?\s*/i,
+    /N[º°\.]\s*EXPEDIENTE\s*[:·]?\s*/i,
   ];
-  datos.referencia=buscar(patronesOferta);
-  // Buscar formato Marcopack OF-YYYY-NNN o similar en todo el texto
+  datos.referencia = buscar(patronesOferta);
+
+  // Limpiar texto sobrante si el valor capturado empieza por texto de otra etiqueta
+  if(datos.referencia){
+    // Truncar si hay salto a otra sección (p.ej. "OF-2026-001 Empresa: Acme")
+    datos.referencia = datos.referencia.split(/\s{2,}|(?:\s(?:EMPRESA|CLIENTE|DIR|TEL|FAX|EMAIL)[:·])/i)[0].trim();
+    // Eliminar el sufijo de fecha que a veces queda pegado ("OF-2026-001 15/04/2026")
+    datos.referencia = datos.referencia.replace(/\s+\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}.*$/,"").trim();
+  }
+
+  // ── Capa 2: Formatos estructurados conocidos ──────────────────
+  if(!datos.referencia){
+    const patronesFormato=[
+      /\b(OF[-_]?\d{2,4}[-_]\d{2,4}(?:[-_]\w{1,6})?)\b/i,   // OF-2026-001, OF26-001
+      /\b(PRE[-_]?\d{2,4}[-_]\d{2,4}(?:[-_]\w{1,6})?)\b/i,  // PRE-2026-001
+      /\b(COT[-_]?\d{2,4}[-_]\d{2,4}(?:[-_]\w{1,6})?)\b/i,  // COT-2026-001
+      /\b(PED[-_]?\d{2,4}[-_]\d{2,4}(?:[-_]\w{1,6})?)\b/i,  // PED-2026-001
+      /\b(QU[-_]?\d{2,4}[-_]\d{2,4}(?:[-_]\w{1,6})?)\b/i,   // QU-2026-001
+      /\b(EXP[-_]?\d{2,4}[-_]\d{2,4}(?:[-_]\w{1,6})?)\b/i,  // EXP-2026-001
+      /\b(\d{4}[-_]\d{3,5}[-_][A-Z]{1,4})\b/,                // 2026-001-MP
+      /\b([A-Z]{2,4}[-_]\d{4}[-_]\d{3,5})\b/,                // MP-2026-001
+    ];
+    for(const l of lineas){
+      for(const p of patronesFormato){
+        const m=l.match(p);
+        if(m){ datos.referencia=m[1]; break; }
+      }
+      if(datos.referencia) break;
+    }
+  }
+
+  // ── Capa 3: Patrón alfanumérico genérico de referencia ────────
+  // Busca en líneas que contengan palabras clave de referencia
+  if(!datos.referencia){
+    const refsKeywords=/\b(REF|OFERTA|PRESUPUESTO|N[º°]|NUM|REFERENCIA|QUOTE|ORDER|COTIZ)\b/i;
+    for(const l of lineas){
+      if(refsKeywords.test(l)){
+        // Extraer código alfanumérico: al menos 2 letras y 2 dígitos
+        const m=l.match(/\b([A-Z0-9][A-Z0-9\-_\/\.]{3,20})\b/i);
+        if(m && /[A-Z]/i.test(m[1]) && /\d/.test(m[1])){
+          // Excluir emails, URLs, fechas
+          if(!/[@\.]/.test(m[1]) && !/^\d{4}[-\/]\d{2}[-\/]\d{2}$/.test(m[1])){
+            datos.referencia=m[1];
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // ── Capa 4: Código entre corchetes o paréntesis ───────────────
   if(!datos.referencia){
     for(const l of lineas){
-      const m=l.match(/\b(OF[-_]?\d{4}[-_]\d{3,4})\b/i)
-             ||l.match(/\b(\d{4}[-_]\d{3,4}[-_]\w{2,})\b/)
-             ||l.match(/\b(PRE[-_]?\d{4}[-_]\d{3,})\b/i);
-      if(m){ datos.referencia=m[1]; break; }
+      const m=l.match(/[\[\(]([A-Z0-9][A-Z0-9\-_\/\.]{2,18})[\]\)]/i);
+      if(m && /[A-Z]/i.test(m[1]) && /\d/.test(m[1])){
+        datos.referencia=m[1];
+        break;
+      }
     }
   }
 
@@ -6541,7 +6645,9 @@ function abrirModal(o){
   if(wordPanel) wordPanel.style.display=o?"none":"flex";
   const wordStatus=document.getElementById("import-word-status");
   if(wordStatus){wordStatus.style.display="none";wordStatus.textContent="";}
-  if(o){
+  // Ocultar badge "desde Word" al abrir modal
+  const refBadge=document.getElementById("ref-word-badge");
+  if(refBadge) refBadge.style.display="none";  if(o){
     document.getElementById("f-num").value=o.numeroOferta;
     document.getElementById("f-num").removeAttribute("placeholder");
   } else {
@@ -7133,8 +7239,8 @@ async function mcRenderUsuarios(){
             ${['comercial','admin','lectura'].map(r=>`<option value="${r}"${u.rol===r?' selected':''}>${r}</option>`).join('')}
           </select>`}</div>
         <div style="text-align:center;display:flex;justify-content:center;gap:6px;flex-wrap:wrap">
-          <button onclick="mcResetPassword('${(u.email||'').replace(/'/g,'')}')" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:900;cursor:pointer">🔑 Contraseña</button>
-          ${!esMio?`<button onclick="mcEliminarUsuario('${u.id}','${((u.nombre||u.email)||'').replace(/'/g,'')}',${nOfertas})" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:900;cursor:pointer">🗑 Eliminar</button>`:`<span style="color:var(--text3);font-size:11px">—</span>`}
+          <button data-email="${_esc(u.email||'')}" onclick="mcResetPassword(this.dataset.email)" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:900;cursor:pointer">🔑 Contraseña</button>
+          ${!esMio?`<button data-uid="${u.id}" data-nombre="${_esc(u.nombre||u.email||'')}" data-ofertas="${nOfertas}" onclick="mcEliminarUsuario(this.dataset.uid,this.dataset.nombre,parseInt(this.dataset.ofertas))" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:900;cursor:pointer">🗑 Eliminar</button>`:`<span style="color:var(--text3);font-size:11px">—</span>`}
         </div>
       </div>`;
     }).join('')}
@@ -7804,7 +7910,7 @@ async function cargarPapelera(){
           </div>
           <div style="display:flex;gap:6px;flex-shrink:0">
             <button onclick="recuperarOferta('${o.id}')" style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">♻️ Recuperar</button>
-            <button onclick="eliminarDefinitivamente('${o.id}','${(o.empresa||"").replace(/'/g,"\\'")}','${o.numeroOferta||""}')" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">🗑 Borrar definitivo</button>
+            <button data-oid="${o.id}" data-emp="${_esc(o.empresa||"")}" data-num="${_esc(o.numeroOferta||"")}" onclick="eliminarDefinitivamente(this.dataset.oid,this.dataset.emp,this.dataset.num)" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">🗑 Borrar definitivo</button>
           </div>
         </div>`;
       }).join("")}`;
@@ -7819,7 +7925,7 @@ async function cargarPapelera(){
           <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700">${_esc(o.empresa||"—")} <span style="color:var(--text3);font-size:11px">${_esc(o.numeroOferta||"")}</span></div><div style="color:var(--text3);font-size:11px;margin-top:2px">Responsable: ${_esc(o.responsableNombre||"—")}</div></div>
           <div style="display:flex;gap:6px">
             <button onclick="recuperarOferta('${o.id}')" style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">♻️ Recuperar</button>
-            <button onclick="eliminarDefinitivamente('${o.id}','${(o.empresa||"").replace(/'/g,"\\'")}','${o.numeroOferta||""}')" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">🗑 Definitivo</button>
+            <button data-oid="${o.id}" data-emp="${_esc(o.empresa||"")}" data-num="${_esc(o.numeroOferta||"")}" onclick="eliminarDefinitivamente(this.dataset.oid,this.dataset.emp,this.dataset.num)" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">🗑 Definitivo</button>
           </div>
         </div>`).join("");
     }catch(e2){body.innerHTML=`<div style="color:var(--red);font-size:12px">❌ Error: ${e2.message}</div>`;}
