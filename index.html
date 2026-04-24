@@ -1401,9 +1401,7 @@ async function subirArchivoOneDrive(file, token, fileBuffer){
   const safeName   = file.name.replace(/[\/\?%\*:|"<>]/g,'_');
   const timestamp  = Date.now();
 
-  // ── El buffer se lee FUERA (en adjuntar) antes del bucle de subidas.
-  // Así se evita que el ArrayBuffer quede "detached" tras el primer fetch.
-  // Si no se pasó buffer externo, lo leemos aquí como fallback.
+  // El buffer ya viene leído desde adjuntar(). No lo releemos del File.
   if(!fileBuffer) fileBuffer = await file.arrayBuffer();
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -6724,12 +6722,14 @@ function cerrarModal(){
 // ===== FIREBASE STORAGE — copia pública para usuarios sin cuenta Microsoft =====
 // Esta función sube una copia del archivo a Firebase Storage y devuelve
 // una URL pública de descarga. No toca OneDrive ni ninguna configuración existente.
-async function subirArchivoFirebaseStorage(file, ofertaId){
+async function subirArchivoFirebaseStorage(file, ofertaId, fileBuffer){
   const nombreSaneado = file.name.replace(/[^a-zA-Z0-9._\-]/g,"_");
   const ts = Date.now();
   const path = `adjuntos_crm/${ofertaId||"temporal"}/${ts}_${nombreSaneado}`;
   const ref = storage.ref(path);
-  const snapshot = await ref.put(file);
+  // Usar el buffer pre-leído si se pasó; si no, leer del File (fallback)
+  const datos = fileBuffer ? new Blob([fileBuffer]) : file;
+  const snapshot = await ref.put(datos);
   const urlPublica = await snapshot.ref.getDownloadURL();
   return urlPublica;
 }
@@ -6768,21 +6768,20 @@ async function adjuntar(e){
   }
   let ok=0,errores=0;
   const nombreUsuario=currentProfile?.nombre||currentUser?.email||"";
-
-  // ── Leer todos los archivos en memoria ANTES de iniciar cualquier subida.
-  // Cuando un ArrayBuffer se pasa como body de fetch(), el navegador lo marca
-  // como "detached" y ya no se puede volver a leer. Si leyéramos dentro del
-  // bucle, el segundo archivo fallaría porque su File ya fue liberado.
-  const fileBuffers=[];
-  for(const f of files){
-    fileBuffers.push(await f.arrayBuffer());
-  }
-
   for(let i=0;i<files.length;i++){
     const f=files[i];
+    // Leer el buffer AQUÍ, antes de cualquier fetch/put, para que esté
+    // disponible tanto para OneDrive como para Firebase sin agotarse.
+    let fileBuffer;
+    try{
+      fileBuffer = await f.arrayBuffer();
+    }catch(readErr){
+      toast(`❌ No se pudo leer ${f.name}`,"#ef4444");
+      continue;
+    }
     if(progressName) progressName.textContent=`Subiendo: ${f.name}`;
     if(progressPct) progressPct.textContent="0%";
-    if(progressBar){ progressBar.style.transition="none"; progressBar.style.width="0%"; void progressBar.offsetWidth; progressBar.style.transition=""; }
+    if(progressBar) progressBar.style.width="0%";
     if(statusEl) statusEl.textContent=`⏳ Subiendo ${i+1} de ${files.length}: ${f.name}`;
     // Simular progreso visual mientras sube
     let prog=0;
@@ -6794,8 +6793,7 @@ async function adjuntar(e){
     try{
       const ext=f.name.split(".").pop().toLowerCase();
       const icono=ext==="pdf"?"📕":ext==="doc"||ext==="docx"?"📘":ext==="xls"||ext==="xlsx"?"📗":ext==="png"||ext==="jpg"||ext==="jpeg"?"🖼️":"📄";
-      // Pasar el buffer pre-leído — no se re-leerá del File dentro de subirArchivoOneDrive
-      const resultado=await subirArchivoOneDrive(f,token,fileBuffers[i]);
+      const resultado=await subirArchivoOneDrive(f,token,fileBuffer);
       clearInterval(interval);
       if(progressBar) progressBar.style.width="100%";
       if(progressPct) progressPct.textContent="100%";
@@ -6805,7 +6803,7 @@ async function adjuntar(e){
       // pueda ver y descargar sin necesitar cuenta Microsoft.
       let urlFirebase = null;
       try{
-        urlFirebase = await subirArchivoFirebaseStorage(f, editandoId||"nueva");
+        urlFirebase = await subirArchivoFirebaseStorage(f, editandoId||"nueva", fileBuffer);
       }catch(fbErr){
         console.warn("[Firebase Storage] Copia de respaldo fallida (no crítico):", fbErr.message);
       }
@@ -6826,7 +6824,7 @@ async function adjuntar(e){
     }
     renderArchivos();
   }
-  // Ocultar barra cuando han terminado TODOS los archivos del bucle
+  // Ocultar la barra cuando han terminado TODOS los archivos
   if(progressWrap) progressWrap.style.display="none";
   if(statusEl){
     if(errores===0) statusEl.textContent=`✅ ${ok} archivo${ok!==1?"s":""} subido${ok!==1?"s":""} correctamente`;
