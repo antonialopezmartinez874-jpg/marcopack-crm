@@ -3294,25 +3294,19 @@ function cerrarSmartNotif(){
   if(cont)cont.innerHTML="";
 }
 
-// ===== TABLA CON PAGINACIÓN (50 por página) =====
+// ===== TABLA SIN PAGINACIÓN — todas las ofertas en lista continua =====
 function renderTabla(){
   const hoy=fechaLocal();
   const hoyCmp=new Date();
-  const todasLasFilas=getFiltradas();
-  const totalRegistros=todasLasFilas.length;
-  const totalPaginas=Math.max(1,Math.ceil(totalRegistros/PAGINACION_POR_PAGINA));
-
-  // Ajustar página actual si se queda fuera de rango (p.ej. al filtrar)
-  if(paginaActual>totalPaginas) paginaActual=1;
-
-  const inicio=(paginaActual-1)*PAGINACION_POR_PAGINA;
-  const fin=Math.min(inicio+PAGINACION_POR_PAGINA,totalRegistros);
-  const rows=todasLasFilas.slice(inicio,fin);
+  const rows=getFiltradas();
+  const totalRegistros=rows.length;
 
   const tbody=document.getElementById("tbody");
   if(!rows.length){
     tbody.innerHTML=`<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:40px">No se encontraron ofertas</td></tr>`;
-    _renderPaginacion(0,0,1,1);
+    // Limpiar barra de paginación si existe
+    const pag=document.getElementById("paginacion-bar");
+    if(pag) pag.innerHTML="";
     return;
   }
   tbody.innerHTML=rows.map((o,idx)=>{
@@ -3339,18 +3333,15 @@ function renderTabla(){
       <td>${o.fechaRecordatorio?`<span style="color:${vence?"#fb923c":"#94a3b8"};font-weight:${vence?700:400}">${vence?"⚠️ ":"🔔 "}${new Date(o.fechaRecordatorio).toLocaleDateString("es-ES")}</span>`:"<span style='color:#334155'>—</span>"}</td>
       <td style="color:${inactiva?"#ef4444":"#64748b"};font-size:11px">${diasInact!==null?`${diasInact}d${inactiva?" ⚠️":""}`:""}</td>
       <td onclick="event.stopPropagation()"><div style="display:flex;gap:3px">
-        <button class="btn-sm" style="background:#1a2a1a;color:#4ade80;padding:5px 8px" onclick="abrirLlamada('${o.id}')">📞</button>
-        <button class="btn-sm" style="background:var(--border2);color:var(--accent);padding:5px 8px" onclick="editarOferta('${o.id}')">✏️</button>
+        ${currentProfile.rol!=="lectura"?`<button class="btn-sm" style="background:#1a2a1a;color:#4ade80;padding:5px 8px" onclick="abrirLlamada('${o.id}')">📞</button>`:""}
+        ${currentProfile.rol!=="lectura"?`<button class="btn-sm" style="background:var(--border2);color:var(--accent);padding:5px 8px" onclick="editarOferta('${o.id}')">✏️</button>`:""}
         ${currentProfile.rol==="admin"?`<button class="btn-sm" style="background:#2d1515;color:#ef4444;padding:5px 8px" onclick="eliminarOferta('${o.id}')">🗑</button>`:""}
+        ${currentProfile.rol==="lectura"?`<button class="btn-sm" style="background:var(--accent-light);color:var(--accent);padding:5px 8px" onclick="verDetalle('${o.id}')">👁 Ver</button>`:""}
       </div></td>
     </tr>`;
   }).join("");
 
-  _renderPaginacion(inicio,fin,totalRegistros,totalPaginas);
-}
-
-function _renderPaginacion(inicio,fin,total,totalPaginas){
-  // Buscar o crear el contenedor de paginación bajo la tabla
+  // Mostrar contador de resultados (reemplaza la paginación)
   let pag=document.getElementById("paginacion-bar");
   if(!pag){
     pag=document.createElement("div");
@@ -3358,47 +3349,11 @@ function _renderPaginacion(inicio,fin,total,totalPaginas){
     const tableWrap=document.querySelector(".table-wrap");
     if(tableWrap) tableWrap.appendChild(pag);
   }
-  if(total===0){ pag.innerHTML=""; return; }
-
-  // Números de página a mostrar (máx 5 botones + primera y última)
-  const rango=2; // botones a cada lado de la página actual
-  let pagsBtns=[];
-  for(let p=Math.max(1,paginaActual-rango);p<=Math.min(totalPaginas,paginaActual+rango);p++) pagsBtns.push(p);
-
-  const btnStyle=(activo)=>`background:${activo?"var(--accent)":"var(--surface)"};color:${activo?"white":"var(--text2)"};border:1.5px solid ${activo?"var(--accent)":"var(--border)"};border-radius:var(--radius-sm);padding:5px 10px;font-size:12px;font-weight:${activo?700:600};cursor:pointer;font-family:inherit;min-width:34px;transition:all .15s`;
-  const btnDisabled=`background:var(--surface2);color:var(--text3);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:5px 10px;font-size:12px;cursor:not-allowed;min-width:34px;opacity:.5`;
-
-  pag.innerHTML=`
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:10px 0 18px">
-      <div style="font-size:12px;color:var(--text3);font-weight:600">
-        Mostrando <strong style="color:var(--text)">${inicio+1}–${fin}</strong> de <strong style="color:var(--text)">${total}</strong> ofertas
-      </div>
-      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
-        <button style="${paginaActual<=1?btnDisabled:btnStyle(false)}" onclick="irPagina(1)" ${paginaActual<=1?'disabled':''} title="Primera página">«</button>
-        <button style="${paginaActual<=1?btnDisabled:btnStyle(false)}" onclick="irPagina(${paginaActual-1})" ${paginaActual<=1?'disabled':''} title="Anterior">‹</button>
-        ${pagsBtns[0]>1?`<span style="color:var(--text3);padding:0 4px">…</span>`:""}
-        ${pagsBtns.map(p=>`<button style="${btnStyle(p===paginaActual)}" onclick="irPagina(${p})">${p}</button>`).join("")}
-        ${pagsBtns[pagsBtns.length-1]<totalPaginas?`<span style="color:var(--text3);padding:0 4px">…</span>`:""}
-        <button style="${paginaActual>=totalPaginas?btnDisabled:btnStyle(false)}" onclick="irPagina(${paginaActual+1})" ${paginaActual>=totalPaginas?'disabled':''} title="Siguiente">›</button>
-        <button style="${paginaActual>=totalPaginas?btnDisabled:btnStyle(false)}" onclick="irPagina(${totalPaginas})" ${paginaActual>=totalPaginas?'disabled':''} title="Última página">»</button>
-        <span style="color:var(--text3);font-size:11px;margin-left:4px">Pág. ${paginaActual}/${totalPaginas}</span>
-      </div>
-    </div>`;
+  pag.innerHTML=`<div style="padding:10px 0 18px;font-size:12px;color:var(--text3);font-weight:600">
+    Total: <strong style="color:var(--text)">${totalRegistros}</strong> oferta${totalRegistros!==1?"s":""}
+  </div>`;
 }
-
-function irPagina(p){
-  paginaActual=p;
-  // Limpiar selección al cambiar de página para evitar borrar ofertas de páginas anteriores
-  ofertasSeleccionadas.clear();
-  const cnt=document.getElementById("seleccion-count");
-  const btn=document.getElementById("btn-borrar-sel");
-  if(cnt) cnt.textContent="";
-  if(btn) btn.style.display="none";
-  renderTabla();
-  // Scroll suave al inicio de la tabla
-  const tw=document.querySelector(".table-wrap");
-  if(tw) tw.scrollIntoView({behavior:"smooth",block:"start"});
-}
+// _renderPaginacion e irPagina eliminados — la tabla ahora muestra todas las ofertas sin paginación
 
 // ===== ESTADÍSTICAS (RESUMEN) =====
 function renderEstadisticasResumen(){
@@ -6012,8 +5967,8 @@ function verDetalle(id){
     <div style="display:flex;gap:8px;margin-top:20px;justify-content:flex-end;flex-wrap:wrap">
       <button class="btn-cancel" onclick="document.getElementById('modal-det').style.display='none'">Cerrar</button>
       <button style="background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer" onclick="document.getElementById('modal-det').style.display='none';abrirFichaEmpresa('${o.empresa.replace(/'/g,"\\'")}')">🏢 Ver empresa</button>
-      <button style="background:var(--green-bg);color:var(--green);border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer" onclick="document.getElementById('modal-det').style.display='none';abrirLlamada('${o.id}')">📞 Registrar llamada</button>
-      <button class="btn-save" onclick="document.getElementById('modal-det').style.display='none';editarOferta('${o.id}')">✏️ Editar</button>
+      ${currentProfile.rol!=="lectura"?`<button style="background:var(--green-bg);color:var(--green);border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer" onclick="document.getElementById('modal-det').style.display='none';abrirLlamada('${o.id}')">📞 Registrar llamada</button>`:""}
+      ${currentProfile.rol!=="lectura"?`<button class="btn-save" onclick="document.getElementById('modal-det').style.display='none';editarOferta('${o.id}')">✏️ Editar</button>`:""}
       ${puedeEliminar?`<button style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer" onclick="document.getElementById('modal-det').style.display='none';eliminarOferta('${o.id}')">🗑 Eliminar</button>`:""}
     </div>`;
   document.getElementById("modal-det").style.display="flex";
@@ -6144,10 +6099,11 @@ async function importarDesdeWord(event){
     if(datos.telefono)    _set("f-tel",        datos.telefono);
     if(datos.movil)       _set("f-movil",      datos.movil);
     if(datos.email)       _set("f-email",      datos.email);
-    if(datos.referencia)  _set("f-referencia", datos.referencia);
+    // Referencia e Importe siempre en blanco (se rellenan manualmente)
+    // if(datos.referencia)  _set("f-referencia", datos.referencia);  // DESACTIVADO — se rellena a mano
     if(datos.descripcion) _set("f-desc",       datos.descripcion);
     if(datos.fecha)       _set("f-fecha",      datos.fecha);
-    if(datos.importe)     _set("f-importe",    datos.importe);
+    // if(datos.importe)     _set("f-importe",    datos.importe);  // DESACTIVADO — importe siempre en blanco
 
     // País — España ya es predeterminado; solo sobreescribir si el Word indica otro
     if(datos.pais && datos.pais!=="España"){
@@ -6552,7 +6508,7 @@ function abrirModal(o){
   document.getElementById("f-tipo").value=o?.tipoMaquina||"";
   document.getElementById("f-otros").value=o?.otros||"";
   document.getElementById("f-desc").value=o?.descripcion||"";
-  document.getElementById("f-importe").value=o?.importe||"";
+  document.getElementById("f-importe").value=o?.id?(o?.importe||""):""; // siempre en blanco en nueva oferta
   document.getElementById("f-est-form").value=o?.estado||"Pendiente";
   document.getElementById("f-resp-form").value=o?.responsableNombre||currentProfile.nombre;
   document.getElementById("f-recod").value=o?.fechaRecordatorio||"";
@@ -6571,7 +6527,7 @@ function abrirModal(o){
     else if(rawNotas.includes(SEP_OLD)) notasLibres=rawNotas.split(SEP_OLD)[0];
     document.getElementById("f-notas").value=notasLibres;
   })();
-  document.getElementById("f-referencia").value=o?.referencia||"";
+  document.getElementById("f-referencia").value=o?.id?(o?.referencia||""):""; // siempre en blanco en nueva oferta
   renderArchivos();
   _familiaActiva=null;
   cargarTiposPersonalizados();
