@@ -1960,8 +1960,8 @@ let ofertasSeleccionadas=new Set();
 // Variable para gráfica custom de estadísticas
 let _stCustomChart=null;
 
-// ===== PAGINACIÓN — TABLA =====
-const PAGINACION_POR_PAGINA=50;
+// ===== SIN PAGINACIÓN — todas las ofertas en lista correlativa =====
+const PAGINACION_POR_PAGINA=99999;
 let paginaActual=1;
 
 // ===== AUTH =====
@@ -3326,7 +3326,7 @@ function cerrarSmartNotif(){
   if(cont)cont.innerHTML="";
 }
 
-// ===== TABLA CON PAGINACIÓN (50 por página) =====
+// ===== TABLA — todas las ofertas sin paginación =====
 function renderTabla(){
   const hoy=fechaLocal();
   const hoyCmp=new Date();
@@ -3392,28 +3392,11 @@ function _renderPaginacion(inicio,fin,total,totalPaginas){
   }
   if(total===0){ pag.innerHTML=""; return; }
 
-  // Números de página a mostrar (máx 5 botones + primera y última)
-  const rango=2; // botones a cada lado de la página actual
-  let pagsBtns=[];
-  for(let p=Math.max(1,paginaActual-rango);p<=Math.min(totalPaginas,paginaActual+rango);p++) pagsBtns.push(p);
-
-  const btnStyle=(activo)=>`background:${activo?"var(--accent)":"var(--surface)"};color:${activo?"white":"var(--text2)"};border:1.5px solid ${activo?"var(--accent)":"var(--border)"};border-radius:var(--radius-sm);padding:5px 10px;font-size:12px;font-weight:${activo?700:600};cursor:pointer;font-family:inherit;min-width:34px;transition:all .15s`;
-  const btnDisabled=`background:var(--surface2);color:var(--text3);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:5px 10px;font-size:12px;cursor:not-allowed;min-width:34px;opacity:.5`;
-
+  // Sin paginación: solo mostrar contador total de resultados
   pag.innerHTML=`
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:10px 0 18px">
+    <div style="display:flex;align-items:center;padding:10px 0 18px">
       <div style="font-size:12px;color:var(--text3);font-weight:600">
-        Mostrando <strong style="color:var(--text)">${inicio+1}–${fin}</strong> de <strong style="color:var(--text)">${total}</strong> ofertas
-      </div>
-      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
-        <button style="${paginaActual<=1?btnDisabled:btnStyle(false)}" onclick="irPagina(1)" ${paginaActual<=1?'disabled':''} title="Primera página">«</button>
-        <button style="${paginaActual<=1?btnDisabled:btnStyle(false)}" onclick="irPagina(${paginaActual-1})" ${paginaActual<=1?'disabled':''} title="Anterior">‹</button>
-        ${pagsBtns[0]>1?`<span style="color:var(--text3);padding:0 4px">…</span>`:""}
-        ${pagsBtns.map(p=>`<button style="${btnStyle(p===paginaActual)}" onclick="irPagina(${p})">${p}</button>`).join("")}
-        ${pagsBtns[pagsBtns.length-1]<totalPaginas?`<span style="color:var(--text3);padding:0 4px">…</span>`:""}
-        <button style="${paginaActual>=totalPaginas?btnDisabled:btnStyle(false)}" onclick="irPagina(${paginaActual+1})" ${paginaActual>=totalPaginas?'disabled':''} title="Siguiente">›</button>
-        <button style="${paginaActual>=totalPaginas?btnDisabled:btnStyle(false)}" onclick="irPagina(${totalPaginas})" ${paginaActual>=totalPaginas?'disabled':''} title="Última página">»</button>
-        <span style="color:var(--text3);font-size:11px;margin-left:4px">Pág. ${paginaActual}/${totalPaginas}</span>
+        <strong style="color:var(--text)">${total}</strong> oferta${total!==1?"s":""} encontrada${total!==1?"s":""}
       </div>
     </div>`;
 }
@@ -6809,12 +6792,15 @@ async function adjuntar(e){
       ok++;
     }catch(err){
       clearInterval(interval);
+      if(progressBar) progressBar.style.width="0%";
+      if(progressPct) progressPct.textContent="0%";
+      if(progressWrap) progressWrap.style.display="none";
       errores++;
       toast(`❌ Error subiendo ${f.name}: ${err.message}`,"#ef4444");
     }
     renderArchivos();
   }
-  setTimeout(()=>{if(progressWrap) progressWrap.style.display="none";},800);
+  setTimeout(()=>{if(progressWrap) progressWrap.style.display="none";},1200);
   if(statusEl){
     if(errores===0) statusEl.textContent=`✅ ${ok} archivo${ok!==1?"s":""} subido${ok!==1?"s":""} correctamente`;
     else statusEl.textContent=`✅ ${ok} subido${ok!==1?"s":""} · ⚠️ ${errores} con error`;
