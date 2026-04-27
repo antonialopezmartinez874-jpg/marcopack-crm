@@ -682,6 +682,10 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
     <select id="f-tipo-filtro" onchange="paginaActual=1;renderVista()" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:7px 11px;color:var(--text);font-size:12px;font-family:inherit;transition:border-color .2s">
       <option value="">🔧 Todos los tipos</option>
     </select>
+    <!-- Filtro Distribuidor -->
+    <select id="f-distribuidor-filtro" onchange="paginaActual=1;renderVista()" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:7px 11px;color:var(--text);font-size:12px;font-family:inherit;transition:border-color .2s">
+      <option value="">🏢 Todos los distribuidores</option>
+    </select>
     <!-- Filtro rango importe -->
     <div style="position:relative;display:inline-block" id="importe-dropdown-wrap">
       <button onclick="toggleImporteDropdown()" id="importe-btn" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px;cursor:pointer;min-width:140px;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:6px">
@@ -929,6 +933,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
           </select>
         </div>
       </div>
+      <div class="field"><label>🏢 Distribuidor <span style="color:var(--text3);font-size:10px;font-weight:400">(nombre del distribuidor o agente, si aplica)</span></label><input id="f-distribuidor" placeholder="Ej: Distribuciones García S.L., Agente Torres..."/></div>
  <div class="grid2">
   <div class="field"><label>➡️ Próxima acción</label><input id="f-next" placeholder="Ej: enviar catálogo, pedir confirmación..."/></div>
   <div class="field"><label>📅 Fecha próxima acción</label><input type="date" id="f-nextdate"/></div>
@@ -1947,7 +1952,7 @@ const DIAS_ALERTA=60; // días sin actividad para generar alerta
 
 // ===== ESTADO =====
 let currentUser=null,currentProfile=null;
-let ofertas=[],ordenCampo="fechaOferta",ordenDir="desc";
+let ofertas=[],ordenCampo="numeroOferta",ordenDir="asc";
 let vistaActual="dashboard",archivosTemp=[],editandoId=null,llamadaOfertaId=null;
 let _ofertasUnsub=null;
 // Variables de presencia y concurrencia
@@ -2140,7 +2145,7 @@ async function doLogout(){
   llCalDiaSel=null;
   // Limpiar filtros nuevos
   try{
-    const ids=["busqueda","f-est","f-resp","f-tipo-filtro","f-imp-min","f-imp-max","f-fecha-desde","f-fecha-hasta"];
+    const ids=["busqueda","f-est","f-resp","f-tipo-filtro","f-distribuidor-filtro","f-imp-min","f-imp-max","f-fecha-desde","f-fecha-hasta"];
     ids.forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
     const lbl1=document.getElementById("importe-btn-label"); if(lbl1)lbl1.textContent="💶 Importe";
     const lbl2=document.getElementById("fecha-btn-label");   if(lbl2)lbl2.textContent="📅 Fecha";
@@ -2364,6 +2369,15 @@ function escucharOfertas(){
       tipos.forEach(t=>fTipoFiltro.add(new Option(t,t)));
       if(valActual&&tipos.includes(valActual))fTipoFiltro.value=valActual;
     }
+    // Actualizar selector de distribuidor
+    const fDistFiltro=document.getElementById("f-distribuidor-filtro");
+    if(fDistFiltro){
+      const valActual=fDistFiltro.value;
+      const dists=[...new Set(ofertas.map(o=>o.distribuidor).filter(Boolean))].sort();
+      fDistFiltro.innerHTML='<option value="">🏢 Todos los distribuidores</option>';
+      dists.forEach(d=>fDistFiltro.add(new Option(d,d)));
+      if(valActual&&dists.includes(valActual))fDistFiltro.value=valActual;
+    }
     // Actualizar selector del formulario solo si el modal no está abierto (evita reset de selección activa)
     // Usamos window._modalOfertaAbierto como flag fiable en vez de leer style.display
     // (style.display puede ser vacío o transitorio durante animaciones de apertura/cierre)
@@ -2493,19 +2507,21 @@ function getFiltradas(){
   const fe=document.getElementById("f-est").value;
   const fr=document.getElementById("f-resp").value;
   const fTipo=document.getElementById("f-tipo-filtro")?.value||"";
+  const fDistribuidor=document.getElementById("f-distribuidor-filtro")?.value||"";
   const fImpMin=parseFloat(document.getElementById("f-imp-min")?.value)||0;
   const fImpMax=parseFloat(document.getElementById("f-imp-max")?.value)||Infinity;
   const fFechaDesde=document.getElementById("f-fecha-desde")?.value||"";
   const fFechaHasta=document.getElementById("f-fecha-hasta")?.value||"";
   const resultado=ofertas.filter(o=>{
-    const m=!q||[o.empresa,o.contacto,o.numeroOferta,o.provincia,o.descripcion,o.pais,o.tipoMaquina,o.referencia].some(v=>v?.toLowerCase().includes(q));
+    const m=!q||[o.empresa,o.contacto,o.numeroOferta,o.provincia,o.descripcion,o.pais,o.tipoMaquina,o.referencia,o.distribuidor].some(v=>v?.toLowerCase().includes(q));
     const provOk=provinciasSeleccionadas.size===0||provinciasSeleccionadas.has(o.provincia);
     const paisOk=paisesSeleccionados.size===0||paisesSeleccionados.has(o.pais);
     const tipoOk=!fTipo||o.tipoMaquina===fTipo;
+    const distOk=!fDistribuidor||o.distribuidor===fDistribuidor;
     const imp=o.importe||0;
     const impOk=imp>=fImpMin&&(fImpMax===Infinity||imp<=fImpMax);
     const fechaOk=(!fFechaDesde||(o.fechaOferta&&o.fechaOferta>=fFechaDesde))&&(!fFechaHasta||(o.fechaOferta&&o.fechaOferta<=fFechaHasta));
-    return m&&provOk&&paisOk&&tipoOk&&impOk&&fechaOk&&(!fe||o.estado===fe)&&(!fr||o.responsableNombre===fr);
+    return m&&provOk&&paisOk&&tipoOk&&distOk&&impOk&&fechaOk&&(!fe||o.estado===fe)&&(!fr||o.responsableNombre===fr);
   }).sort((a,b)=>{
     const va=a[ordenCampo]??"",vb=b[ordenCampo]??"";
     if(ordenCampo==="numeroOferta"){
@@ -2530,11 +2546,12 @@ function hayFiltrosActivos(){
   const fe=document.getElementById("f-est").value;
   const fr=document.getElementById("f-resp").value;
   const fTipo=document.getElementById("f-tipo-filtro")?.value||"";
+  const fDist=document.getElementById("f-distribuidor-filtro")?.value||"";
   const fImpMin=document.getElementById("f-imp-min")?.value||"";
   const fImpMax=document.getElementById("f-imp-max")?.value||"";
   const fFD=document.getElementById("f-fecha-desde")?.value||"";
   const fFH=document.getElementById("f-fecha-hasta")?.value||"";
-  return !!(q||fe||fr||fTipo||fImpMin||fImpMax||fFD||fFH||provinciasSeleccionadas.size||paisesSeleccionados.size);
+  return !!(q||fe||fr||fTipo||fDist||fImpMin||fImpMax||fFD||fFH||provinciasSeleccionadas.size||paisesSeleccionados.size);
 }
 function actualizarLabelImporte(){
   const mn=document.getElementById("f-imp-min")?.value||"";
@@ -2577,7 +2594,7 @@ function toggleFechaDropdown(){
 }
 function limpiarFiltros(){
   document.getElementById("busqueda").value="";
-  ["f-est","f-resp","f-tipo-filtro","f-imp-min","f-imp-max","f-fecha-desde","f-fecha-hasta"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
+  ["f-est","f-resp","f-tipo-filtro","f-distribuidor-filtro","f-imp-min","f-imp-max","f-fecha-desde","f-fecha-hasta"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
   provinciasSeleccionadas.clear();
   paisesSeleccionados.clear();
   actualizarLabelProv();
@@ -5868,6 +5885,7 @@ function exportarExcel(){
     "Importe €":o.importe||0,
     "Estado":o.estado||"",
     "Origen del contacto":o.origenContacto||"",
+    "Distribuidor":o.distribuidor||"",
     "Motivo Pérdida":o.motivoPerdida||"",
     "Responsable":o.responsableNombre||"",
     "Fecha Oferta":o.fechaOferta||"",
@@ -5935,6 +5953,7 @@ function mostrarPrevistaImport(raw){
     importe:parseFloat(mapCol(row,["Importe €","Importe","importe","Amount"]))||0,
     estado:mapCol(row,["Estado","estado","Status"])||"Pendiente",
     origenContacto:mapCol(row,["Origen del contacto","origenContacto","Origen"])||"",
+    distribuidor:mapCol(row,["Distribuidor","distribuidor"])||"",
     motivoPerdida:mapCol(row,["Motivo Pérdida","motivoPerdida","Motivo"])||"",
     responsableNombre:mapCol(row,["Responsable","responsable","Comercial"])||currentProfile.nombre,
     fechaOferta:mapCol(row,["Fecha Oferta","fecha_oferta","Fecha","Date"])||fechaLocal(),
@@ -6015,7 +6034,7 @@ function verDetalle(id){
     </div>
     ${vence?`<div style="background:var(--orange-bg);border:1px solid #fbd0b0;border-radius:10px;padding:10px 14px;margin-bottom:12px;color:#fb923c;font-size:13px;font-weight:600">⚠️ Recordatorio vencido — Llamar a ${_esc(o.contacto||o.empresa)}</div>`:""}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-      ${[["📋 Referencia",o.referencia],["👤 Contacto",o.contacto],["📞 Teléfono",o.telefono],["📱 Teléfono Móvil",o.telefonoMovil],["📧 Correo",o.email],["📍 Provincia",o.provincia],["🏭 Máquina",o.tipoMaquina],["💶 Importe",(o.importe||0).toLocaleString("es-ES")+" €"],["📅 Fecha",o.fechaOferta?new Date(o.fechaOferta+"T12:00:00").toLocaleDateString("es-ES"):"—"],["👷 Responsable",o.responsableNombre||"—"],["📞 Llamadas",o.numLlamadas||0],["💬 Último resultado",o.ultimoResultado||"—"]].map(([k,v])=>`<div style="background:var(--surface);border-radius:8px;padding:9px 12px"><div style="color:var(--text3);font-size:10px;font-weight:700">${_esc(k)}</div><div style="color:var(--text);font-size:13px;margin-top:2px">${_esc(String(v||"—"))}</div></div>`).join("")}
+      ${[["📋 Referencia",o.referencia],["👤 Contacto",o.contacto],["📞 Teléfono",o.telefono],["📱 Teléfono Móvil",o.telefonoMovil],["📧 Correo",o.email],["📍 Provincia",o.provincia],["🏭 Máquina",o.tipoMaquina],["🏢 Distribuidor",o.distribuidor||"—"],["💶 Importe",(o.importe||0).toLocaleString("es-ES")+" €"],["📅 Fecha",o.fechaOferta?new Date(o.fechaOferta+"T12:00:00").toLocaleDateString("es-ES"):"—"],["👷 Responsable",o.responsableNombre||"—"],["📞 Llamadas",o.numLlamadas||0],["💬 Último resultado",o.ultimoResultado||"—"]].map(([k,v])=>`<div style="background:var(--surface);border-radius:8px;padding:9px 12px"><div style="color:var(--text3);font-size:10px;font-weight:700">${_esc(k)}</div><div style="color:var(--text);font-size:13px;margin-top:2px">${_esc(String(v||"—"))}</div></div>`).join("")}
     </div>
     ${o.origenContacto?`<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:9px 12px;margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700">📣 ORIGEN DEL CONTACTO</div><div style="color:#0369a1;font-size:13px;font-weight:700;margin-top:2px">${_esc(o.origenContacto)}</div></div>`:""}
     ${o.fechaRecordatorio?`<div style="background:${vence?"#fff0e6":"var(--accent-light)"};border:1px solid ${vence?"#fbd0b0":"#b8d0f5"};border-radius:8px;padding:9px 12px;margin-bottom:10px"><div style="color:var(--text3);font-size:10px;font-weight:700">🔔 RECORDATORIO</div><div style="color:${vence?"var(--orange)":"var(--accent)"};font-size:13px;font-weight:600;margin-top:2px">${new Date(o.fechaRecordatorio+"T12:00:00").toLocaleDateString("es-ES")}${vence?" — ¡VENCIDO!":""}</div></div>`:""}
@@ -6548,31 +6567,8 @@ function _extraerCamposWord(texto){
     }
   }
 
-  /* ── IMPORTE ── detectar precio/importe numérico en el texto */
-  const patronesImporte=[
-    /^(?:PRECIO|IMPORTE|TOTAL|COSTE?|VALOR)\s*(?:TOTAL|NETO|OFERTA|PRESUPUESTO)?\s*[:·]?\s*/i,
-    /^OFERTA\s*(?:ECON[OÓ]MICA)?\s*[:·]?\s*/i,
-  ];
-  const impRaw=buscar(patronesImporte);
-  if(impRaw){
-    // Extraer solo el número (acepta 1.234,56 o 1234.56 o 1234)
-    const mNum=impRaw.match(/([\d.,]+)/);
-    if(mNum){
-      // Normalizar: separador decimal → punto
-      let num=mNum[1].replace(/\./g,"").replace(",",".");
-      if(!isNaN(parseFloat(num))) datos.importe=parseFloat(num).toFixed(2);
-    }
-  }
-  // Fallback: buscar "€ NNN" o "NNN €" en el texto
-  if(!datos.importe){
-    for(const l of lineas){
-      const m=l.match(/(?:€|EUR)\s*([\d.,]+)|([\d.,]+)\s*(?:€|EUR)/i);
-      if(m){
-        const raw=(m[1]||m[2]).replace(/\./g,"").replace(",",".");
-        if(!isNaN(parseFloat(raw)) && parseFloat(raw)>100){ datos.importe=parseFloat(raw).toFixed(2); break; }
-      }
-    }
-  }
+  /* ── IMPORTE ── siempre a 0 (el usuario lo introduce manualmente) */
+  datos.importe = 0;
 
   /* ── PROVINCIA ── buscar en todo el texto normalizando acentos */
   const textoNorm=texto.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
@@ -6673,6 +6669,7 @@ function abrirModal(o){
   document.getElementById("f-recod").value=o?.fechaRecordatorio||"";
   document.getElementById("f-fechacierre").value=o?.fechaPrevistaCierre||"";
   document.getElementById("f-origen").value=o?.origenContacto||"";
+  document.getElementById("f-distribuidor").value=o?.distribuidor||"";
   document.getElementById("f-next").value=o?.proximaAccion||"";
   document.getElementById("f-nextdate").value=o?.fechaProximaAccion||"";
   document.getElementById("f-motivo").value=o?.motivoPerdida||"";
@@ -6968,6 +6965,7 @@ async function guardarOferta(){
       fechaRecordatorio:document.getElementById("f-recod").value||null,
       fechaPrevistaCierre:document.getElementById("f-fechacierre").value||null,
       origenContacto:document.getElementById("f-origen").value||"",
+      distribuidor:document.getElementById("f-distribuidor").value.trim()||"",
       proximaAccion:document.getElementById("f-next").value.trim()||"",
       fechaProximaAccion:document.getElementById("f-nextdate").value||null,
       motivoPerdida:document.getElementById("f-motivo").value||"",
