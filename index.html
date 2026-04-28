@@ -1882,9 +1882,15 @@ function _renderGestorTipos(){
       <span style="font-size:11px;font-weight:900;color:var(--accent);text-transform:uppercase;letter-spacing:.05em">⭐ Tipos personalizados</span>
     </div>`;
     html += extras.map((t,i)=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid var(--border);background:var(--surface)">
-        <span style="font-size:12px;font-weight:700;color:var(--text);flex:1;padding-right:10px">${t}</span>
-        <button onclick="borrarTipoPersonalizado(${i})" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">🗑 Eliminar</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid var(--border);background:var(--surface)" id="tipo-custom-row-${i}">
+        <span id="tipo-custom-label-${i}" style="font-size:12px;font-weight:700;color:var(--text);flex:1;padding-right:10px">${t}</span>
+        <input id="tipo-custom-input-${i}" type="text" value="${t.replace(/"/g,'&quot;')}" style="display:none;flex:1;margin-right:8px;padding:5px 9px;border:1.5px solid var(--accent);border-radius:6px;font-size:12px;font-family:inherit;color:var(--text);background:var(--surface)">
+        <div style="display:flex;gap:5px;flex-shrink:0">
+          <button id="tipo-custom-btn-edit-${i}" onclick="iniciarEdicionTipoPersonalizado(${i})" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">✏️ Editar</button>
+          <button id="tipo-custom-btn-save-${i}" onclick="guardarEdicionTipoPersonalizado(${i})" style="display:none;background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">💾 Guardar</button>
+          <button id="tipo-custom-btn-cancel-${i}" onclick="cancelarEdicionTipoPersonalizado(${i})" style="display:none;background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">✕</button>
+          <button onclick="borrarTipoPersonalizado(${i})" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">🗑 Eliminar</button>
+        </div>
       </div>`).join('');
   }
   // Sección predefinidos borrados
@@ -1909,9 +1915,15 @@ function _renderGestorTipos(){
       <span style="font-size:11px;font-weight:800;color:var(--accent)">${familia}</span>
     </div>`;
     html += activas.map(t=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 14px;border-bottom:1px solid var(--border);background:var(--surface)">
-        <span style="font-size:12px;color:var(--text2);flex:1;padding-right:10px">${t}</span>
-        <button onclick="ocultarTipoPredefinido('${t.replace(/'/g,"\\'")}'")" style="background:var(--orange-bg);color:var(--orange);border:1px solid #fbd0b0;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">👁 Ocultar</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 14px;border-bottom:1px solid var(--border);background:var(--surface)" id="tipo-pred-row-${_esc(t).replace(/[^a-zA-Z0-9]/g,'_')}">
+        <span id="tipo-pred-label-${_keyTipo(t)}" style="font-size:12px;color:var(--text2);flex:1;padding-right:10px">${t}</span>
+        <input id="tipo-pred-input-${_keyTipo(t)}" type="text" value="${t.replace(/"/g,'&quot;')}" data-original="${t.replace(/"/g,'&quot;')}" style="display:none;flex:1;margin-right:8px;padding:5px 9px;border:1.5px solid var(--accent);border-radius:6px;font-size:12px;font-family:inherit;color:var(--text);background:var(--surface)">
+        <div style="display:flex;gap:5px;flex-shrink:0">
+          <button id="tipo-pred-btn-edit-${_keyTipo(t)}" onclick="iniciarEdicionTipoPredefinido('${t.replace(/'/g,"\\'")}'")" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">✏️ Editar</button>
+          <button id="tipo-pred-btn-save-${_keyTipo(t)}" onclick="guardarEdicionTipoPredefinido('${t.replace(/'/g,"\\'")}'")" style="display:none;background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">💾 Guardar</button>
+          <button id="tipo-pred-btn-cancel-${_keyTipo(t)}" onclick="cancelarEdicionTipoPredefinido('${t.replace(/'/g,"\\'")}'")" style="display:none;background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">✕</button>
+          <button onclick="ocultarTipoPredefinido('${t.replace(/'/g,"\\'")}'")" style="background:var(--orange-bg);color:var(--orange);border:1px solid #fbd0b0;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">👁 Ocultar</button>
+        </div>
       </div>`).join('');
   });
   if(!extras.length && !borrados.size){
@@ -1944,6 +1956,97 @@ function borrarTipoPersonalizado(idx){
   toast('🗑 Tipo personalizado eliminado','#f59e0b');
   _renderGestorTipos();
 }
+// ── Helper: convierte un nombre de tipo en un id CSS seguro ─────────────────
+function _keyTipo(t){ return t.replace(/[^a-zA-Z0-9]/g,'_'); }
+
+// ── EDICIÓN de tipos PERSONALIZADOS ─────────────────────────────────────────
+function iniciarEdicionTipoPersonalizado(idx){
+  const label  = document.getElementById(`tipo-custom-label-${idx}`);
+  const input  = document.getElementById(`tipo-custom-input-${idx}`);
+  const btnEd  = document.getElementById(`tipo-custom-btn-edit-${idx}`);
+  const btnSv  = document.getElementById(`tipo-custom-btn-save-${idx}`);
+  const btnCx  = document.getElementById(`tipo-custom-btn-cancel-${idx}`);
+  if(!label||!input) return;
+  label.style.display='none'; input.style.display='block';
+  btnEd.style.display='none'; btnSv.style.display='block'; btnCx.style.display='block';
+  input.focus(); input.select();
+}
+function cancelarEdicionTipoPersonalizado(idx){
+  const label  = document.getElementById(`tipo-custom-label-${idx}`);
+  const input  = document.getElementById(`tipo-custom-input-${idx}`);
+  const btnEd  = document.getElementById(`tipo-custom-btn-edit-${idx}`);
+  const btnSv  = document.getElementById(`tipo-custom-btn-save-${idx}`);
+  const btnCx  = document.getElementById(`tipo-custom-btn-cancel-${idx}`);
+  if(!label||!input) return;
+  input.value = label.textContent.trim();
+  label.style.display='block'; input.style.display='none';
+  btnEd.style.display='block'; btnSv.style.display='none'; btnCx.style.display='none';
+}
+function guardarEdicionTipoPersonalizado(idx){
+  const input = document.getElementById(`tipo-custom-input-${idx}`);
+  if(!input) return;
+  const nuevoVal = input.value.trim().toUpperCase();
+  if(!nuevoVal){ toast('⚠️ El nombre no puede estar vacío','#f59e0b'); return; }
+  const extras = getTiposPersonalizados();
+  if(!extras[idx]) return;
+  const borrados = getTiposBorradosPredefinidos();
+  const predefinido = Object.values(FAMILIAS_MAQUINAS).flat().includes(nuevoVal);
+  if((predefinido && !borrados.has(nuevoVal)) || (extras.includes(nuevoVal) && extras.indexOf(nuevoVal)!==idx)){
+    toast('⚠️ Ya existe un tipo con ese nombre','#f59e0b'); return;
+  }
+  extras[idx] = nuevoVal;
+  setTiposPersonalizados(extras);
+  cargarTiposPersonalizados();
+  toast(`✅ Tipo renombrado a "${nuevoVal}"`, '#10b981');
+  _renderGestorTipos();
+}
+
+// ── EDICIÓN de tipos PREDEFINIDOS (se convierten en personalizados renombrados) ─
+function iniciarEdicionTipoPredefinido(original){
+  const key    = _keyTipo(original);
+  const label  = document.getElementById(`tipo-pred-label-${key}`);
+  const input  = document.getElementById(`tipo-pred-input-${key}`);
+  const btnEd  = document.getElementById(`tipo-pred-btn-edit-${key}`);
+  const btnSv  = document.getElementById(`tipo-pred-btn-save-${key}`);
+  const btnCx  = document.getElementById(`tipo-pred-btn-cancel-${key}`);
+  if(!label||!input) return;
+  label.style.display='none'; input.style.display='block';
+  btnEd.style.display='none'; btnSv.style.display='block'; btnCx.style.display='block';
+  input.focus(); input.select();
+}
+function cancelarEdicionTipoPredefinido(original){
+  const key    = _keyTipo(original);
+  const label  = document.getElementById(`tipo-pred-label-${key}`);
+  const input  = document.getElementById(`tipo-pred-input-${key}`);
+  const btnEd  = document.getElementById(`tipo-pred-btn-edit-${key}`);
+  const btnSv  = document.getElementById(`tipo-pred-btn-save-${key}`);
+  const btnCx  = document.getElementById(`tipo-pred-btn-cancel-${key}`);
+  if(!label||!input) return;
+  input.value = original;
+  label.style.display='block'; input.style.display='none';
+  btnEd.style.display='block'; btnSv.style.display='none'; btnCx.style.display='none';
+}
+function guardarEdicionTipoPredefinido(original){
+  const key    = _keyTipo(original);
+  const input  = document.getElementById(`tipo-pred-input-${key}`);
+  if(!input) return;
+  const nuevoVal = input.value.trim().toUpperCase();
+  if(!nuevoVal){ toast('⚠️ El nombre no puede estar vacío','#f59e0b'); return; }
+  if(nuevoVal === original){ cancelarEdicionTipoPredefinido(original); return; }
+  const borrados = getTiposBorradosPredefinidos();
+  const extras   = getTiposPersonalizados();
+  const predefinido = Object.values(FAMILIAS_MAQUINAS).flat().includes(nuevoVal);
+  if((predefinido && !borrados.has(nuevoVal)) || extras.includes(nuevoVal)){
+    toast('⚠️ Ya existe un tipo con ese nombre','#f59e0b'); return;
+  }
+  // Ocultar el predefinido original y guardar el nuevo nombre como personalizado
+  borrados.add(original); setTiposBorradosPredefinidos(borrados);
+  extras.push(nuevoVal);  setTiposPersonalizados(extras);
+  cargarTiposPersonalizados();
+  toast(`✅ Tipo renombrado a "${nuevoVal}" (predefinido original ocultado)`, '#10b981');
+  _renderGestorTipos();
+}
+
 const CE={Pendiente:"#f59e0b","En seguimiento":"#3b82f6",Interesado:"#8b5cf6","Negociación":"#f97316",Ganada:"#10b981",Perdida:"#ef4444",Descartada:"#6b7280"};
 const CG=["#38bdf8","#10b981","#f59e0b","#8b5cf6","#f97316","#ef4444","#06b6d4","#84cc16","#ec4899","#6366f1"];
 // Coordenadas absolutas para viewBox 960×780 — posición real en España
