@@ -933,7 +933,16 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
           </select>
         </div>
       </div>
-      <div class="field"><label>🏢 Distribuidor <span style="color:var(--text3);font-size:10px;font-weight:400">(nombre del distribuidor o agente, si aplica)</span></label><input id="f-distribuidor" placeholder="Ej: Distribuciones García S.L., Agente Torres..."/></div>
+      <div class="field" style="position:relative">
+        <label>🏢 Distribuidor <span style="color:var(--text3);font-size:10px;font-weight:400">(nombre del distribuidor o agente, si aplica)</span></label>
+        <div class="ac-wrap" id="dist-ac-wrap" style="position:relative">
+          <input id="f-distribuidor" placeholder="Ej: Distribuciones García S.L., Agente Torres..." autocomplete="off"
+            oninput="distAcBuscar(this.value)"
+            onkeydown="distAcKeyDown(event)"
+            onfocus="distAcBuscar(this.value)"/>
+          <div id="dist-ac-dropdown" class="ac-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;background:var(--surface);border:1.5px solid var(--accent);border-radius:0 0 10px 10px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:220px;overflow-y:auto"></div>
+        </div>
+      </div>
  <div class="grid2">
   <div class="field"><label>➡️ Próxima acción</label><input id="f-next" placeholder="Ej: enviar catálogo, pedir confirmación..."/></div>
   <div class="field"><label>📅 Fecha próxima acción</label><input type="date" id="f-nextdate"/></div>
@@ -2586,6 +2595,12 @@ document.addEventListener("click",function(e){
     const dd=document.getElementById("ac-dropdown");
     if(dd) dd.classList.remove("open");
   }
+  // Cerrar autocomplete distribuidor
+  const distWrap=document.getElementById("dist-ac-wrap");
+  if(distWrap&&!distWrap.contains(e.target)){
+    const dd=document.getElementById("dist-ac-dropdown");
+    if(dd) dd.style.display="none";
+  }
   // Cerrar dropdown de países
   const paisWrap=document.getElementById("pais-dropdown-wrap");
   if(paisWrap&&!paisWrap.contains(e.target)){
@@ -2628,7 +2643,8 @@ function acReconstruirIndice(){
         email:o.email||"",
         provincia:o.provincia||"",
         pais:o.pais||"",
-        tipoMaquina:o.tipoMaquina||""
+        tipoMaquina:o.tipoMaquina||"",
+        distribuidor:o.distribuidor||""
       };
     }
   });
@@ -2690,10 +2706,65 @@ function acSeleccionar(i){
   }
   const fpais=document.getElementById("f-pais-form"); if(fpais&&!fpais.value&&e.pais) fpais.value=e.pais;
   set("f-tipo",e.tipoMaquina);
+  set("f-distribuidor",e.distribuidor);
   dd.classList.remove("open");
 }
 
 // (listener de cierre de dropdowns unificado arriba)
+
+// ===== AUTOCOMPLETE DISTRIBUIDOR =====
+let distAcSelIdx=-1;
+
+function distAcGetLista(){
+  // Extraer todos los distribuidores únicos de las ofertas (los más usados primero)
+  const freq={};
+  ofertas.forEach(o=>{ if(o.distribuidor){ const k=o.distribuidor.trim(); freq[k]=(freq[k]||0)+1; } });
+  return Object.entries(freq).sort((a,b)=>b[1]-a[1]).map(([d])=>d);
+}
+
+function distAcBuscar(q){
+  distAcSelIdx=-1;
+  const dd=document.getElementById("dist-ac-dropdown");
+  if(!dd) return;
+  const lista=distAcGetLista();
+  const qn=acNormalizar(q);
+  const matches=qn
+    ? lista.filter(d=>acNormalizar(d).includes(qn)).slice(0,8)
+    : lista.slice(0,8);
+  if(!matches.length){ dd.style.display="none"; return; }
+  dd.innerHTML=matches.map((d,i)=>`
+    <div class="ac-item" data-idx="${i}"
+      onmousedown="distAcSeleccionar(${i})"
+      onmouseover="distAcHover(${i})"
+      style="padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;color:var(--text)">
+      🏢 ${_esc(d)}
+    </div>`).join("");
+  dd._matches=matches;
+  dd.style.display="block";
+}
+
+function distAcHover(i){
+  distAcSelIdx=i;
+  document.querySelectorAll("#dist-ac-dropdown .ac-item").forEach((el,j)=>el.classList.toggle("selected",j===i));
+}
+
+function distAcKeyDown(e){
+  const dd=document.getElementById("dist-ac-dropdown");
+  if(!dd||dd.style.display==="none") return;
+  const items=dd.querySelectorAll(".ac-item");
+  if(e.key==="ArrowDown"){e.preventDefault();distAcSelIdx=Math.min(distAcSelIdx+1,items.length-1);items.forEach((el,j)=>el.classList.toggle("selected",j===distAcSelIdx));}
+  else if(e.key==="ArrowUp"){e.preventDefault();distAcSelIdx=Math.max(distAcSelIdx-1,0);items.forEach((el,j)=>el.classList.toggle("selected",j===distAcSelIdx));}
+  else if(e.key==="Enter"&&distAcSelIdx>=0){e.preventDefault();distAcSeleccionar(distAcSelIdx);}
+  else if(e.key==="Escape"){dd.style.display="none";}
+}
+
+function distAcSeleccionar(i){
+  const dd=document.getElementById("dist-ac-dropdown");
+  if(!dd||!dd._matches) return;
+  document.getElementById("f-distribuidor").value=dd._matches[i];
+  dd.style.display="none";
+  distAcSelIdx=-1;
+}
 
 // ===== TIEMPO REAL =====
 function escucharOfertas(){
