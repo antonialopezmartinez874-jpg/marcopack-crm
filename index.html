@@ -1082,12 +1082,43 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 
 <!-- MODAL GESTIONAR TIPOS DE MÁQUINA -->
 <div id="modal-tipos" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
-  <div class="modal" style="max-width:620px">
+  <div class="modal" style="max-width:680px">
     <button class="modal-close" onclick="document.getElementById('modal-tipos').style.display='none'">✕</button>
-    <h2>⚙️ Gestionar catálogo de máquinas</h2>
-    <p style="color:var(--text3);font-size:12px;margin-bottom:14px;line-height:1.6">Oculta los modelos predefinidos que no uses, restaura los que quieras recuperar y elimina los personalizados que hayas añadido tú.</p>
-    <div id="modal-tipos-lista" style="max-height:480px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;background:var(--surface2)"></div>
-    <div class="modal-footer">
+    <h2>⚙️ Catálogo de máquinas</h2>
+
+    <!-- Barra de búsqueda + contador -->
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+      <input id="tipos-busqueda" type="text" placeholder="🔍 Buscar máquina…"
+        oninput="_renderGestorTipos()"
+        style="flex:1;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;
+               padding:8px 12px;font-size:13px;font-family:inherit;color:var(--text);transition:border-color .2s"
+        onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"/>
+      <span id="tipos-contador" style="font-size:11px;color:var(--text3);font-weight:600;white-space:nowrap"></span>
+    </div>
+
+    <!-- Pestañas de filtro -->
+    <div style="display:flex;gap:4px;margin-bottom:10px">
+      <button id="tab-todos"       onclick="_setTabTipos('todos')"
+        style="padding:5px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--border);background:var(--accent);color:white;font-family:inherit;transition:all .15s">
+        Todos
+      </button>
+      <button id="tab-personalizados" onclick="_setTabTipos('personalizados')"
+        style="padding:5px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-family:inherit;transition:all .15s">
+        ⭐ Personalizados
+      </button>
+      <button id="tab-predefinidos" onclick="_setTabTipos('predefinidos')"
+        style="padding:5px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-family:inherit;transition:all .15s">
+        📋 Predefinidos
+      </button>
+      <button id="tab-ocultos" onclick="_setTabTipos('ocultos')"
+        style="padding:5px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid #fca5a5;background:var(--red-bg);color:var(--red);font-family:inherit;transition:all .15s">
+        🗑 Ocultos
+      </button>
+    </div>
+
+    <div id="modal-tipos-lista" style="max-height:440px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;background:var(--surface2)"></div>
+    <div class="modal-footer" style="justify-content:space-between">
+      <span style="font-size:11px;color:var(--text3)">✏️ Editar · 🗑 Eliminar permanentemente · 👁 Ocultar/Restaurar</span>
       <button class="btn-cancel" onclick="document.getElementById('modal-tipos').style.display='none'">Cerrar</button>
     </div>
   </div>
@@ -1863,187 +1894,365 @@ function guardarTipoPersonalizado(){
 }
 
 function abrirGestorTipos(){
-  const lista=document.getElementById('modal-tipos-lista');
-  if(!lista) return;
+  if(!document.getElementById('modal-tipos')) return;
+  // Resetear búsqueda y pestaña al abrir
+  const busq = document.getElementById('tipos-busqueda');
+  if(busq) busq.value = '';
+  window._tabTipos = window._tabTipos || 'todos';
   _renderGestorTipos();
   document.getElementById('modal-tipos').style.display='flex';
 }
 
+// Pestaña activa del gestor
+window._tabTipos = 'todos';
+
+function _setTabTipos(tab){
+  window._tabTipos = tab;
+  // Estilo de pestañas
+  ['todos','personalizados','predefinidos','ocultos'].forEach(t=>{
+    const btn = document.getElementById('tab-'+t);
+    if(!btn) return;
+    if(t===tab){
+      btn.style.background = t==='ocultos' ? 'var(--red)' : 'var(--accent)';
+      btn.style.color = 'white';
+      btn.style.borderColor = t==='ocultos' ? 'var(--red)' : 'var(--accent)';
+    } else {
+      btn.style.background = t==='ocultos' ? 'var(--red-bg)' : 'var(--surface2)';
+      btn.style.color = t==='ocultos' ? 'var(--red)' : 'var(--text2)';
+      btn.style.borderColor = t==='ocultos' ? '#fca5a5' : 'var(--border)';
+    }
+  });
+  _renderGestorTipos();
+}
+
 function _renderGestorTipos(){
-  const lista=document.getElementById('modal-tipos-lista');
+  const lista = document.getElementById('modal-tipos-lista');
   if(!lista) return;
-  const borrados = getTiposBorradosPredefinidos();
-  const extras = getTiposPersonalizados();
+
+  const borrados  = getTiposBorradosPredefinidos();
+  const extras    = getTiposPersonalizados();
+  const tab       = window._tabTipos || 'todos';
+  const busq      = (document.getElementById('tipos-busqueda')?.value||'').trim().toUpperCase();
+
+  // ─── Estilos de pestañas ───────────────────────────────────────
+  _setTabTipos(tab);
+
+  // ─── Construir lista unificada de ítems ───────────────────────
+  // Cada ítem: { nombre, tipo:'predefinido'|'personalizado'|'oculto', idx? }
+  let items = [];
+
+  // 1. Predefinidos activos
+  if(tab==='todos'||tab==='predefinidos'){
+    Object.entries(FAMILIAS_MAQUINAS).forEach(([familia, maquinas])=>{
+      maquinas.filter(m=>!borrados.has(m)).forEach(m=>{
+        items.push({ nombre:m, tipo:'predefinido', familia });
+      });
+    });
+  }
+  // 2. Personalizados
+  if(tab==='todos'||tab==='personalizados'){
+    extras.forEach((m,i)=>{
+      items.push({ nombre:m, tipo:'personalizado', idx:i });
+    });
+  }
+  // 3. Ocultos (predefinidos borrados)
+  if(tab==='todos'||tab==='ocultos'){
+    [...borrados].forEach(m=>{
+      items.push({ nombre:m, tipo:'oculto' });
+    });
+  }
+
+  // ─── Filtrar por búsqueda ──────────────────────────────────────
+  if(busq) items = items.filter(it=>it.nombre.toUpperCase().includes(busq));
+
+  // ─── Contador ─────────────────────────────────────────────────
+  const contEl = document.getElementById('tipos-contador');
+  if(contEl){
+    const nPred = Object.values(FAMILIAS_MAQUINAS).flat().filter(m=>!borrados.has(m)).length;
+    const nExtra = extras.length;
+    const nOcult = borrados.size;
+    contEl.textContent = `${nPred} predefinidos · ${nExtra} personalizados · ${nOcult} ocultos`;
+  }
+
+  // ─── Sin resultados ───────────────────────────────────────────
+  if(!items.length){
+    lista.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text3);font-size:13px">
+      ${busq ? `🔍 Sin resultados para "<strong>${_esc(busq)}</strong>"` : 'No hay máquinas en esta categoría'}
+    </div>`;
+    return;
+  }
+
+  // ─── Agrupar por familia/tipo para mostrar cabeceras ─────────
+  // Solo agrupamos cuando no hay búsqueda activa
+  const agrupar = !busq && (tab==='todos'||tab==='predefinidos');
 
   let html = '';
-  // Sección personalizados
-  if(extras.length>0){
-    html += `<div style="padding:10px 14px 4px;background:var(--surface2);border-bottom:2px solid var(--border)">
-      <span style="font-size:11px;font-weight:900;color:var(--accent);text-transform:uppercase;letter-spacing:.05em">⭐ Tipos personalizados</span>
-    </div>`;
-    html += extras.map((t,i)=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid var(--border);background:var(--surface)" id="tipo-custom-row-${i}">
-        <span id="tipo-custom-label-${i}" style="font-size:12px;font-weight:700;color:var(--text);flex:1;padding-right:10px">${t}</span>
-        <input id="tipo-custom-input-${i}" type="text" value="${t.replace(/"/g,'&quot;')}" style="display:none;flex:1;margin-right:8px;padding:5px 9px;border:1.5px solid var(--accent);border-radius:6px;font-size:12px;font-family:inherit;color:var(--text);background:var(--surface)">
-        <div style="display:flex;gap:5px;flex-shrink:0">
-          <button id="tipo-custom-btn-edit-${i}" onclick="iniciarEdicionTipoPersonalizado(${i})" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">✏️ Editar</button>
-          <button id="tipo-custom-btn-save-${i}" onclick="guardarEdicionTipoPersonalizado(${i})" style="display:none;background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">💾 Guardar</button>
-          <button id="tipo-custom-btn-cancel-${i}" onclick="cancelarEdicionTipoPersonalizado(${i})" style="display:none;background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">✕</button>
-          <button onclick="borrarTipoPersonalizado(${i})" style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">🗑 Eliminar</button>
+  let familiaActual = null;
+
+  items.forEach(it=>{
+    // Cabecera de grupo
+    if(agrupar && it.tipo==='predefinido' && it.familia !== familiaActual){
+      familiaActual = it.familia;
+      html += `<div style="padding:7px 14px 5px;background:linear-gradient(90deg,var(--accent-light),var(--surface2));
+                           border-bottom:1px solid var(--border);border-top:1px solid var(--border);
+                           display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:.04em">${_esc(it.familia)}</span>
+      </div>`;
+    }
+    if(agrupar && it.tipo==='personalizado' && familiaActual!=='__custom'){
+      familiaActual='__custom';
+      html += `<div style="padding:7px 14px 5px;background:linear-gradient(90deg,#f0fdf4,var(--surface2));
+                           border-bottom:1px solid var(--border);border-top:1px solid var(--border);
+                           display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.04em">⭐ Personalizados</span>
+      </div>`;
+    }
+    if(agrupar && it.tipo==='oculto' && familiaActual!=='__ocultos'){
+      familiaActual='__ocultos';
+      html += `<div style="padding:7px 14px 5px;background:var(--red-bg);
+                           border-bottom:1px solid #fca5a5;border-top:1px solid #fca5a5">
+        <span style="font-size:11px;font-weight:800;color:var(--red);text-transform:uppercase;letter-spacing:.04em">🗑 Ocultos (clic Restaurar para volver a activar)</span>
+      </div>`;
+    }
+
+    // Fila de la máquina
+    const key = _keyTipo(it.nombre);
+    const esOculto = it.tipo==='oculto';
+    const esPred   = it.tipo==='predefinido';
+    const esExtra  = it.tipo==='personalizado';
+
+    // Badge de tipo
+    const badge = esExtra
+      ? `<span style="background:var(--green-bg);color:var(--green);border-radius:20px;padding:1px 8px;font-size:10px;font-weight:700;flex-shrink:0">⭐ Personalizado</span>`
+      : esOculto
+      ? `<span style="background:var(--red-bg);color:var(--red);border-radius:20px;padding:1px 8px;font-size:10px;font-weight:700;flex-shrink:0">🗑 Oculto</span>`
+      : `<span style="background:var(--accent-light);color:var(--accent);border-radius:20px;padding:1px 8px;font-size:10px;font-weight:700;flex-shrink:0">📋 Predefinido</span>`;
+
+    if(esOculto){
+      // Ocultos: solo restaurar
+      html += `<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;
+                            border-bottom:1px solid #fca5a5;background:#fff5f5">
+        <span style="font-size:12px;font-weight:600;color:#9ca3af;flex:1;text-decoration:line-through">${_esc(it.nombre)}</span>
+        ${badge}
+        <button onclick="restaurarTipoPredefinido('${it.nombre.replace(/'/g,"\\'")}')"
+          style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:6px;
+                 padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">
+          ↩ Restaurar
+        </button>
+        <button onclick="eliminarTipoOculto('${it.nombre.replace(/'/g,"\\'")}')"
+          style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;border-radius:6px;
+                 padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">
+          🗑 Borrar
+        </button>
+      </div>`;
+    } else {
+      // Predefinido o personalizado: editar inline + eliminar/ocultar
+      const idxAttr = esExtra ? `data-idx="${it.idx}"` : '';
+      const tipoAttr = esPred ? 'predefinido' : 'personalizado';
+      const originalAttr = it.nombre.replace(/"/g,'&quot;');
+
+      html += `<div id="row-tipo-${key}"
+                    style="display:flex;align-items:center;gap:8px;padding:8px 14px;
+                           border-bottom:1px solid var(--border);background:var(--surface);transition:background .15s"
+                    ${idxAttr}>
+
+        <!-- Modo lectura -->
+        <span id="lbl-tipo-${key}"
+              style="font-size:12px;font-weight:${esExtra?'700':'500'};color:var(--text);flex:1;min-width:0;
+                     overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="${originalAttr}">
+          ${_esc(it.nombre)}
+        </span>
+        ${badge}
+
+        <!-- Modo edición (oculto por defecto) -->
+        <input id="inp-tipo-${key}" type="text" value="${originalAttr}"
+               data-original="${originalAttr}" data-tipo="${tipoAttr}" data-idx="${esExtra?it.idx:''}"
+               style="display:none;flex:1;padding:5px 9px;border:1.5px solid var(--accent);border-radius:6px;
+                      font-size:12px;font-family:inherit;color:var(--text);background:var(--surface);min-width:0"
+               onkeydown="if(event.key==='Enter') _guardarEdicionTipo('${key}'); if(event.key==='Escape') _cancelarEdicionTipo('${key}')">
+
+        <!-- Botones lectura -->
+        <div id="btns-lect-${key}" style="display:flex;gap:4px;flex-shrink:0">
+          <button onclick="_iniciarEdicionTipo('${key}')"
+            title="Editar nombre"
+            style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;
+                   border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">
+            ✏️
+          </button>
+          ${esPred
+            ? `<button onclick="ocultarTipoPredefinido('${it.nombre.replace(/'/g,"\\'")}')"
+                 title="Ocultar de la lista (recuperable)"
+                 style="background:var(--orange-bg);color:var(--orange);border:1px solid #fbd0b0;
+                        border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">
+                 👁
+               </button>
+               <button onclick="eliminarTipoPredefinidoDefinitivo('${it.nombre.replace(/'/g,"\\'")}')"
+                 title="Eliminar definitivamente"
+                 style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;
+                        border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">
+                 🗑
+               </button>`
+            : `<button onclick="borrarTipoPersonalizadoPorKey('${key}')"
+                 title="Eliminar definitivamente"
+                 style="background:var(--red-bg);color:var(--red);border:1px solid #fca5a5;
+                        border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">
+                 🗑
+               </button>`
+          }
         </div>
-      </div>`).join('');
-  }
-  // Sección predefinidos borrados
-  if(borrados.size>0){
-    html += `<div style="padding:10px 14px 4px;background:var(--red-bg);border-bottom:2px solid #fca5a5;border-top:1px solid #fca5a5">
-      <span style="font-size:11px;font-weight:900;color:var(--red);text-transform:uppercase;letter-spacing:.05em">🗑 Predefinidos ocultados (clic para restaurar)</span>
-    </div>`;
-    html += [...borrados].map(t=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid #fca5a5;background:#fff5f5">
-        <span style="font-size:12px;font-weight:600;color:#9ca3af;flex:1;padding-right:10px;text-decoration:line-through">${t}</span>
-        <button onclick="restaurarTipoPredefinido('${t.replace(/'/g,"\\'")}'")" style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">↩ Restaurar</button>
-      </div>`).join('');
-  }
-  // Sección predefinidos activos con botón borrar
-  html += `<div style="padding:10px 14px 4px;background:var(--surface2);border-bottom:2px solid var(--border);border-top:1px solid var(--border)">
-    <span style="font-size:11px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">📋 Predefinidos activos (puedes ocultarlos)</span>
-  </div>`;
-  Object.entries(FAMILIAS_MAQUINAS).forEach(([familia, maquinas])=>{
-    const activas = maquinas.filter(m=>!borrados.has(m));
-    if(!activas.length) return;
-    html += `<div style="padding:6px 14px 2px;background:var(--surface2);border-bottom:1px solid var(--border)">
-      <span style="font-size:11px;font-weight:800;color:var(--accent)">${familia}</span>
-    </div>`;
-    html += activas.map(t=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 14px;border-bottom:1px solid var(--border);background:var(--surface)" id="tipo-pred-row-${_esc(t).replace(/[^a-zA-Z0-9]/g,'_')}">
-        <span id="tipo-pred-label-${_keyTipo(t)}" style="font-size:12px;color:var(--text2);flex:1;padding-right:10px">${t}</span>
-        <input id="tipo-pred-input-${_keyTipo(t)}" type="text" value="${t.replace(/"/g,'&quot;')}" data-original="${t.replace(/"/g,'&quot;')}" style="display:none;flex:1;margin-right:8px;padding:5px 9px;border:1.5px solid var(--accent);border-radius:6px;font-size:12px;font-family:inherit;color:var(--text);background:var(--surface)">
-        <div style="display:flex;gap:5px;flex-shrink:0">
-          <button id="tipo-pred-btn-edit-${_keyTipo(t)}" onclick="iniciarEdicionTipoPredefinido('${t.replace(/'/g,"\\'")}'")" style="background:var(--accent-light);color:var(--accent);border:1px solid #b8d0f5;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">✏️ Editar</button>
-          <button id="tipo-pred-btn-save-${_keyTipo(t)}" onclick="guardarEdicionTipoPredefinido('${t.replace(/'/g,"\\'")}'")" style="display:none;background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">💾 Guardar</button>
-          <button id="tipo-pred-btn-cancel-${_keyTipo(t)}" onclick="cancelarEdicionTipoPredefinido('${t.replace(/'/g,"\\'")}'")" style="display:none;background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">✕</button>
-          <button onclick="ocultarTipoPredefinido('${t.replace(/'/g,"\\'")}'")" style="background:var(--orange-bg);color:var(--orange);border:1px solid #fbd0b0;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">👁 Ocultar</button>
+
+        <!-- Botones edición (ocultos hasta activar) -->
+        <div id="btns-edit-${key}" style="display:none;gap:4px;flex-shrink:0">
+          <button onclick="_guardarEdicionTipo('${key}')"
+            style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;
+                   border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">
+            💾 Guardar
+          </button>
+          <button onclick="_cancelarEdicionTipo('${key}')"
+            style="background:var(--surface2);color:var(--text2);border:1px solid var(--border);
+                   border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">
+            ✕
+          </button>
         </div>
-      </div>`).join('');
+      </div>`;
+    }
   });
-  if(!extras.length && !borrados.size){
-    html = `<div style="padding:28px;text-align:center;color:var(--text3);font-size:13px">Usa <b>👁 Ocultar</b> para quitar predefinidos de la lista,<br>o <b>＋ Guardar</b> para añadir modelos propios.</div>`;
-  }
+
   lista.innerHTML = html;
 }
 
-function ocultarTipoPredefinido(tipo){
+// ── Activar modo edición inline ──────────────────────────────────────────────
+function _iniciarEdicionTipo(key){
+  const lbl      = document.getElementById(`lbl-tipo-${key}`);
+  const inp      = document.getElementById(`inp-tipo-${key}`);
+  const btnsLect = document.getElementById(`btns-lect-${key}`);
+  const btnsEdit = document.getElementById(`btns-edit-${key}`);
+  if(!lbl||!inp) return;
+  lbl.style.display      = 'none';
+  inp.style.display      = 'block';
+  btnsLect.style.display = 'none';
+  btnsEdit.style.display = 'flex';
+  inp.focus(); inp.select();
+}
+
+// ── Cancelar edición ────────────────────────────────────────────────────────
+function _cancelarEdicionTipo(key){
+  const lbl      = document.getElementById(`lbl-tipo-${key}`);
+  const inp      = document.getElementById(`inp-tipo-${key}`);
+  const btnsLect = document.getElementById(`btns-lect-${key}`);
+  const btnsEdit = document.getElementById(`btns-edit-${key}`);
+  if(!lbl||!inp) return;
+  inp.value              = inp.dataset.original;
+  lbl.style.display      = 'block';
+  inp.style.display      = 'none';
+  btnsLect.style.display = 'flex';
+  btnsEdit.style.display = 'none';
+}
+
+// ── Guardar edición (funciona para predefinidos y personalizados) ────────────
+function _guardarEdicionTipo(key){
+  const inp = document.getElementById(`inp-tipo-${key}`);
+  if(!inp) return;
+
+  const original  = inp.dataset.original;
+  const tipo      = inp.dataset.tipo;       // 'predefinido' | 'personalizado'
+  const idxStr    = inp.dataset.idx;
+  const nuevoVal  = inp.value.trim().toUpperCase();
+
+  if(!nuevoVal){ toast('⚠️ El nombre no puede estar vacío','#f59e0b'); inp.focus(); return; }
+  if(nuevoVal === original){ _cancelarEdicionTipo(key); return; }
+
   const borrados = getTiposBorradosPredefinidos();
-  borrados.add(tipo); setTiposBorradosPredefinidos(borrados);
+  const extras   = getTiposPersonalizados();
+
+  // Comprobar duplicados: no puede coincidir con ningún predefinido activo ni personalizado existente
+  const yaExistePred  = Object.values(FAMILIAS_MAQUINAS).flat().includes(nuevoVal) && !borrados.has(nuevoVal);
+  const yaExisteExtra = extras.includes(nuevoVal);
+  const esMismoExtra  = tipo==='personalizado' && idxStr!=='' && extras[parseInt(idxStr)]===original;
+
+  if(yaExistePred || (yaExisteExtra && !esMismoExtra)){
+    toast('⚠️ Ya existe una máquina con ese nombre en el catálogo','#f59e0b');
+    inp.focus(); inp.select();
+    return;
+  }
+
+  if(tipo==='personalizado'){
+    const idx = parseInt(idxStr);
+    if(isNaN(idx)||!extras[idx]){ toast('⚠️ Error: índice no válido','#f59e0b'); return; }
+    extras[idx] = nuevoVal;
+    setTiposPersonalizados(extras);
+    toast(`✅ "${original}" → "${nuevoVal}"`, '#10b981');
+  } else {
+    // Predefinido: ocultamos el original y guardamos el nuevo nombre como personalizado
+    borrados.add(original);
+    setTiposBorradosPredefinidos(borrados);
+    extras.push(nuevoVal);
+    setTiposPersonalizados(extras);
+    toast(`✅ "${original}" renombrado a "${nuevoVal}"`, '#10b981');
+  }
+
   cargarTiposPersonalizados();
-  toast('👁 Tipo ocultado de la lista','#f59e0b');
   _renderGestorTipos();
 }
-function restaurarTipoPredefinido(tipo){
+
+// ── Eliminar predefinido DEFINITIVAMENTE (pasa a ocultos, no recuperable en predefinidos) ──
+function eliminarTipoPredefinidoDefinitivo(tipo){
+  if(!confirm(`¿Eliminar definitivamente "${tipo}" del catálogo?\n\nEsta acción lo eliminará de la lista. Podrás restaurarlo desde la pestaña "Ocultos" si cambias de opinión.`)) return;
   const borrados = getTiposBorradosPredefinidos();
-  borrados.delete(tipo); setTiposBorradosPredefinidos(borrados);
+  borrados.add(tipo);
+  setTiposBorradosPredefinidos(borrados);
   cargarTiposPersonalizados();
-  toast('✅ Tipo restaurado','#10b981');
+  toast(`🗑 "${tipo}" eliminado del catálogo`, '#ef4444');
   _renderGestorTipos();
 }
-function borrarTipoPersonalizado(idx){
+
+// ── Eliminar oculto definitivamente (limpia completamente de borrados) ────────
+function eliminarTipoOculto(tipo){
+  if(!confirm(`¿Eliminar "${tipo}" de forma permanente?\n\nSe eliminará también de la lista de ocultos y no podrá recuperarse.`)) return;
+  const borrados = getTiposBorradosPredefinidos();
+  borrados.delete(tipo);
+  setTiposBorradosPredefinidos(borrados);
+  toast(`🗑 "${tipo}" eliminado permanentemente`, '#ef4444');
+  _renderGestorTipos();
+}
+
+// ── Eliminar personalizado buscándolo por key (nombre → índice) ───────────────
+function borrarTipoPersonalizadoPorKey(key){
+  const inp = document.getElementById(`inp-tipo-${key}`);
+  const nombre = inp?.dataset.original || '';
+  if(!nombre){ toast('⚠️ No se pudo identificar el tipo','#f59e0b'); return; }
   const extras = getTiposPersonalizados();
-  const tipo = extras[idx];
-  if(!tipo) return;
-  if(!confirm(`¿Eliminar el tipo personalizado "${tipo}"?`)) return;
-  extras.splice(idx,1); setTiposPersonalizados(extras);
+  const idx = extras.indexOf(nombre);
+  if(idx===-1){ toast('⚠️ Tipo no encontrado','#f59e0b'); return; }
+  if(!confirm(`¿Eliminar el tipo personalizado "${nombre}"?`)) return;
+  extras.splice(idx,1);
+  setTiposPersonalizados(extras);
   cargarTiposPersonalizados();
-  toast('🗑 Tipo personalizado eliminado','#f59e0b');
+  toast(`🗑 "${nombre}" eliminado`, '#ef4444');
   _renderGestorTipos();
 }
+
 // ── Helper: convierte un nombre de tipo en un id CSS seguro ─────────────────
 function _keyTipo(t){ return t.replace(/[^a-zA-Z0-9]/g,'_'); }
 
-// ── EDICIÓN de tipos PERSONALIZADOS ─────────────────────────────────────────
-function iniciarEdicionTipoPersonalizado(idx){
-  const label  = document.getElementById(`tipo-custom-label-${idx}`);
-  const input  = document.getElementById(`tipo-custom-input-${idx}`);
-  const btnEd  = document.getElementById(`tipo-custom-btn-edit-${idx}`);
-  const btnSv  = document.getElementById(`tipo-custom-btn-save-${idx}`);
-  const btnCx  = document.getElementById(`tipo-custom-btn-cancel-${idx}`);
-  if(!label||!input) return;
-  label.style.display='none'; input.style.display='block';
-  btnEd.style.display='none'; btnSv.style.display='block'; btnCx.style.display='block';
-  input.focus(); input.select();
-}
-function cancelarEdicionTipoPersonalizado(idx){
-  const label  = document.getElementById(`tipo-custom-label-${idx}`);
-  const input  = document.getElementById(`tipo-custom-input-${idx}`);
-  const btnEd  = document.getElementById(`tipo-custom-btn-edit-${idx}`);
-  const btnSv  = document.getElementById(`tipo-custom-btn-save-${idx}`);
-  const btnCx  = document.getElementById(`tipo-custom-btn-cancel-${idx}`);
-  if(!label||!input) return;
-  input.value = label.textContent.trim();
-  label.style.display='block'; input.style.display='none';
-  btnEd.style.display='block'; btnSv.style.display='none'; btnCx.style.display='none';
-}
-function guardarEdicionTipoPersonalizado(idx){
-  const input = document.getElementById(`tipo-custom-input-${idx}`);
-  if(!input) return;
-  const nuevoVal = input.value.trim().toUpperCase();
-  if(!nuevoVal){ toast('⚠️ El nombre no puede estar vacío','#f59e0b'); return; }
-  const extras = getTiposPersonalizados();
-  if(!extras[idx]) return;
+// ── Ocultar predefinido (pasa a borrados, recuperable) ───────────────────────
+function ocultarTipoPredefinido(tipo){
   const borrados = getTiposBorradosPredefinidos();
-  const predefinido = Object.values(FAMILIAS_MAQUINAS).flat().includes(nuevoVal);
-  if((predefinido && !borrados.has(nuevoVal)) || (extras.includes(nuevoVal) && extras.indexOf(nuevoVal)!==idx)){
-    toast('⚠️ Ya existe un tipo con ese nombre','#f59e0b'); return;
-  }
-  extras[idx] = nuevoVal;
-  setTiposPersonalizados(extras);
+  borrados.add(tipo);
+  setTiposBorradosPredefinidos(borrados);
   cargarTiposPersonalizados();
-  toast(`✅ Tipo renombrado a "${nuevoVal}"`, '#10b981');
+  toast(`👁 "${tipo}" ocultado de la lista`, '#f59e0b');
   _renderGestorTipos();
 }
 
-// ── EDICIÓN de tipos PREDEFINIDOS (se convierten en personalizados renombrados) ─
-function iniciarEdicionTipoPredefinido(original){
-  const key    = _keyTipo(original);
-  const label  = document.getElementById(`tipo-pred-label-${key}`);
-  const input  = document.getElementById(`tipo-pred-input-${key}`);
-  const btnEd  = document.getElementById(`tipo-pred-btn-edit-${key}`);
-  const btnSv  = document.getElementById(`tipo-pred-btn-save-${key}`);
-  const btnCx  = document.getElementById(`tipo-pred-btn-cancel-${key}`);
-  if(!label||!input) return;
-  label.style.display='none'; input.style.display='block';
-  btnEd.style.display='none'; btnSv.style.display='block'; btnCx.style.display='block';
-  input.focus(); input.select();
-}
-function cancelarEdicionTipoPredefinido(original){
-  const key    = _keyTipo(original);
-  const label  = document.getElementById(`tipo-pred-label-${key}`);
-  const input  = document.getElementById(`tipo-pred-input-${key}`);
-  const btnEd  = document.getElementById(`tipo-pred-btn-edit-${key}`);
-  const btnSv  = document.getElementById(`tipo-pred-btn-save-${key}`);
-  const btnCx  = document.getElementById(`tipo-pred-btn-cancel-${key}`);
-  if(!label||!input) return;
-  input.value = original;
-  label.style.display='block'; input.style.display='none';
-  btnEd.style.display='block'; btnSv.style.display='none'; btnCx.style.display='none';
-}
-function guardarEdicionTipoPredefinido(original){
-  const key    = _keyTipo(original);
-  const input  = document.getElementById(`tipo-pred-input-${key}`);
-  if(!input) return;
-  const nuevoVal = input.value.trim().toUpperCase();
-  if(!nuevoVal){ toast('⚠️ El nombre no puede estar vacío','#f59e0b'); return; }
-  if(nuevoVal === original){ cancelarEdicionTipoPredefinido(original); return; }
+// ── Restaurar predefinido (quita de borrados) ─────────────────────────────────
+function restaurarTipoPredefinido(tipo){
   const borrados = getTiposBorradosPredefinidos();
-  const extras   = getTiposPersonalizados();
-  const predefinido = Object.values(FAMILIAS_MAQUINAS).flat().includes(nuevoVal);
-  if((predefinido && !borrados.has(nuevoVal)) || extras.includes(nuevoVal)){
-    toast('⚠️ Ya existe un tipo con ese nombre','#f59e0b'); return;
-  }
-  // Ocultar el predefinido original y guardar el nuevo nombre como personalizado
-  borrados.add(original); setTiposBorradosPredefinidos(borrados);
-  extras.push(nuevoVal);  setTiposPersonalizados(extras);
+  borrados.delete(tipo);
+  setTiposBorradosPredefinidos(borrados);
   cargarTiposPersonalizados();
-  toast(`✅ Tipo renombrado a "${nuevoVal}" (predefinido original ocultado)`, '#10b981');
+  toast(`✅ "${tipo}" restaurado al catálogo`, '#10b981');
   _renderGestorTipos();
 }
 
@@ -8435,6 +8644,7 @@ document.addEventListener("keydown", function(e){
     {id:"modal-empresa",  cerrar:()=>{ document.getElementById("modal-empresa").style.display="none"; }},
     {id:"modal-user",     cerrar:()=>{ document.getElementById("modal-user").style.display="none"; }},
     {id:"modal-micuenta", cerrar:()=>{ document.getElementById("modal-micuenta").style.display="none"; }},
+    {id:"modal-tipos",    cerrar:()=>{ document.getElementById("modal-tipos").style.display="none"; }},
   ];
   for(const m of modales){
     const el=document.getElementById(m.id);
