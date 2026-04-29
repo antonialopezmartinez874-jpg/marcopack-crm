@@ -678,10 +678,11 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
     </div>
     <select id="f-est" onchange="paginaActual=1;renderVista()"><option value="">Todos los estados</option></select>
     <select id="f-resp" onchange="paginaActual=1;renderVista()"><option value="">Todos los responsables</option></select>
-    <!-- Filtro Tipo de Máquina -->
-    <select id="f-tipo-filtro" onchange="paginaActual=1;renderVista()" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:7px 11px;color:var(--text);font-size:12px;font-family:inherit;transition:border-color .2s">
-      <option value="">🔧 Todos los tipos</option>
-    </select>
+    <!-- Filtro Tipo de Máquina (escritura libre con sugerencias) -->
+    <datalist id="f-tipo-filtro-list"></datalist>
+    <input id="f-tipo-filtro" list="f-tipo-filtro-list" placeholder="🔧 Tipo de máquina..." autocomplete="off" oninput="paginaActual=1;renderVista()" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:7px 11px;color:var(--text);font-size:12px;font-family:inherit;transition:border-color .2s;min-width:170px"/>
+    <!-- Filtro Referencia -->
+    <input id="f-referencia-filtro" placeholder="🔖 Referencia..." autocomplete="off" oninput="paginaActual=1;renderVista()" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:7px 11px;color:var(--text);font-size:12px;font-family:inherit;transition:border-color .2s;min-width:160px"/>
     <!-- Filtro Distribuidor -->
     <select id="f-distribuidor-filtro" onchange="paginaActual=1;renderVista()" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:7px 11px;color:var(--text);font-size:12px;font-family:inherit;transition:border-color .2s">
       <option value="">🏢 Todos los distribuidores</option>
@@ -2507,7 +2508,7 @@ async function doLogout(){
   llCalDiaSel=null;
   // Limpiar filtros nuevos
   try{
-    const ids=["busqueda","f-est","f-resp","f-tipo-filtro","f-distribuidor-filtro","f-imp-min","f-imp-max","f-fecha-desde","f-fecha-hasta"];
+    const ids=["busqueda","f-est","f-resp","f-tipo-filtro","f-distribuidor-filtro","f-referencia-filtro","f-imp-min","f-imp-max","f-fecha-desde","f-fecha-hasta"];
     ids.forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
     const lbl1=document.getElementById("importe-btn-label"); if(lbl1)lbl1.textContent="💶 Importe";
     const lbl2=document.getElementById("fecha-btn-label");   if(lbl2)lbl2.textContent="📅 Fecha";
@@ -2785,13 +2786,10 @@ function escucharOfertas(){
     fr.innerHTML='<option value="">Todos los responsables</option>';
     nombres.forEach(n=>fr.add(new Option(n,n)));
     // Actualizar selector de tipo de máquina
-    const fTipoFiltro=document.getElementById("f-tipo-filtro");
-    if(fTipoFiltro){
-      const valActual=fTipoFiltro.value;
+    const fTipoFiltroList=document.getElementById("f-tipo-filtro-list");
+    if(fTipoFiltroList){
       const tipos=[...new Set(ofertas.map(o=>o.tipoMaquina).filter(Boolean))].sort();
-      fTipoFiltro.innerHTML='<option value="">🔧 Todos los tipos</option>';
-      tipos.forEach(t=>fTipoFiltro.add(new Option(t,t)));
-      if(valActual&&tipos.includes(valActual))fTipoFiltro.value=valActual;
+      fTipoFiltroList.innerHTML=tipos.map(t=>`<option value="${t.replace(/"/g,'&quot;')}"></option>`).join("");
     }
     // Actualizar selector de distribuidor
     const fDistFiltro=document.getElementById("f-distribuidor-filtro");
@@ -2930,8 +2928,9 @@ function getFiltradas(){
   const q=document.getElementById("busqueda").value.toLowerCase();
   const fe=document.getElementById("f-est").value;
   const fr=document.getElementById("f-resp").value;
-  const fTipo=document.getElementById("f-tipo-filtro")?.value||"";
+  const fTipo=(document.getElementById("f-tipo-filtro")?.value||"").toLowerCase().trim();
   const fDistribuidor=document.getElementById("f-distribuidor-filtro")?.value||"";
+  const fRef=(document.getElementById("f-referencia-filtro")?.value||"").toLowerCase().trim();
   const fImpMin=parseFloat(document.getElementById("f-imp-min")?.value)||0;
   const fImpMax=parseFloat(document.getElementById("f-imp-max")?.value)||Infinity;
   const fFechaDesde=document.getElementById("f-fecha-desde")?.value||"";
@@ -2940,12 +2939,13 @@ function getFiltradas(){
     const m=!q||[o.empresa,o.contacto,o.numeroOferta,o.provincia,o.descripcion,o.pais,o.tipoMaquina,o.referencia,o.distribuidor].some(v=>v?.toLowerCase().includes(q));
     const provOk=provinciasSeleccionadas.size===0||provinciasSeleccionadas.has(o.provincia);
     const paisOk=paisesSeleccionados.size===0||paisesSeleccionados.has(o.pais);
-    const tipoOk=!fTipo||o.tipoMaquina===fTipo;
+    const tipoOk=!fTipo||(o.tipoMaquina||"").toLowerCase().includes(fTipo);
     const distOk=!fDistribuidor||o.distribuidor===fDistribuidor;
+    const refOk=!fRef||(o.referencia||"").toLowerCase().includes(fRef);
     const imp=o.importe||0;
     const impOk=imp>=fImpMin&&(fImpMax===Infinity||imp<=fImpMax);
     const fechaOk=(!fFechaDesde||(o.fechaOferta&&o.fechaOferta>=fFechaDesde))&&(!fFechaHasta||(o.fechaOferta&&o.fechaOferta<=fFechaHasta));
-    return m&&provOk&&paisOk&&tipoOk&&distOk&&impOk&&fechaOk&&(!fe||o.estado===fe)&&(!fr||o.responsableNombre===fr);
+    return m&&provOk&&paisOk&&tipoOk&&distOk&&refOk&&impOk&&fechaOk&&(!fe||o.estado===fe)&&(!fr||o.responsableNombre===fr);
   }).sort((a,b)=>{
     const va=a[ordenCampo]??"",vb=b[ordenCampo]??"";
     if(ordenCampo==="numeroOferta"){
@@ -2971,11 +2971,12 @@ function hayFiltrosActivos(){
   const fr=document.getElementById("f-resp").value;
   const fTipo=document.getElementById("f-tipo-filtro")?.value||"";
   const fDist=document.getElementById("f-distribuidor-filtro")?.value||"";
+  const fRef=document.getElementById("f-referencia-filtro")?.value||"";
   const fImpMin=document.getElementById("f-imp-min")?.value||"";
   const fImpMax=document.getElementById("f-imp-max")?.value||"";
   const fFD=document.getElementById("f-fecha-desde")?.value||"";
   const fFH=document.getElementById("f-fecha-hasta")?.value||"";
-  return !!(q||fe||fr||fTipo||fDist||fImpMin||fImpMax||fFD||fFH||provinciasSeleccionadas.size||paisesSeleccionados.size);
+  return !!(q||fe||fr||fTipo||fDist||fRef||fImpMin||fImpMax||fFD||fFH||provinciasSeleccionadas.size||paisesSeleccionados.size);
 }
 function actualizarLabelImporte(){
   const mn=document.getElementById("f-imp-min")?.value||"";
@@ -3018,7 +3019,7 @@ function toggleFechaDropdown(){
 }
 function limpiarFiltros(){
   document.getElementById("busqueda").value="";
-  ["f-est","f-resp","f-tipo-filtro","f-distribuidor-filtro","f-imp-min","f-imp-max","f-fecha-desde","f-fecha-hasta"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
+  ["f-est","f-resp","f-tipo-filtro","f-distribuidor-filtro","f-referencia-filtro","f-imp-min","f-imp-max","f-fecha-desde","f-fecha-hasta"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
   provinciasSeleccionadas.clear();
   paisesSeleccionados.clear();
   actualizarLabelProv();
