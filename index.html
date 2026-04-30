@@ -51,6 +51,19 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 
+/* ===== BOTÓN FLOTANTE VOLVER ARRIBA ===== */
+#btn-top{
+  position:fixed;bottom:28px;right:28px;z-index:999;
+  width:42px;height:42px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),#5b21b6);
+  color:white;border:none;font-size:18px;cursor:pointer;
+  box-shadow:0 4px 18px rgba(21,101,192,.40);
+  display:none;align-items:center;justify-content:center;
+  transition:opacity .25s,transform .25s;opacity:0;
+  font-family:inherit}
+#btn-top.visible{display:flex;opacity:1}
+#btn-top:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(21,101,192,.5)}
+
 /* ===== LOGIN ===== */
 #login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;
   background:linear-gradient(135deg,#e8effe 0%,#ddeafa 40%,#e9f0ff 100%);
@@ -740,6 +753,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       <table>
         <thead><tr>
           <th style="width:36px"><input type="checkbox" id="check-all" onclick="toggleSeleccionTodos(this)" style="accent-color:var(--accent);cursor:pointer;width:15px;height:15px"/></th>
+          <th style="width:38px;text-align:center;color:var(--text3)">#</th>
           <th onclick="sortBy('numeroOferta')">Nº Oferta</th>
           <th onclick="sortBy('empresa')">Empresa</th>
           <th onclick="sortBy('provincia')">Provincia</th>
@@ -2328,8 +2342,8 @@ let ofertasSeleccionadas=new Set();
 // Variable para gráfica custom de estadísticas
 let _stCustomChart=null;
 
-// ===== PAGINACIÓN — TABLA =====
-const PAGINACION_POR_PAGINA=50;
+// ===== SIN PAGINACIÓN — lista continua, todas las ofertas visibles =====
+// (paginaActual conservado como noop para no romper referencias residuales)
 let paginaActual=1;
 
 // ===== AUTH =====
@@ -3772,21 +3786,13 @@ function cerrarSmartNotif(){
 function renderTabla(){
   const hoy=fechaLocal();
   const hoyCmp=new Date();
-  const todasLasFilas=getFiltradas();
-  const totalRegistros=todasLasFilas.length;
-  const totalPaginas=Math.max(1,Math.ceil(totalRegistros/PAGINACION_POR_PAGINA));
-
-  // Ajustar página actual si se queda fuera de rango (p.ej. al filtrar)
-  if(paginaActual>totalPaginas) paginaActual=1;
-
-  const inicio=(paginaActual-1)*PAGINACION_POR_PAGINA;
-  const fin=Math.min(inicio+PAGINACION_POR_PAGINA,totalRegistros);
-  const rows=todasLasFilas.slice(inicio,fin);
+  const rows=getFiltradas();          // TODAS las ofertas filtradas, sin paginar
+  const totalRegistros=rows.length;
 
   const tbody=document.getElementById("tbody");
   if(!rows.length){
-    tbody.innerHTML=`<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:40px">No se encontraron ofertas</td></tr>`;
-    _renderPaginacion(0,0,1,1);
+    tbody.innerHTML=`<tr><td colspan="14" style="text-align:center;color:var(--text3);padding:40px">No se encontraron ofertas</td></tr>`;
+    _renderContador(0);
     return;
   }
   tbody.innerHTML=rows.map((o,idx)=>{
@@ -3801,6 +3807,7 @@ function renderTabla(){
     const contEsc=_esc(o.contacto||"");
     return `<tr style="--ec:${inactiva?"#ef4444":col};${filaColor};${filaBorde}" onclick="verDetalle('${o.id}')">
       <td onclick="event.stopPropagation()" style="text-align:center"><input type="checkbox" class="row-check" data-id="${o.id}" onclick="actualizarSeleccion()" style="accent-color:var(--accent);cursor:pointer;width:15px;height:15px"/></td>
+      <td style="text-align:center;color:var(--text3);font-size:11px;font-weight:700;font-family:'DM Mono',monospace">${idx+1}</td>
       <td style="color:var(--accent);font-weight:600">${_esc(o.numeroOferta||"—")}</td>
       <td><div style="color:var(--text);font-weight:600;cursor:pointer;text-decoration:underline;text-decoration-color:var(--border2)" onclick="event.stopPropagation();abrirFichaEmpresa(this.closest('tr').dataset.empresa)" title="Ver ficha de empresa" data-empresa="${empEsc}">${empEsc}</div><div style="color:var(--text3);font-size:10px">${contEsc}</div></td>
       <td style="color:var(--text2)">${_esc(o.provincia||"—")}</td>
@@ -3820,59 +3827,35 @@ function renderTabla(){
     </tr>`;
   }).join("");
 
-  _renderPaginacion(inicio,fin,totalRegistros,totalPaginas);
+  _renderContador(totalRegistros);
 }
 
-function _renderPaginacion(inicio,fin,total,totalPaginas){
-  // Buscar o crear el contenedor de paginación bajo la tabla
-  let pag=document.getElementById("paginacion-bar");
-  if(!pag){
-    pag=document.createElement("div");
-    pag.id="paginacion-bar";
-    const tableWrap=document.querySelector(".table-wrap");
-    if(tableWrap) tableWrap.appendChild(pag);
+// ── Contador de resultados (reemplaza la paginación eliminada) ──────────────
+// Muestra cuántas ofertas están visibles, ordenadas por número correlativo.
+function _renderContador(total){
+  let barra=document.getElementById("paginacion-bar");
+  if(!barra){
+    barra=document.createElement("div");
+    barra.id="paginacion-bar";
+    const tw=document.querySelector(".table-wrap");
+    if(tw) tw.appendChild(barra);
   }
-  if(total===0){ pag.innerHTML=""; return; }
-
-  // Números de página a mostrar (máx 5 botones + primera y última)
-  const rango=2; // botones a cada lado de la página actual
-  let pagsBtns=[];
-  for(let p=Math.max(1,paginaActual-rango);p<=Math.min(totalPaginas,paginaActual+rango);p++) pagsBtns.push(p);
-
-  const btnStyle=(activo)=>`background:${activo?"var(--accent)":"var(--surface)"};color:${activo?"white":"var(--text2)"};border:1.5px solid ${activo?"var(--accent)":"var(--border)"};border-radius:var(--radius-sm);padding:5px 10px;font-size:12px;font-weight:${activo?700:600};cursor:pointer;font-family:inherit;min-width:34px;transition:all .15s`;
-  const btnDisabled=`background:var(--surface2);color:var(--text3);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:5px 10px;font-size:12px;cursor:not-allowed;min-width:34px;opacity:.5`;
-
-  pag.innerHTML=`
+  if(!total){ barra.innerHTML=""; return; }
+  barra.innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:10px 0 18px">
       <div style="font-size:12px;color:var(--text3);font-weight:600">
-        Mostrando <strong style="color:var(--text)">${inicio+1}–${fin}</strong> de <strong style="color:var(--text)">${total}</strong> ofertas
+        <strong style="color:var(--text)">${total}</strong> oferta${total!==1?"s":""} — lista completa ordenada por número
       </div>
-      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
-        <button style="${paginaActual<=1?btnDisabled:btnStyle(false)}" onclick="irPagina(1)" ${paginaActual<=1?'disabled':''} title="Primera página">«</button>
-        <button style="${paginaActual<=1?btnDisabled:btnStyle(false)}" onclick="irPagina(${paginaActual-1})" ${paginaActual<=1?'disabled':''} title="Anterior">‹</button>
-        ${pagsBtns[0]>1?`<span style="color:var(--text3);padding:0 4px">…</span>`:""}
-        ${pagsBtns.map(p=>`<button style="${btnStyle(p===paginaActual)}" onclick="irPagina(${p})">${p}</button>`).join("")}
-        ${pagsBtns[pagsBtns.length-1]<totalPaginas?`<span style="color:var(--text3);padding:0 4px">…</span>`:""}
-        <button style="${paginaActual>=totalPaginas?btnDisabled:btnStyle(false)}" onclick="irPagina(${paginaActual+1})" ${paginaActual>=totalPaginas?'disabled':''} title="Siguiente">›</button>
-        <button style="${paginaActual>=totalPaginas?btnDisabled:btnStyle(false)}" onclick="irPagina(${totalPaginas})" ${paginaActual>=totalPaginas?'disabled':''} title="Última página">»</button>
-        <span style="color:var(--text3);font-size:11px;margin-left:4px">Pág. ${paginaActual}/${totalPaginas}</span>
-      </div>
+      <button onclick="window.scrollTo({top:0,behavior:'smooth'})"
+        style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-sm);
+               padding:5px 12px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;
+               font-family:inherit;transition:all .15s"
+        title="Volver al inicio">↑ Inicio</button>
     </div>`;
 }
 
-function irPagina(p){
-  paginaActual=p;
-  // Limpiar selección al cambiar de página para evitar borrar ofertas de páginas anteriores
-  ofertasSeleccionadas.clear();
-  const cnt=document.getElementById("seleccion-count");
-  const btn=document.getElementById("btn-borrar-sel");
-  if(cnt) cnt.textContent="";
-  if(btn) btn.style.display="none";
-  renderTabla();
-  // Scroll suave al inicio de la tabla
-  const tw=document.querySelector(".table-wrap");
-  if(tw) tw.scrollIntoView({behavior:"smooth",block:"start"});
-}
+// irPagina conservada como noop para compatibilidad con cualquier referencia residual
+function irPagina(p){ paginaActual=p; }
 
 // ===== ESTADÍSTICAS (RESUMEN) =====
 function renderEstadisticasResumen(){
@@ -8779,6 +8762,16 @@ document.addEventListener("keydown", function(e){
 //     allow read, write: if request.auth != null;
 //   }
 // ──────────────────────────────────────────────────────────────────────────
+</script>
+<button id="btn-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Volver al inicio">↑</button>
+<script>
+// Mostrar/ocultar botón flotante según scroll
+window.addEventListener('scroll',function(){
+  const btn=document.getElementById('btn-top');
+  if(!btn) return;
+  if(window.scrollY>400) btn.classList.add('visible');
+  else btn.classList.remove('visible');
+},{passive:true});
 </script>
 </body>
 </html>
