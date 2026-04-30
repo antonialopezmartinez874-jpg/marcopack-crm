@@ -6673,41 +6673,106 @@ async function importarDesdeWord(event){
 }
 
 // ── Parser de .doc binario (Word 97-2003) ──────────────────────────────────
-// Extrae texto legible del ArrayBuffer de un .doc binario
-// Busca cadenas de caracteres imprimibles (ASCII y Latin-1) de longitud > 3
+// Lee tanto el flujo ASCII/Latin-1 como el flujo UTF-16LE del archivo OLE
+// para recuperar todo el texto, incluyendo el contenido de las tablas Word.
 function _extraerTextoDOCBinario(arrayBuffer){
   const bytes=new Uint8Array(arrayBuffer);
-  const lineas=[];
-  let actual=[];
 
-  for(let i=0;i<bytes.length;i++){
-    const b=bytes[i];
-    // Caracteres imprimibles ASCII + Latin-1 extendido (acentos, ñ, etc.)
-    if((b>=32 && b<=126)||(b>=160 && b<=255)){
-      actual.push(String.fromCharCode(b));
-    } else if(b===10||b===13||b===9){
-      // Salto de línea o tabulación: separador natural
-      const linea=actual.join("").trim();
-      if(linea.length>3) lineas.push(linea);
-      actual=[];
-    } else {
-      // Carácter no imprimible: actúa como separador
-      const linea=actual.join("").trim();
-      if(linea.length>3) lineas.push(linea);
-      actual=[];
+  // ── Paso 1: Extracción ASCII/Latin-1 (flujo principal) ──────────────
+  function extraerASCII(){
+    const lineas=[];
+    let actual=[];
+    for(let i=0;i<bytes.length;i++){
+      const b=bytes[i];
+      if((b>=32&&b<=126)||(b>=160&&b<=255)){
+        actual.push(String.fromCharCode(b));
+      } else if(b===10||b===13||b===9){
+        const l=actual.join("").trim();
+        if(l.length>3) lineas.push(l);
+        actual=[];
+      } else {
+        const l=actual.join("").trim();
+        if(l.length>3) lineas.push(l);
+        actual=[];
+      }
+    }
+    if(actual.length>3) lineas.push(actual.join("").trim());
+    return lineas;
+  }
+
+  // ── Paso 2: Extracción UTF-16LE (tablas y texto enriquecido) ────────
+  // El formato .doc almacena texto de tablas en UTF-16LE dentro del OLE
+  function extraerUTF16LE(){
+    const lineas=[];
+    let i=0;
+    while(i<bytes.length-1){
+      // Detectar inicio de cadena UTF-16LE: byte bajo imprimible + byte alto 0x00
+      if(bytes[i+1]===0x00 && bytes[i]>=0x20 && bytes[i]<=0x7E){
+        const chars=[];
+        let j=i;
+        while(j<bytes.length-1 && bytes[j+1]===0x00){
+          const cp=bytes[j]|(bytes[j+1]<<8);
+          if(cp>=0x20&&cp<=0x7E){
+            chars.push(String.fromCharCode(cp));
+          } else if(cp>=0x80&&cp<=0xFFFF&&cp!==0xFFFF&&cp!==0xFFFE){
+            // BMP extendido: incluir (acentos, ñ, caracteres especiales como ')
+            chars.push(String.fromCharCode(cp));
+          } else if(cp===0x000D||cp===0x0007){
+            // Retorno de carro en Word → separador de párrafo
+            const l=chars.splice(0).join("").trim();
+            if(l.length>2) lineas.push(l);
+          } else {
+            break;
+          }
+          j+=2;
+        }
+        const l=chars.join("").trim();
+        if(l.length>2) lineas.push(l);
+        // Avanzar más allá de la cadena encontrada
+        if(j>i+2) { i=j; continue; }
+      }
+      i++;
+    }
+    return lineas;
+  }
+
+  const lineasASCII=extraerASCII();
+  const lineasUTF16=extraerUTF16LE();
+
+  // ── Paso 3: Fusionar ambas listas eliminando duplicados ──────────────
+  // Primero normalizamos para dedup: quitamos espacios extras y pasamos a lower
+  function normKey(s){ return s.toLowerCase().replace(/\s+/g," ").trim(); }
+  const vistos=new Set();
+  const fusion=[];
+  for(const arr of [lineasUTF16, lineasASCII]){
+    for(const l of arr){
+      const k=normKey(l);
+      if(!vistos.has(k)){ vistos.add(k); fusion.push(l); }
     }
   }
-  if(actual.length>3) lineas.push(actual.join("").trim());
 
-  // Eliminar duplicados consecutivos y ruido (cadenas claramente binarias)
-  const filtradas=lineas.filter((l,i,arr)=>{
-    if(l===arr[i-1]) return false; // duplicado consecutivo
-    // Filtrar cadenas con demasiados caracteres no-alfanuméricos (ruido binario)
-    const alfanum=(l.match(/[a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ@\.\-\s]/g)||[]).length;
-    return alfanum/l.length>0.5;
+  // ── Paso 4: Filtrar ruido binario ────────────────────────────────────
+  const RUIDO_EXACTO=new Set(["bjbjî","bjbj","þÿÿÿ","ÿÿÿÿ","ÿÿÿÿÿÿ","þÿ"]);
+  const filtradas=fusion.filter(l=>{
+    if(RUIDO_EXACTO.has(l.toLowerCase())) return false;
+    // Eliminar cadenas mayoritariamente compuestas de ÿ u otros bytes altos repetidos
+    const byteAlto=(l.match(/[\u00f0-\u00ff]/g)||[]).length;
+    if(byteAlto/l.length>0.4) return false;
+    // Necesita al menos 50% de caracteres alfanuméricos reconocibles
+    const alfanum=(l.match(/[a-zA-Z0-9\u00c0-\u024f@.\-\s]/g)||[]).length;
+    if(alfanum/l.length<0.45) return false;
+    // Eliminar cadenas cortas claramente binarias (ej: "÷.k9", "k9Î")
+    if(l.length<6 && /[^\x20-\x7E]/.test(l)) return false;
+    return true;
   });
 
-  return filtradas.join("\n");
+  // ── Paso 5: Reordenar — poner primero las líneas con etiquetas conocidas ─
+  // Así el parser las encuentra en el orden correcto aunque el OLE las mezcle
+  const ETIQUETAS=/^(COMPANY|OFFER|ATENTION|ATTENTION|EQUIPMENT|LORQUI|TLF|A\/A|COUNTRY|CITY|SUBJECT|TO:|DATE|REF|EMPRESA|CLIENTE|CONTACTO|ATENCION|ATENCIÓN|TELÉFONO|MÓVIL|EMAIL|FECHA|DESCRIPCI)/i;
+  const conEtiqueta=filtradas.filter(l=>ETIQUETAS.test(l.trim()));
+  const sinEtiqueta=filtradas.filter(l=>!ETIQUETAS.test(l.trim()));
+
+  return [...conEtiqueta,...sinEtiqueta].join("\n");
 }
 
 function _extraerCamposWord(texto){
@@ -6740,8 +6805,8 @@ function _extraerCamposWord(texto){
         for(let j=i+1;j<Math.min(i+1+maxLineas,lineas.length);j++){
           const sig=lineas[j].trim();
           if(!sig) break;
-          // Parar si parece otra etiqueta del documento
-          if(/^(EMPRESA|CLIENTE|RAZ[OÓ]N|DIRECCI[OÓ]N|ATENCION|ATENCI[OÓ]N|TLF|TELF|TEL[EÉ]FONO|FAX|M[OÓ]VIL|CELULAR|E[\s-]?MAIL|EMAIL|REFERENCIA|N[º°]\s*OFERTA|OFERTA\s*N[º°]|EQUIPO|DESCRIPCI[OÓ]N|ESTIMADO|SEG[ÚU]N|PRECIO|IMPORTE|CONDICIONES|PLAZO|FORMA\s*DE\s*PAGO|FIRMA|ATENTAMENTE|PA[IÍ]S|COUNTRY)/i.test(sig)) break;
+          // Parar si parece otra etiqueta del documento (español + inglés)
+          if(/^(EMPRESA|CLIENTE|RAZ[OÓ]N|DIRECCI[OÓ]N|ATENCION|ATENCI[OÓ]N|ATENTION|ATTENTION|TLF|TELF|TEL[EÉ]FONO|FAX|M[OÓ]VIL|CELULAR|E[\s-]?MAIL|EMAIL|REFERENCIA|N[º°]\s*OFERTA|OFERTA\s*N[º°]|OFFER|EQUIPO|EQUIPMENT|DESCRIPCI[OÓ]N|ESTIMADO|SEG[ÚU]N|PRECIO|IMPORTE|CONDICIONES|PLAZO|FORMA\s*DE\s*PAGO|FIRMA|ATENTAMENTE|PA[IÍ]S|COUNTRY|COMPANY|CONTACT|TO:|FROM:|SUBJECT|LORQUI)/i.test(sig)) break;
           partes.push(sig);
           if(!multilinea) break;
         }
@@ -6753,21 +6818,17 @@ function _extraerCamposWord(texto){
 
   /* ══════════════════════════════════════════════════════════════
      ── Número de oferta / referencia ──────────────────────────────
-     Estrategia de 4 capas, de más específica a más genérica:
-       1) Etiqueta explícita (Nº Oferta:, Ref:, Presupuesto Nº …)
-       2) Formatos estructurados conocidos (OF-2026-001, PRE-26-001…)
-       3) Patrones alfanuméricos de referencia genérica
-       4) Código entre corchetes / paréntesis tipo [REF-XXX]
-     ══════════════════════════════════════════════════════════════ */
-
-  // ── Capa 1: Etiquetas explícitas ──────────────────────────────
+  ══════════════════════════════════════════════════════════════ */
   const patronesOferta=[
-    // Nº / Núm de oferta
+    // Formato Marcopack inglés: OFFER Nº: 264.26
+    /^OFFER\s*N[º°\.ú]?\s*[:·]?\s*/i,
+    /^OFFER\s*(?:N[º°]|NO\.?|NUM\.?|NUMBER)\s*[:·]?\s*/i,
+    /^OFFER\s*[:·]\s*/i,
+    // Nº / Núm de oferta español
     /N[º°\.ú]\s*(?:DE\s*)?(?:OFERTA|OF\.?)\s*[:·]?\s*/i,
     /OFERTA\s*N[º°\.]\s*[:·]?\s*/i,
     /OFERTA\s*(?:N[º°]|NUM\.?|N[Ú]M\.?)\s*[:·]?\s*/i,
     /N[º°]\s*OFERTA\s*[:·]?\s*/i,
-    // Solo "OFERTA:" con valor claro (no texto largo)
     /^OFERTA\s*[:·]\s*/i,
     // Referencia
     /^REF(?:ERENCIA)?\.?\s*(?:OFERTA|PEDIDO|CLIENTE|INTERNA)?\s*[:·]\s*/i,
@@ -6779,76 +6840,45 @@ function _extraerCamposWord(texto){
     // Cotización / Pedido / Orden
     /N[º°\.]\s*(?:COTIZACI[OÓ]N|PEDIDO|ORDEN)\s*[:·]?\s*/i,
     /(?:COTIZACI[OÓ]N|PEDIDO|ORDEN)\s*N[º°\.]\s*[:·]?\s*/i,
-    // Inglés
+    // Inglés genérico
     /(?:QUOTATION|QUOTE|ORDER|INQUIRY|ENQUIRY)\s*(?:N[º°.]|NO\.?|REF\.?)?\s*[:·]?\s*/i,
     /(?:YOUR\s+REF(?:ERENCE)?|OUR\s+REF(?:ERENCE)?)\s*[:·]?\s*/i,
-    // Expediente / Proyecto
-    /(?:EXPEDIENTE|PROYECTO|EXP\.?)\s*N[º°.]?\s*[:·]?\s*/i,
-    /N[º°\.]\s*EXPEDIENTE\s*[:·]?\s*/i,
   ];
   datos.referencia = buscar(patronesOferta);
 
-  // Limpiar texto sobrante si el valor capturado empieza por texto de otra etiqueta
   if(datos.referencia){
-    // Truncar si hay salto a otra sección (p.ej. "OF-2026-001 Empresa: Acme")
     datos.referencia = datos.referencia.split(/\s{2,}|(?:\s(?:EMPRESA|CLIENTE|DIR|TEL|FAX|EMAIL)[:·])/i)[0].trim();
-    // Eliminar el sufijo de fecha que a veces queda pegado ("OF-2026-001 15/04/2026")
     datos.referencia = datos.referencia.replace(/\s+\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}.*$/,"").trim();
   }
 
-  // ── Capa 2: Formatos estructurados conocidos ──────────────────
+  // Capa 2: Formatos estructurados conocidos
   if(!datos.referencia){
     const patronesFormato=[
-      /\b(OF[-_]?\d{2,4}[-_]\d{2,4}(?:[-_]\w{1,6})?)\b/i,   // OF-2026-001, OF26-001
-      /\b(PRE[-_]?\d{2,4}[-_]\d{2,4}(?:[-_]\w{1,6})?)\b/i,  // PRE-2026-001
-      /\b(COT[-_]?\d{2,4}[-_]\d{2,4}(?:[-_]\w{1,6})?)\b/i,  // COT-2026-001
-      /\b(PED[-_]?\d{2,4}[-_]\d{2,4}(?:[-_]\w{1,6})?)\b/i,  // PED-2026-001
-      /\b(QU[-_]?\d{2,4}[-_]\d{2,4}(?:[-_]\w{1,6})?)\b/i,   // QU-2026-001
-      /\b(EXP[-_]?\d{2,4}[-_]\d{2,4}(?:[-_]\w{1,6})?)\b/i,  // EXP-2026-001
-      /\b(\d{4}[-_]\d{3,5}[-_][A-Z]{1,4})\b/,                // 2026-001-MP
-      /\b([A-Z]{2,4}[-_]\d{4}[-_]\d{3,5})\b/,                // MP-2026-001
+      /\b(\d{3,4}\.\d{2})\b/,                                    // 264.26 (formato Marcopack)
+      /\b(OF[-_]?\d{2,4}[-_]\d{2,4}(?:[-_]\w{1,6})?)\b/i,
+      /\b(PRE[-_]?\d{2,4}[-_]\d{2,4}(?:[-_]\w{1,6})?)\b/i,
+      /\b(COT[-_]?\d{2,4}[-_]\d{2,4}(?:[-_]\w{1,6})?)\b/i,
+      /\b([A-Z]{2,4}[-_]\d{4}[-_]\d{3,5})\b/,
     ];
-    for(const l of lineas){
+    // Buscar primero en líneas que contengan "OFFER" o "OFERTA"
+    const lineasOffer=lineas.filter(l=>/offer|oferta|presupuesto|quotation/i.test(l));
+    for(const l of [...lineasOffer,...lineas]){
       for(const p of patronesFormato){
         const m=l.match(p);
-        if(m){ datos.referencia=m[1]; break; }
+        if(m && !datos.referencia){ datos.referencia=m[1]; break; }
       }
       if(datos.referencia) break;
     }
   }
 
-  // ── Capa 3: Patrón alfanumérico genérico de referencia ────────
-  // Busca en líneas que contengan palabras clave de referencia
-  if(!datos.referencia){
-    const refsKeywords=/\b(REF|OFERTA|PRESUPUESTO|N[º°]|NUM|REFERENCIA|QUOTE|ORDER|COTIZ)\b/i;
-    for(const l of lineas){
-      if(refsKeywords.test(l)){
-        // Extraer código alfanumérico: al menos 2 letras y 2 dígitos
-        const m=l.match(/\b([A-Z0-9][A-Z0-9\-_\/\.]{3,20})\b/i);
-        if(m && /[A-Z]/i.test(m[1]) && /\d/.test(m[1])){
-          // Excluir emails, URLs, fechas
-          if(!/[@\.]/.test(m[1]) && !/^\d{4}[-\/]\d{2}[-\/]\d{2}$/.test(m[1])){
-            datos.referencia=m[1];
-            break;
-          }
-        }
-      }
-    }
-  }
-
-  // ── Capa 4: Código entre corchetes o paréntesis ───────────────
-  if(!datos.referencia){
-    for(const l of lineas){
-      const m=l.match(/[\[\(]([A-Z0-9][A-Z0-9\-_\/\.]{2,18})[\]\)]/i);
-      if(m && /[A-Z]/i.test(m[1]) && /\d/.test(m[1])){
-        datos.referencia=m[1];
-        break;
-      }
-    }
-  }
-
-  /* ── EMPRESA ── */
+  /* ══════════════════════════════════════════════════════════════
+     ── EMPRESA ─────────────────────────────────────────────────
+  ══════════════════════════════════════════════════════════════ */
   datos.empresa=buscar([
+    // Formato Marcopack inglés
+    /^COMPANY\s*[:·]?\s*/i,
+    /^TO\s*[:·]\s*/i,
+    // Español
     /^EMPRESA\s*[:·]?\s*/i,
     /^CLIENTE\s*[:·]?\s*/i,
     /^RAZON\s*SOCIAL\s*[:·]?\s*/i,
@@ -6857,13 +6887,13 @@ function _extraerCamposWord(texto){
     /^SOCIEDAD\s*[:·]?\s*/i,
   ],{multilinea:true,maxLineas:3});
 
-  // Fallback 1: línea inmediatamente después de "EMPRESA" sin separador
+  // Fallback: línea siguiente a COMPANY/EMPRESA si vino vacía
   if(!datos.empresa){
     for(let i=0;i<lineas.length;i++){
-      if(/^EMPRESA\b/i.test(lineas[i])){
+      if(/^(COMPANY|EMPRESA)\b/i.test(lineas[i])){
         for(let j=i+1;j<Math.min(i+4,lineas.length);j++){
           const sig=lineas[j].trim();
-          if(sig && sig.length>2 && !/^(DIRECC|ATEN|TLF|FAX|E-?MAIL|REFER|N[º°]|CLIENTE)/i.test(sig)){
+          if(sig && sig.length>2 && !/^(DIRECC|ATEN|TLF|FAX|E-?MAIL|REFER|N[º°]|CLIENTE|OFFER|ATENTION|CONTACT|COUNTRY)/i.test(sig)){
             datos.empresa=sig; break;
           }
         }
@@ -6871,31 +6901,32 @@ function _extraerCamposWord(texto){
       }
     }
   }
-  // Fallback 2: entre REFERENCIA/OFERTA y DIRECCIÓN
-  if(!datos.empresa){
-    const idxRef=lineas.findIndex(l=>/REFERENCIA|OFERTA|PRESUPUESTO/i.test(l));
-    const idxDir=lineas.findIndex(l=>/^DIRECCI[OÓ]N/i.test(l));
-    if(idxRef>=0 && idxDir>idxRef+1){
-      const candidatos=lineas.slice(idxRef+1,idxDir)
-        .filter(l=>l.length>2 && !/^\d+$/.test(l) && !/^(N[º°]|REF|OF-)/i.test(l));
-      if(candidatos.length) datos.empresa=candidatos[0];
-    }
-  }
-  // Fallback 3: heurística — buscar patrón típico S.A., S.L., S.A.U., S.L.U.
+
+  // Fallback heurística S.A., S.L., SA, Ltd, Inc, Corp
   if(!datos.empresa){
     for(const l of lineas){
-      if(/\b(S\.?A\.?U?\.?|S\.?L\.?U?\.?|S\.?A\.?T\.?|S\.?COOP\.?|S\.?R\.?L\.?)\b/i.test(l)){
-        datos.empresa=l.trim(); break;
+      if(/\b(S\.?A\.?U?\.?|S\.?L\.?U?\.?|S\.?A\.?T\.?|S\.?COOP\.?|S\.?R\.?L\.?|Ltd\.?|Inc\.?|Corp\.?|S\.A\.S\.?)\b/i.test(l)){
+        // Excluir si es claramente la firma de Marcopack
+        if(!/MARCOPACK/i.test(l)){
+          datos.empresa=l.trim(); break;
+        }
       }
     }
   }
 
-  /* ── CONTACTO / ATENCIÓN ── */
+  /* ══════════════════════════════════════════════════════════════
+     ── CONTACTO / ATENCIÓN ────────────────────────────────────
+  ══════════════════════════════════════════════════════════════ */
   let atencion=buscar([
-    /^ATENCION\s*[:·]?\s*/i,
-    /^ATENCI[OÓ]N\s*[:·]?\s*/i,
+    // Formato Marcopack inglés
+    /^ATENTION\s*[:·]?\s*/i,
+    /^ATTENTION\s*[:·]?\s*/i,
     /^A\s*\/\s*A\s*[:·]?\s*/i,
     /^A\/A\s*[:·]?\s*/i,
+    /^CONTACT\s*(?:PERSON)?\s*[:·]?\s*/i,
+    // Español
+    /^ATENCION\s*[:·]?\s*/i,
+    /^ATENCI[OÓ]N\s*[:·]?\s*/i,
     /^CONTACTO\s*[:·]?\s*/i,
     /^PERSONA\s*(?:DE\s*CONTACTO)?\s*[:·]?\s*/i,
     /^DIRIGIDO\s*A\s*[:·]?\s*/i,
@@ -6903,14 +6934,14 @@ function _extraerCamposWord(texto){
   ]);
   if(atencion){
     atencion=atencion.replace(/^(Sr\.?|Sra\.?|D\.?|Dña\.?|Don\s|Doña\s)\s*/i,"").trim();
-    // Separar si el teléfono está pegado al nombre
     const mTel=atencion.match(/^(.+?)\s+([+]?[\d\s.\-]{9,})$/);
     if(mTel){ atencion=mTel[1].trim(); if(!datos.movil) datos.movil=mTel[2].replace(/[\s.\-]/g,""); }
   }
   datos.contacto=atencion;
 
-  /* ── TELÉFONO FIJO ── */
-  // Lista negra: números propios de Marcopack que nunca deben cogerse como teléfono del cliente
+  /* ══════════════════════════════════════════════════════════════
+     ── TELÉFONO ────────────────────────────────────────────────
+  ══════════════════════════════════════════════════════════════ */
   const TEL_PROPIOS_MARCOPACK=["968692265","968 692 265","968-692-265","968.692.265"];
   function esNumeroPropio(tel){ return TEL_PROPIOS_MARCOPACK.some(n=>n.replace(/[\s.\-]/g,"")===(tel||"").replace(/[\s.\-]/g,"")); }
 
@@ -6924,13 +6955,17 @@ function _extraerCamposWord(texto){
     /^TFNO\.?\s*[:·]?\s*/i,
   ]);
   if(tlfRaw){
-    const telLimpio=tlfRaw.replace(/[\s.\-]/g,"").replace(/[^\d+]/g,"");
-    if(!esNumeroPropio(telLimpio)) datos.telefono=telLimpio;
+    // Capturar número completo incluyendo prefijos internacionales (+225, +34...)
+    const mTel=tlfRaw.match(/([+]?\d[\d\s.\-]{6,})/);
+    if(mTel){
+      const telLimpio=mTel[1].replace(/[\s.\-]/g,"").replace(/[^\d+]/g,"");
+      if(!esNumeroPropio(telLimpio)) datos.telefono=telLimpio;
+    }
   }
-  // Sin etiqueta: número fijo español (empieza por 8 o 9, 9 dígitos) — excluir propios
   if(!datos.telefono){
     for(const l of lineas){
-      const m=l.match(/\b([89]\d{2}[\s.\-]?\d{2}[\s.\-]?\d{2}[\s.\-]?\d{2})\b/);
+      // Números internacionales (+225...) o españoles (8xx, 9xx)
+      const m=l.match(/([+]\d{1,3}[\s.\-]?\d[\d\s.\-]{6,}|\b[89]\d{2}[\s.\-]?\d{2}[\s.\-]?\d{2}[\s.\-]?\d{2}\b)/);
       if(m){
         const telLimpio=m[1].replace(/[\s.\-]/g,"");
         if(!esNumeroPropio(telLimpio)){ datos.telefono=telLimpio; break; }
@@ -6938,7 +6973,9 @@ function _extraerCamposWord(texto){
     }
   }
 
-  /* ── MÓVIL ── */
+  /* ══════════════════════════════════════════════════════════════
+     ── MÓVIL ───────────────────────────────────────────────────
+  ══════════════════════════════════════════════════════════════ */
   const movRaw=buscar([
     /^M[OÓ]VIL\s*[:·]?\s*/i,
     /^CELULAR\s*[:·]?\s*/i,
@@ -6952,35 +6989,53 @@ function _extraerCamposWord(texto){
       if(m){ datos.movil=m[1].replace(/[\s.\-]/g,""); break; }
     }
   }
-  // Evitar duplicar fijo como móvil
   if(datos.movil && datos.telefono && datos.movil===datos.telefono) datos.movil="";
 
-  /* ── EMAIL ── */
+  /* ══════════════════════════════════════════════════════════════
+     ── EMAIL ───────────────────────────────────────────────────
+  ══════════════════════════════════════════════════════════════ */
   for(const l of lineas){
     const m=l.match(/([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/);
     if(m){ datos.email=m[1].toLowerCase(); break; }
   }
 
-  /* ── FECHA ── formatos: dd/mm/yyyy, dd-mm-yyyy, dd.mm.yyyy, yyyy-mm-dd, "15 de enero de 2024" */
-  for(const l of lineas){
-    let m=l.match(/\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\b/);
+  /* ══════════════════════════════════════════════════════════════
+     ── FECHA ───────────────────────────────────────────────────
+     Formatos: dd/mm/yyyy, dd.mm.yy, dd-mm-yyyy, yyyy-mm-dd,
+               "15 de enero de 2024", "LORQUI: 29.04.26"
+  ══════════════════════════════════════════════════════════════ */
+  // Primero buscar en líneas con etiqueta LORQUI o DATE
+  const lineasFecha=lineas.filter(l=>/^(LORQUI|DATE|FECHA)\s*[:·]?\s*/i.test(l));
+  const lineasBuscarFecha=[...lineasFecha,...lineas];
+  for(const l of lineasBuscarFecha){
+    // dd.mm.yy (año de 2 dígitos, formato Marcopack: 29.04.26)
+    let m=l.match(/\b(\d{1,2})\.(\d{1,2})\.(2\d|\d{2})\b/);
+    if(m){
+      const d=m[1].padStart(2,"0"), mo=m[2].padStart(2,"0");
+      let y=m[3]; if(y.length===2) y="20"+y;
+      datos.fecha=`${y}-${mo}-${d}`; break;
+    }
+    // dd/mm/yyyy o dd-mm-yyyy
+    m=l.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/);
     if(m){ const[,d,mo,y]=m; datos.fecha=`${y}-${mo.padStart(2,"0")}-${d.padStart(2,"0")}`; break; }
+    // yyyy-mm-dd
     m=l.match(/\b(20\d{2})\-(\d{2})\-(\d{2})\b/);
     if(m){ datos.fecha=`${m[1]}-${m[2]}-${m[3]}`; break; }
+    // "15 de enero de 2024"
     m=l.match(/\b(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(?:de\s+)?(\d{4})\b/i);
     if(m){
       const MESES={enero:"01",febrero:"02",marzo:"03",abril:"04",mayo:"05",junio:"06",julio:"07",agosto:"08",septiembre:"09",octubre:"10",noviembre:"11",diciembre:"12"};
-      datos.fecha=`${m[3]}-${MESES[m[2].toLowerCase()]}-${m[1].padStart(2,"0")}`;
-      break;
+      datos.fecha=`${m[3]}-${MESES[m[2].toLowerCase()]}-${m[1].padStart(2,"0")}`; break;
     }
   }
 
   /* ── IMPORTE ── siempre a 0 (el usuario lo introduce manualmente) */
   datos.importe = 0;
 
-  /* ── PROVINCIA ── buscar en todo el texto normalizando acentos */
+  /* ══════════════════════════════════════════════════════════════
+     ── PROVINCIA ───────────────────────────────────────────────
+  ══════════════════════════════════════════════════════════════ */
   const textoNorm=texto.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
-  // Priorizar bloque DIRECCIÓN (contexto más fiable)
   const idxDir=lineas.findIndex(l=>/^DIRECCI[OÓ]N/i.test(l));
   const bloqueDir=idxDir>=0?lineas.slice(idxDir,idxDir+6).join(" "):texto;
   const bloqueDirNorm=bloqueDir.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
@@ -6997,20 +7052,51 @@ function _extraerCamposWord(texto){
   }
   datos.provincia=provEncontrada;
 
-  /* ── PAÍS ── Solo cambia si hay etiqueta explícita "País:" en el documento.
-     Si no hay etiqueta, siempre España. El usuario lo cambia manualmente si hace falta. */
-  const paisRaw=buscar([/^PA[IÍ]S\s*[:·]?\s*/i,/^COUNTRY\s*[:·]?\s*/i,/^NACI[OÓ]N\s*[:·]?\s*/i]);
+  /* ══════════════════════════════════════════════════════════════
+     ── PAÍS ────────────────────────────────────────────────────
+     Busca etiqueta PAÍS/COUNTRY o ciudad+país en el texto.
+     Para documentos de Marcopack en inglés (IVORY COAST, ABIDJAN...)
+     detectamos país por ciudad/zona conocida.
+  ══════════════════════════════════════════════════════════════ */
+  const paisRaw=buscar([
+    /^PA[IÍ]S\s*[:·]?\s*/i,
+    /^COUNTRY\s*[:·]?\s*/i,
+    /^NACI[OÓ]N\s*[:·]?\s*/i,
+  ]);
   if(paisRaw){
     const paisNorm=paisRaw.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().trim();
     const encontrado=PAISES.find(p=>p.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase()===paisNorm);
     datos.pais=encontrado||paisRaw;
   } else {
-    // Sin etiqueta explícita → siempre España, sin buscar en el texto
-    datos.pais="España";
+    // Detectar países por texto libre (nombres en inglés frecuentes en ofertas de exportación)
+    const PAISES_EN={
+      "IVORY COAST":"Costa de Marfil","COTE D'IVOIRE":"Costa de Marfil","CÔTE D'IVOIRE":"Costa de Marfil",
+      "MOROCCO":"Marruecos","ALGERIA":"Argelia","TUNISIA":"Túnez","EGYPT":"Egipto",
+      "NIGERIA":"Nigeria","GHANA":"Ghana","SENEGAL":"Senegal","CAMEROON":"Camerún",
+      "FRANCE":"Francia","GERMANY":"Alemania","ITALY":"Italia","PORTUGAL":"Portugal",
+      "UNITED KINGDOM":"Reino Unido","UK":"Reino Unido","USA":"Estados Unidos",
+      "UNITED STATES":"Estados Unidos","MEXICO":"México","BRAZIL":"Brasil",
+      "COLOMBIA":"Colombia","PERU":"Perú","CHILE":"Chile","ARGENTINA":"Argentina",
+    };
+    const textoUpper=texto.toUpperCase();
+    let paisDetectado="";
+    for(const [en,es] of Object.entries(PAISES_EN)){
+      if(textoUpper.includes(en)){ paisDetectado=es; break; }
+    }
+    datos.pais=paisDetectado||"España";
   }
 
-  /* ── DESCRIPCIÓN — varios encabezados posibles ── */
+  /* ══════════════════════════════════════════════════════════════
+     ── DESCRIPCIÓN ─────────────────────────────────────────────
+     Encabezados en inglés (EQUIPMENT REQUESTED) y español
+  ══════════════════════════════════════════════════════════════ */
   const patronesDesc=[
+    // Formato Marcopack inglés
+    /^EQUIPMENT\s*REQUESTED\s*[:·]?\s*/i,
+    /^EQUIPMENT\s*[:·]?\s*/i,
+    /^SUBJECT\s*[:·]?\s*/i,
+    /^MACHINE\s*[:·]?\s*/i,
+    // Español
     /EQUIPO\s*SOLICITADO/i,
     /DESCRIPCI[OÓ]N\s*(?:DEL\s*(?:EQUIPO|PRODUCTO|SERVICIO|TRABAJO))?/i,
     /OBJETO\s*(?:DEL\s*PEDIDO)?/i,
@@ -7021,17 +7107,26 @@ function _extraerCamposWord(texto){
   ];
   for(let i=0;i<lineas.length;i++){
     if(patronesDesc.some(p=>p.test(lineas[i]))){
+      // Primero ver si hay valor en la misma línea
+      let valorMismaLinea="";
+      for(const p of patronesDesc){
+        if(p.test(lineas[i])){
+          valorMismaLinea=lineas[i].replace(p,"").replace(/^[\s:·]+/,"").trim();
+          break;
+        }
+      }
       const partes=[];
+      if(valorMismaLinea) partes.push(valorMismaLinea);
       for(let j=i+1;j<Math.min(i+8,lineas.length);j++){
         const sig=lineas[j].trim();
-        if(!sig||/^(PRECIO|IMPORTE|CONDICIONES|PLAZO|FORMA\s*DE\s*PAGO|GARANT[IÍ]A|ENTREGA|VALIDEZ|FIRMA|ATENTAMENTE|TOTAL|COSTE)/i.test(sig)) break;
+        if(!sig||/^(PRECIO|IMPORTE|CONDICIONES|PLAZO|FORMA\s*DE\s*PAGO|GARANT[IÍ]A|ENTREGA|VALIDEZ|FIRMA|ATENTAMENTE|TOTAL|COSTE|SINCERELY|REGARDS|BEST)/i.test(sig)) break;
         partes.push(sig);
       }
       if(partes.length){ datos.descripcion=partes.join(" ").trim(); break; }
     }
   }
 
-  // ── Limpieza final: quitar ruido en bordes ──
+  // ── Limpieza final ──
   for(const k of Object.keys(datos)){
     if(typeof datos[k]==="string"){
       datos[k]=datos[k].replace(/^[\s:·\-–—]+|[\s:·\-–—]+$/g,"").trim();
