@@ -6682,40 +6682,45 @@ async function importarDesdeWord(event){
 }
 
 // ── Parser de .doc binario (Word 97-2003) ──────────────────────────────────
-// Lee tanto el flujo ASCII/Latin-1 como el flujo UTF-16LE del archivo OLE
-// para recuperar todo el texto, incluyendo el contenido de las tablas Word.
+// Los archivos .doc almacenan el texto en Latin-1/Windows-1252.
+// El separador de celda de tabla es \x07, el fin de párrafo es \x0D.
+// Esta función extrae el texto respetando esos separadores para que las
+// etiquetas (EMPRESA:) y sus valores queden en líneas consecutivas.
 function _extraerTextoDOCBinario(arrayBuffer){
   const bytes=new Uint8Array(arrayBuffer);
 
-  // ── Paso 1: Extracción ASCII/Latin-1 (flujo principal) ──────────────
-  function extraerASCII(){
+  // ── Método principal: Latin-1 con \x07 como separador de celda ──────
+  // Es el método correcto para .doc: el flujo de texto está en Latin-1
+  // y \x07 separa celdas de tabla, \x0D separa párrafos.
+  function extraerLatin1(){
     const lineas=[];
     let actual=[];
     for(let i=0;i<bytes.length;i++){
       const b=bytes[i];
-      if((b>=32&&b<=126)||(b>=160&&b<=255)){
+      if(b===0x07||b===0x0D||b===0x0A||b===0x0B){
+        // Separador de celda (\x07), párrafo (\x0D) o línea (\x0A/\x0B)
+        const l=actual.join("").trim();
+        // Filtrar ruido: línea debe tener al menos 50% alfanumérico
+        if(l.length>2){
+          const alfanum=(l.match(/[a-zA-Z0-9\u00c0-\u024f@.\-_\s:\/]/g)||[]).length;
+          if(alfanum/l.length>=0.45) lineas.push(l);
+        }
+        actual=[];
+      } else if((b>=32&&b<=126)||(b>=160&&b<=255)){
+        // Caracteres Latin-1 imprimibles (incluye acentos, ñ, etc.)
         actual.push(String.fromCharCode(b));
-      } else if(b===10||b===13||b===9){
-        const l=actual.join("").trim();
-        if(l.length>3) lineas.push(l);
-        actual=[];
-      } else {
-        const l=actual.join("").trim();
-        if(l.length>3) lineas.push(l);
-        actual=[];
       }
+      // Bytes de control y nulos: ignorar (no interrumpir la cadena actual)
     }
-    if(actual.length>3) lineas.push(actual.join("").trim());
+    if(actual.length>2) lineas.push(actual.join("").trim());
     return lineas;
   }
 
-  // ── Paso 2: Extracción UTF-16LE (tablas y texto enriquecido) ────────
-  // El formato .doc almacena texto de tablas en UTF-16LE dentro del OLE
+  // ── Método de respaldo: UTF-16LE para documentos que lo usen ────────
   function extraerUTF16LE(){
     const lineas=[];
     let i=0;
     while(i<bytes.length-1){
-      // Detectar inicio de cadena UTF-16LE: byte bajo imprimible + byte alto 0x00
       if(bytes[i+1]===0x00 && bytes[i]>=0x20 && bytes[i]<=0x7E){
         const chars=[];
         let j=i;
@@ -6724,10 +6729,8 @@ function _extraerTextoDOCBinario(arrayBuffer){
           if(cp>=0x20&&cp<=0x7E){
             chars.push(String.fromCharCode(cp));
           } else if(cp>=0x80&&cp<=0xFFFF&&cp!==0xFFFF&&cp!==0xFFFE){
-            // BMP extendido: incluir (acentos, ñ, caracteres especiales como ')
             chars.push(String.fromCharCode(cp));
           } else if(cp===0x000D||cp===0x0007){
-            // Retorno de carro en Word → separador de párrafo
             const l=chars.splice(0).join("").trim();
             if(l.length>2) lineas.push(l);
           } else {
@@ -6737,49 +6740,52 @@ function _extraerTextoDOCBinario(arrayBuffer){
         }
         const l=chars.join("").trim();
         if(l.length>2) lineas.push(l);
-        // Avanzar más allá de la cadena encontrada
-        if(j>i+2) { i=j; continue; }
+        if(j>i+2){ i=j; continue; }
       }
       i++;
     }
     return lineas;
   }
 
-  const lineasASCII=extraerASCII();
+  const lineasLatin1=extraerLatin1();
   const lineasUTF16=extraerUTF16LE();
 
-  // ── Paso 3: Fusionar ambas listas eliminando duplicados ──────────────
-  // Primero normalizamos para dedup: quitamos espacios extras y pasamos a lower
+  // ── Fusionar: Latin-1 primero (es la fuente correcta), UTF-16 como complemento
   function normKey(s){ return s.toLowerCase().replace(/\s+/g," ").trim(); }
   const vistos=new Set();
   const fusion=[];
-  for(const arr of [lineasUTF16, lineasASCII]){
+  for(const arr of [lineasLatin1, lineasUTF16]){
     for(const l of arr){
       const k=normKey(l);
       if(!vistos.has(k)){ vistos.add(k); fusion.push(l); }
     }
   }
 
-  // ── Paso 4: Filtrar ruido binario ────────────────────────────────────
-  const RUIDO_EXACTO=new Set(["bjbjî","bjbj","þÿÿÿ","ÿÿÿÿ","ÿÿÿÿÿÿ","þÿ"]);
+  // ── Filtrar ruido binario ────────────────────────────────────────────
+  const RUIDO_EXACTO=new Set(["bjbjî","bjbj","þÿÿÿ","ÿÿÿÿ","ÿÿÿÿÿÿ","þÿ","telefono1"]);
   const filtradas=fusion.filter(l=>{
-    if(RUIDO_EXACTO.has(l.toLowerCase())) return false;
-    // Eliminar cadenas mayoritariamente compuestas de ÿ u otros bytes altos repetidos
+    if(RUIDO_EXACTO.has(l.toLowerCase().trim())) return false;
     const byteAlto=(l.match(/[\u00f0-\u00ff]/g)||[]).length;
-    if(byteAlto/l.length>0.4) return false;
-    // Necesita al menos 50% de caracteres alfanuméricos reconocibles
+    if(l.length>0 && byteAlto/l.length>0.4) return false;
     const alfanum=(l.match(/[a-zA-Z0-9\u00c0-\u024f@.\-\s]/g)||[]).length;
-    if(alfanum/l.length<0.45) return false;
-    // Eliminar cadenas cortas claramente binarias (ej: "÷.k9", "k9Î")
+    if(l.length>0 && alfanum/l.length<0.45) return false;
     if(l.length<6 && /[^\x20-\x7E]/.test(l)) return false;
+    // Filtrar líneas que son claramente basura de imagen/OLE
+    if(/^(Adobe Photoshop|Utilisateur|ISO_9001|calendario|Presentaci)/i.test(l)) return false;
     return true;
   });
 
-  // ── Paso 5: Reordenar — poner primero las líneas con etiquetas conocidas ─
-  // Así el parser las encuentra en el orden correcto aunque el OLE las mezcle
-  const ETIQUETAS=/^(COMPANY|OFFER|ATENTION|ATTENTION|EQUIPMENT|LORQUI|TLF|A\/A|COUNTRY|CITY|SUBJECT|TO:|DATE|REF|EMPRESA|CLIENTE|CONTACTO|ATENCION|ATENCI[OÓ]N|TEL[EÉ]FONO|M[OÓ]VIL|EMAIL|FECHA|DESCRIPCI)/i;
-  const conEtiqueta=filtradas.filter(l=>ETIQUETAS.test(l.trim()));
-  const sinEtiqueta=filtradas.filter(l=>!ETIQUETAS.test(l.trim()));
+  // ── Limpiar hipervínculos: "HYPERLINK \"mailto:x@y.com\" x@y.com" → "x@y.com"
+  const limpias=filtradas.map(l=>{
+    const mHyper=l.match(/HYPERLINK\s+"[^"]*"\s+(.+)/i);
+    if(mHyper) return mHyper[1].trim();
+    return l;
+  });
+
+  // ── Reordenar: líneas con etiquetas conocidas primero ───────────────
+  const ETIQUETAS=/^(COMPANY|OFFER|ATENTION|ATTENTION|EQUIPMENT|LORQUI|TLF|A\/A|COUNTRY|CITY|SUBJECT|TO:|DATE|REF|EMPRESA|CLIENTE|CONTACTO|ATENCION|ATENCI[OÓ]N|TEL[EÉ]FONO|M[OÓ]VIL|EMAIL|FECHA|DESCRIPCI|N[º°]\s*OFERTA|OFERTA)/i;
+  const conEtiqueta=limpias.filter(l=>ETIQUETAS.test(l.trim()));
+  const sinEtiqueta=limpias.filter(l=>!ETIQUETAS.test(l.trim()));
 
   return [...conEtiqueta,...sinEtiqueta].join("\n");
 }
@@ -6793,48 +6799,13 @@ function _extraerCamposWord(texto){
     .normalize("NFC")
     .replace(/\r\n/g,"\n").replace(/\r/g,"\n")
     .replace(/\t/g,"  ");
-
-  // ── Pre-procesar líneas expandiendo filas de tabla con | ──────────────
-  // Mammoth convierte tablas Word en líneas como "EMPRESA: | TURRONES SL |"
-  // o bien "EMPRESA:" seguido de "TURRONES SL" en la siguiente línea.
-  // Expandimos cada línea con | en pares clave-valor adicionales.
-  const lineasRaw=t.split("\n").map(l=>l.replace(/\s{2,}/g," ").trim()).filter(Boolean);
-  const lineas=[];
-  for(const l of lineasRaw){
-    if(l.includes("|")){
-      // Dividir por pipes y procesar celdas en pares: "ETIQUETA | VALOR | ETIQUETA2 | VALOR2"
-      const celdas=l.split("|").map(c=>c.trim()).filter(c=>c.length>0);
-      // Si tenemos pares clave-valor (ETIQUETA: VALOR), reconstruirlos juntos
-      for(let ci=0;ci<celdas.length;ci++){
-        const celda=celdas[ci];
-        // ¿Es una etiqueta (termina en : o es keyword conocido)?
-        const esEtiqueta=/[:·]\s*$/.test(celda)||/^(EMPRESA|CLIENTE|ATENCI[OÓ]N|ATENCION|ATENTION|ATTENTION|TLF|TELF|TEL|PHONE|M[OÓ]VIL|MOBILE|E-?MAIL|EMAIL|DIRECCI[OÓ]N|COUNTRY|PA[IÍ]S|CONTACT|COMPANY|TO|N[º°]\s*OFERTA|OFFER|EQUIPO|EQUIPMENT|SUBJECT|LORQUI|DATE|FECHA|REF|A\/A)(\s*[:·]?)$/i.test(celda);
-        if(esEtiqueta && ci+1<celdas.length){
-          // Unir etiqueta + siguiente celda como una línea "ETIQUETA: VALOR"
-          const etiq=celda.replace(/[:·\s]+$/,"").trim();
-          const val=celdas[ci+1];
-          // Solo añadir si el valor no parece otra etiqueta
-          if(val && !/^(EMPRESA|CLIENTE|ATENCI[OÓ]N|ATENCION|ATENTION|TLF|M[OÓ]VIL|EMAIL|DIRECCI[OÓ]N|COUNTRY|COMPANY|N[º°]\s*OFERTA|OFFER|EQUIPO|EQUIPMENT)(\s*[:·]?)$/i.test(val)){
-            lineas.push(`${etiq}: ${val}`);
-            ci++; // saltar la celda de valor
-            continue;
-          }
-        }
-        if(celda.length>2) lineas.push(celda);
-      }
-    } else {
-      lineas.push(l);
-    }
-  }
+  const lineas=t.split("\n").map(l=>l.replace(/\s{2,}/g," ").trim()).filter(Boolean);
 
   const datos={};
 
-  // Regex de etiquetas conocidas para detectar inicio de nuevo campo
-  const RE_ETIQUETA=/^(EMPRESA|CLIENTE|RAZ[OÓ]N|DIRECCI[OÓ]N|ATENCION|ATENCI[OÓ]N|ATENTION|ATTENTION|TLF|TELF|TEL[EÉ]FONO|FAX|M[OÓ]VIL|CELULAR|E[\s-]?MAIL|EMAIL|REFERENCIA|N[º°]\s*OFERTA|OFERTA\s*N[º°]|OFFER|EQUIPO|EQUIPMENT|DESCRIPCI[OÓ]N|ESTIMADO|SEG[ÚU]N|PRECIO|IMPORTE|CONDICIONES|PLAZO|FORMA\s*DE\s*PAGO|FIRMA|ATENTAMENTE|PA[IÍ]S|COUNTRY|COMPANY|CONTACT|TO:|FROM:|SUBJECT|LORQUI)/i;
-
   /* ── Helper principal: busca la etiqueta y devuelve el valor ──────────────
      Soporta formatos:
-       Etiqueta: Valor       (misma línea)
+       Etiqueta: Valor       (mismo línea)
        Etiqueta:             (valor en siguiente línea)
        Etiqueta  Valor       (separado por espacios, sin ":")
   */
@@ -6854,7 +6825,7 @@ function _extraerCamposWord(texto){
           const sig=lineas[j].trim();
           if(!sig) break;
           // Parar si parece otra etiqueta del documento (español + inglés)
-          if(RE_ETIQUETA.test(sig)) break;
+          if(/^(EMPRESA|CLIENTE|RAZ[OÓ]N|DIRECCI[OÓ]N|ATENCION|ATENCI[OÓ]N|ATENTION|ATTENTION|TLF|TELF|TEL[EÉ]FONO|FAX|M[OÓ]VIL|CELULAR|E[\s-]?MAIL|EMAIL|REFERENCIA|N[º°]\s*OFERTA|OFERTA\s*N[º°]|OFFER|EQUIPO|EQUIPMENT|DESCRIPCI[OÓ]N|ESTIMADO|SEG[ÚU]N|PRECIO|IMPORTE|CONDICIONES|PLAZO|FORMA\s*DE\s*PAGO|FIRMA|ATENTAMENTE|PA[IÍ]S|COUNTRY|COMPANY|CONTACT|TO:|FROM:|SUBJECT|LORQUI)/i.test(sig)) break;
           partes.push(sig);
           if(!multilinea) break;
         }
@@ -6935,24 +6906,14 @@ function _extraerCamposWord(texto){
     /^SOCIEDAD\s*[:·]?\s*/i,
   ],{multilinea:true,maxLineas:3});
 
-  // Limpiar posibles sufijos del tipo "TURRONES SL OF. 233.18" que vienen del pie
-  if(datos.empresa){
-    datos.empresa=datos.empresa
-      .replace(/\s+(?:OF|PVA|PV|N[º°]|OFERTA|REF)\s*\.?\s*[\d\.\/\-]+\s*$/i,"")
-      .trim();
-  }
-
   // Fallback: línea siguiente a COMPANY/EMPRESA si vino vacía
   if(!datos.empresa){
     for(let i=0;i<lineas.length;i++){
-      if(/^(COMPANY|EMPRESA)\s*[:·]?\s*$/i.test(lineas[i])){
+      if(/^(COMPANY|EMPRESA)\b/i.test(lineas[i])){
         for(let j=i+1;j<Math.min(i+4,lineas.length);j++){
           const sig=lineas[j].trim();
           if(sig && sig.length>2 && !/^(DIRECC|ATEN|TLF|FAX|E-?MAIL|REFER|N[º°]|CLIENTE|OFFER|ATENTION|CONTACT|COUNTRY)/i.test(sig)){
-            // Excluir líneas que parecen pie de página (empresa + nº oferta)
-            if(!/\b(?:OF|PVA|PV)\s*\.?\s*\d{2,4}[\.\-\/]\d{2,4}\b/i.test(sig)){
-              datos.empresa=sig; break;
-            }
+            datos.empresa=sig; break;
           }
         }
         if(datos.empresa) break;
@@ -6961,12 +6922,11 @@ function _extraerCamposWord(texto){
   }
 
   // Fallback heurística S.A., S.L., SA, Ltd, Inc, Corp
-  // Solo si NO hay ya empresa y el candidato NO tiene número de oferta (pie de página)
   if(!datos.empresa){
     for(const l of lineas){
       if(/\b(S\.?A\.?U?\.?|S\.?L\.?U?\.?|S\.?A\.?T\.?|S\.?COOP\.?|S\.?R\.?L\.?|Ltd\.?|Inc\.?|Corp\.?|S\.A\.S\.?)\b/i.test(l)){
-        // Excluir si es claramente la firma de Marcopack o pie de oferta
-        if(!/MARCOPACK/i.test(l) && !/\b(?:OF|PVA|PV)\s*\.?\s*\d{2,4}[\.\-\/]\d{2,4}\b/i.test(l)){
+        // Excluir si es claramente la firma de Marcopack
+        if(!/MARCOPACK/i.test(l)){
           datos.empresa=l.trim(); break;
         }
       }
@@ -6993,20 +6953,8 @@ function _extraerCamposWord(texto){
   ]);
   if(atencion){
     atencion=atencion.replace(/^(Sr\.?|Sra\.?|D\.?|Dña\.?|Don\s|Doña\s)\s*/i,"").trim();
-    // Separar "Nombre Apellido  673 24 99 00" — el teléfono puede tener espacios
-    // Buscar patrón: texto seguido de espacio(s) + número de 9+ dígitos (con o sin espacios)
-    const mTel=atencion.match(/^(.+?)\s{2,}([+]?[\d][\d\s.\-]{8,})$/) ||
-               atencion.match(/^(.+?)\s+([+]?\d{3}[\s.\-]\d{2}[\s.\-]\d{2}[\s.\-]\d{2})$/) ||
-               atencion.match(/^(.+?)\s+([+]?\d{9,})$/);
-    if(mTel){
-      const posibleNombre=mTel[1].trim();
-      const posibleTel=mTel[2].replace(/[\s.\-]/g,"").replace(/[^\d+]/g,"");
-      // Confirmar que el "nombre" no es en realidad un número disfrazado
-      if(posibleNombre.length>1 && !/^\d+$/.test(posibleNombre) && posibleTel.length>=9){
-        atencion=posibleNombre;
-        if(!datos.movil) datos.movil=posibleTel;
-      }
-    }
+    const mTel=atencion.match(/^(.+?)\s+([+]?[\d\s.\-]{9,})$/);
+    if(mTel){ atencion=mTel[1].trim(); if(!datos.movil) datos.movil=mTel[2].replace(/[\s.\-]/g,""); }
   }
   datos.contacto=atencion;
 
