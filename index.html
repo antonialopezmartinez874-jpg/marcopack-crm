@@ -6783,11 +6783,8 @@ function _extraerTextoDOCBinario(arrayBuffer){
   });
 
   // ── Reordenar: líneas con etiquetas conocidas primero ───────────────
-  const ETIQUETAS=/^(COMPANY|OFFER|ATENTION|ATTENTION|EQUIPMENT|LORQUI|TLF|A\/A|COUNTRY|CITY|SUBJECT|TO:|DATE|REF|EMPRESA|CLIENTE|CONTACTO|ATENCION|ATENCI[OÓ]N|TEL[EÉ]FONO|M[OÓ]VIL|EMAIL|FECHA|DESCRIPCI|N[º°]\s*OFERTA|OFERTA)/i;
-  const conEtiqueta=limpias.filter(l=>ETIQUETAS.test(l.trim()));
-  const sinEtiqueta=limpias.filter(l=>!ETIQUETAS.test(l.trim()));
-
-  return [...conEtiqueta,...sinEtiqueta].join("\n");
+  // NO reordenar — etiqueta y valor son líneas consecutivas en el doc
+  return limpias.join("\n");
 }
 
 function _extraerCamposWord(texto){
