@@ -6557,7 +6557,7 @@ async function importarDesdeWord(event){
     if(esDocx && typeof mammoth!=="undefined"){
       // .docx — mammoth extrae texto con fidelidad alta
       const result=await mammoth.extractRawText({arrayBuffer});
-      textoPlano=result.value||"";
+      textoPlano=(result.value||"").normalize("NFC");
       // Fallback binario si mammoth devuelve texto insuficiente
       if(textoPlano.trim().length<30) textoPlano=_extraerTextoDOCBinario(arrayBuffer);
     } else if(esDoc){
@@ -6567,7 +6567,7 @@ async function importarDesdeWord(event){
       // Extensión desconocida: intentar mammoth y binario como fallback
       try{
         const result=await mammoth.extractRawText({arrayBuffer});
-        textoPlano=result.value||"";
+        textoPlano=(result.value||"").normalize("NFC");
       }catch(_){ textoPlano=""; }
       if(textoPlano.trim().length<30) textoPlano=_extraerTextoDOCBinario(arrayBuffer);
     }
@@ -6768,7 +6768,7 @@ function _extraerTextoDOCBinario(arrayBuffer){
 
   // ── Paso 5: Reordenar — poner primero las líneas con etiquetas conocidas ─
   // Así el parser las encuentra en el orden correcto aunque el OLE las mezcle
-  const ETIQUETAS=/^(COMPANY|OFFER|ATENTION|ATTENTION|EQUIPMENT|LORQUI|TLF|A\/A|COUNTRY|CITY|SUBJECT|TO:|DATE|REF|EMPRESA|CLIENTE|CONTACTO|ATENCION|ATENCIÓN|TELÉFONO|MÓVIL|EMAIL|FECHA|DESCRIPCI)/i;
+  const ETIQUETAS=/^(COMPANY|OFFER|ATENTION|ATTENTION|EQUIPMENT|LORQUI|TLF|A\/A|COUNTRY|CITY|SUBJECT|TO:|DATE|REF|EMPRESA|CLIENTE|CONTACTO|ATENCION|ATENCI[OÓ]N|TEL[EÉ]FONO|M[OÓ]VIL|EMAIL|FECHA|DESCRIPCI)/i;
   const conEtiqueta=filtradas.filter(l=>ETIQUETAS.test(l.trim()));
   const sinEtiqueta=filtradas.filter(l=>!ETIQUETAS.test(l.trim()));
 
@@ -6777,7 +6777,11 @@ function _extraerTextoDOCBinario(arrayBuffer){
 
 function _extraerCamposWord(texto){
   // ── Normalización robusta ──
+  // NFC: convierte caracteres Unicode descompuestos (NFD) a precompuestos (NFC).
+  // Imprescindible para que las regex con acentos (ó,é,á,ú,ñ) funcionen
+  // correctamente con texto extraído por mammoth, que puede devolver NFD.
   const t=texto
+    .normalize("NFC")
     .replace(/\r\n/g,"\n").replace(/\r/g,"\n")
     .replace(/\t/g,"  ");
   const lineas=t.split("\n").map(l=>l.replace(/\s{2,}/g," ").trim()).filter(Boolean);
