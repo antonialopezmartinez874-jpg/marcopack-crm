@@ -6513,7 +6513,9 @@ async function _sincronizarContador(){
     await db.runTransaction(async tx=>{
       const doc=await tx.get(ref);
       const actual=doc.exists?(doc.data().ultimo||0):0;
-      if(max>actual) tx.set(ref,{ultimo:max,year},{merge:true});
+      // Corregir en ambas direcciones: subir si hay ofertas más altas,
+      // bajar si el contador está por encima del máximo real (p.ej. tras cancelar creación)
+      if(max!==actual) tx.set(ref,{ultimo:max,year},{merge:true});
     });
   }catch(e){ console.warn('[CRM] _sincronizarContador:', e.message); }
 }
@@ -6530,9 +6532,12 @@ function _previewNumeroOferta(){
       campo.placeholder = `OF-${year}-${siguiente}`;
     }
   }).catch(()=>{});
-  // Estimación local inmediata mientras carga Firestore
+  // Placeholder provisional mientras llega Firestore: usar SOLO ofertas del año actual
+  // para evitar que ofertas de años anteriores adelanten el contador
+  const prefix = `OF-${year}-`;
   const max = ofertas.reduce((m,o)=>{
-    const n=parseInt((o.numeroOferta||"").split("-")[2])||0;
+    if(!o.numeroOferta || !o.numeroOferta.startsWith(prefix)) return m;
+    const n=parseInt(o.numeroOferta.split("-")[2])||0;
     return n>m?n:m;
   },0);
   return `OF-${year}-${String(max+1).padStart(3,"0")}`;
@@ -6599,6 +6604,10 @@ async function importarDesdeWord(event){
     }
 
     if(datos.empresa)     _set("f-empresa",   datos.empresa);
+    // Cerrar el dropdown de autocompletado de empresa si quedó abierto
+    // (el evento input lo activa pero no debe sobrescribir los datos del Word)
+    const acDd = document.getElementById("ac-dropdown");
+    if(acDd) acDd.classList.remove("open");
     if(datos.contacto)    _set("f-contacto",  datos.contacto);
     if(datos.telefono)    _set("f-tel",        datos.telefono);
     if(datos.movil)       _set("f-movil",      datos.movil);
@@ -7157,6 +7166,13 @@ function abrirModal(o){
     // Mostrar placeholder provisional — el número real se genera SOLO al guardar
     document.getElementById("f-num").value="";
     document.getElementById("f-num")._numeroReservado=null;
+    // Resincronizar el contador con la BD real antes de mostrar el preview
+    // Esto corrige el desfase si el contador quedó adelantado (p.ej. tras cancelar)
+    _sincronizarContador().then(()=>{
+      document.getElementById("f-num").placeholder=_previewNumeroOferta();
+    }).catch(()=>{
+      document.getElementById("f-num").placeholder=_previewNumeroOferta();
+    });
     document.getElementById("f-num").placeholder=_previewNumeroOferta();
   }
   document.getElementById("f-fecha").value=o?.fechaOferta||fechaLocal(); // fechaLocal() evita desfase UTC en España
