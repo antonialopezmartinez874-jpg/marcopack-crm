@@ -199,6 +199,10 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
   border:1.5px solid var(--border);border-radius:var(--radius-sm);
   padding:8px 12px;color:var(--text);font-size:13px;font-family:inherit;transition:border-color .2s}
 .field textarea{min-height:70px;resize:vertical}
+/* Responsable: input editable con sugerencias */
+#f-resp-form{padding-right:36px;cursor:text}
+#f-resp-form::-webkit-calendar-picker-indicator{display:none!important}
+#f-resp-form::placeholder{color:var(--text3)}
 .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
 .modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;
   padding-top:16px;border-top:1px solid var(--border)}
@@ -926,7 +930,21 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
         <div class="field"><label>Estado</label><select id="f-est-form" onchange="toggleMotivoUI()"></select></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>Responsable</label><select id="f-resp-form"></select></div>
+        <div class="field">
+          <label>👷 Responsable</label>
+          <div style="position:relative">
+            <input
+              type="text"
+              id="f-resp-form"
+              list="f-resp-form-list"
+              placeholder="Nombre del responsable..."
+              autocomplete="off"
+              style="width:100%;padding-right:32px"
+            />
+            <datalist id="f-resp-form-list"></datalist>
+            <span id="f-resp-form-icon" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none;color:var(--text3)">👤</span>
+          </div>
+        </div>
         <div class="field"><label>🔔 Recordatorio</label><input type="date" id="f-recod"/></div>
       </div>
       <div class="grid2">
@@ -2388,6 +2406,13 @@ auth.onAuthStateChanged(async user=>{
       // Precargar caché de usuarios para resolver UIDs correctamente en guardarOferta
       db.collection("usuarios").get().then(snap=>{
         window._usuariosCache=snap.docs.map(d=>({id:d.id,...d.data()}));
+        // Rellenar datalist con los usuarios registrados
+        const dl2=document.getElementById("f-resp-form-list");
+        if(dl2){
+          const ns=(window._usuariosCache||[]).map(u=>u.nombre).filter(Boolean).sort();
+          const existentes=new Set([...dl2.querySelectorAll("option")].map(o=>o.value));
+          ns.forEach(n=>{ if(!existentes.has(n)) dl2.innerHTML+=`<option value="${n.replace(/"/g,'&quot;')}"></option>`; });
+        }
       }).catch(()=>{ window._usuariosCache=[]; });
       // Vista inicial estable
       setTimeout(()=>{ try{ setVista('dashboard'); }catch(_){ } }, 50);
@@ -2794,7 +2819,7 @@ function escucharOfertas(){
         if(fb>fa) return 1; if(fa>fb) return -1; return 0;
       });
     acReconstruirIndice();
-    const fr=document.getElementById("f-resp"),frm=document.getElementById("f-resp-form");
+    const fr=document.getElementById("f-resp"); // frm es ahora un <input> con datalist
     const nombres=[...new Set(ofertas.map(o=>o.responsableNombre).filter(Boolean))].sort();
     // Actualizar selector de filtro siempre
     fr.innerHTML='<option value="">Todos los responsables</option>';
@@ -2819,12 +2844,14 @@ function escucharOfertas(){
     // (style.display puede ser vacío o transitorio durante animaciones de apertura/cierre)
     const modalAbierto=window._modalOfertaAbierto===true;
     if(!modalAbierto){
-      const valorActual=frm?.value||"";
-      frm.innerHTML='';
-      nombres.forEach(n=>frm.add(new Option(n,n)));
-      if(currentProfile?.nombre&&!nombres.includes(currentProfile.nombre))frm.add(new Option(currentProfile.nombre,currentProfile.nombre));
-      // Restaurar valor si sigue siendo válido
-      if(valorActual&&[...frm.options].some(o=>o.value===valorActual)) frm.value=valorActual;
+      // Actualizar datalist de responsable (input libre con sugerencias)
+      const dl=document.getElementById("f-resp-form-list");
+      if(dl){
+        // Combinar nombres de ofertas + usuarios cargados en caché
+        const nombresCache=(window._usuariosCache||[]).map(u=>u.nombre).filter(Boolean);
+        const todosNombres=[...new Set([...nombres,...nombresCache])].sort();
+        dl.innerHTML=todosNombres.map(n=>`<option value="${n.replace(/"/g,'&quot;')}"></option>`).join("");
+      }
     }
     renderStats();renderVista();
     // Notificación inteligente solo la primera vez
