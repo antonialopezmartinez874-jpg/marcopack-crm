@@ -2528,16 +2528,33 @@ function showErr(msg){
   setTimeout(()=>el.style.display="none",6000);
 }
 async function doLogout(){
+  // ── Ocultar la app INMEDIATAMENTE para evitar que se quede "pillada" ──────
+  const appEl=document.getElementById("app");
+  if(appEl){
+    appEl.style.opacity="0";
+    appEl.style.pointerEvents="none";
+  }
+
+  // Detener presencia y listener de ofertas antes de todo
   _presenceDetener();
   if(_ofertasUnsub){ try{ _ofertasUnsub(); }catch(_){} _ofertasUnsub=null; }
+
+  // ── FIX: guardar el lock ANTES de limpiar la variable ────────────────────
+  const lockPendiente = window._editandoOfertaId || null;
+  window._editandoOfertaId = null;
+  if(lockPendiente) try{ await _liberarLockEdicion(lockPendiente); }catch(_){}
+
+  // Limpiar estado general
   ofertas=[];
   _smartNotifMostrada=false;
   window._contadorSincronizado=false;
+
   // Limpiar filtros de historial para que el siguiente usuario empiece limpio
   histFiltro="todos";
   histBusqueda="";
   histUsuario="todos";
-  // Limpiar filtros de tabla (incluye los nuevos)
+
+  // Limpiar filtros de tabla
   provinciasSeleccionadas.clear();
   paisesSeleccionados.clear();
   paginaActual=1;
@@ -2545,7 +2562,7 @@ async function doLogout(){
   _kanbanFiltroResp="";
   llBusqueda="";
   llCalDiaSel=null;
-  // Limpiar filtros nuevos
+
   try{
     const ids=["busqueda","f-est","f-resp","f-tipo-filtro","f-distribuidor-filtro","f-referencia-filtro","f-imp-min","f-imp-max","f-fecha-desde","f-fecha-hasta"];
     ids.forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
@@ -2554,21 +2571,27 @@ async function doLogout(){
     const lbl3=document.getElementById("prov-btn-label");    if(lbl3)lbl3.textContent="Todas las provincias";
     const lbl4=document.getElementById("pais-btn-label");    if(lbl4)lbl4.textContent="🌍 Todos los países";
   }catch(_){}
-  // Destruir gráfica custom de stats si existe
+
+  // Destruir gráficas
   _destroyStCustomChart();
-  // Limpiar cache de historial de comerciales
   _compHistorial=[];
-  // Limpiar COMPLETAMENTE el estado MSAL en memoria y localStorage
-  // (evita que otro usuario del mismo equipo herede la sesión Microsoft)
+
+  // Limpiar MSAL y caché de usuarios
   _limpiarEstadoMSAL();
-  // Limpiar caché de usuarios para que no quede visible a otro usuario del mismo equipo
   window._usuariosCache=[];
-  // Limpiar presencia
   window._vistaActualPresencia=null;
-  window._editandoOfertaId=null;
-  // Cerrar lock de edición si quedó abierto
-  if(window._editandoOfertaId) try{ await _liberarLockEdicion(window._editandoOfertaId); }catch(_){}
+
+  // Cerrar sesión Firebase y redirigir
   try{ await auth.signOut(); }catch(_){}
+
+  // Restaurar visibilidad (onAuthStateChanged mostrará el login)
+  if(appEl){
+    appEl.style.opacity="";
+    appEl.style.pointerEvents="";
+    appEl.style.display="none";
+  }
+  const loginEl=document.getElementById("login-screen");
+  if(loginEl) loginEl.style.display="flex";
 }
 
 // ===== SELECTS =====
@@ -2887,9 +2910,9 @@ function getFechaManana(){
 function renderStats(){
   const hoy=fechaLocal();
   const manana=getFechaManana();
-  // Recordatorios vencidos o que vencen mañana (preaviso 1 día)
-  const venc=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado)).length;
-  const proximos=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio===manana&&!["Ganada","Perdida","Descartada"].includes(o.estado)).length;
+  // Recordatorios vencidos o que vencen mañana — solo los del usuario actual (admin ve todos)
+  const venc=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o)).length;
+  const proximos=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio===manana&&!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o)).length;
   const totalRecordatorios=venc+proximos;
   const gan=ofertas.filter(o=>o.estado==="Ganada").length;
   const cerradas=ofertas.filter(o=>["Ganada","Perdida","Descartada"].includes(o.estado)).length;
@@ -2914,10 +2937,17 @@ function renderStats(){
 }
 
 // ===== ALERTAS INACTIVIDAD =====
+// Admin ve todas; comercial solo las suyas
+function _esOfertaMia(o){
+  if(currentProfile?.rol==="admin") return true;
+  return (o.responsableUid&&o.responsableUid===currentUser?.uid)||
+         (o.responsableNombre&&o.responsableNombre===currentProfile?.nombre);
+}
 function getAlertasInactivas(){
   const hoy=new Date();
   return ofertas.filter(o=>{
     if(["Ganada","Perdida","Descartada"].includes(o.estado))return false;
+    if(!_esOfertaMia(o)) return false;
     const ultima=o.fechaUltimaActividad?.toDate?o.fechaUltimaActividad.toDate():o.fechaUltimaActividad?new Date(o.fechaUltimaActividad):o.creadoEn?.toDate?o.creadoEn.toDate():null;
     if(!ultima)return false;
     const dias=Math.floor((hoy-ultima)/(1000*60*60*24));
@@ -2935,9 +2965,9 @@ function mostrarBannerRecordatorios(){
   if(bannerCerradoEn===hoyStr){banner.style.display="none";return;}
   const hoy=hoyStr;
   const manana=getFechaManana();
-  // Ofertas con recordatorio HOY o MAÑANA (que no estén cerradas)
-  const hoyLista=ofertas.filter(o=>o.fechaRecordatorio===hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado));
-  const mananaLista=ofertas.filter(o=>o.fechaRecordatorio===manana&&!["Ganada","Perdida","Descartada"].includes(o.estado));
+  // Ofertas con recordatorio HOY o MAÑANA — solo las del usuario actual (admin ve todas)
+  const hoyLista=ofertas.filter(o=>o.fechaRecordatorio===hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o));
+  const mananaLista=ofertas.filter(o=>o.fechaRecordatorio===manana&&!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o));
   if(hoyLista.length===0&&mananaLista.length===0){banner.style.display="none";return;}
   const tituloEl=document.getElementById("banner-rec-titulo");
   const listaEl=document.getElementById("banner-rec-lista");
@@ -3231,10 +3261,10 @@ function renderDashboard(){
   const totalPipeline=pend.reduce((s,o)=>s+(o.importe||0),0);
   const cerradasTotal=gan.length+perd.length;
   const tasa=cerradasTotal>0?Math.round(gan.length/cerradasTotal*100):0;
-  const venc=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoyStr&&!["Ganada","Perdida","Descartada"].includes(o.estado));
+  const venc=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoyStr&&!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o));
   const mananaStr=getFechaManana();
-  const proxManana=ofertas.filter(o=>o.fechaRecordatorio===mananaStr&&!["Ganada","Perdida","Descartada"].includes(o.estado));
-  const alertasInact=getAlertasInactivas();
+  const proxManana=ofertas.filter(o=>o.fechaRecordatorio===mananaStr&&!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o));
+  const alertasInact=getAlertasInactivas(); // ya filtra por usuario
   const sinSeg=pend.filter(o=>!o.fechaRecordatorio&&!o.proximaAccion&&!o.fechaProximaAccion).length;
   const ultimas=ofertas.slice(0,5);
 
@@ -3765,14 +3795,18 @@ function mostrarSmartNotif(){
 
   const hoy=fechaLocal();
   const manana=getFechaManana();
-  const vencidos=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado));
-  const hoyRec=ofertas.filter(o=>o.fechaRecordatorio===hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado));
-  const mananaRec=ofertas.filter(o=>o.fechaRecordatorio===manana&&!["Ganada","Perdida","Descartada"].includes(o.estado));
-  const inactivas=getAlertasInactivas();
-  const pipeline=ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado));
+  // Filtrar siempre por usuario actual (admin ve todo)
+  const vencidos=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o));
+  const hoyRec=ofertas.filter(o=>o.fechaRecordatorio===hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o));
+  const mananaRec=ofertas.filter(o=>o.fechaRecordatorio===manana&&!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o));
+  const inactivas=getAlertasInactivas(); // ya filtra por usuario
+  // Pipeline propio (solo mis ofertas activas)
+  const pipeline=ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o));
   const totalPipeline=pipeline.reduce((s,o)=>s+(o.importe||0),0);
+  // Ganadas este mes (propias)
   const ganMes=ofertas.filter(o=>{
-    if(o.estado!=="Ganada"||!o.fechaOferta)return false;
+    if(o.estado!=="Ganada"||!o.fechaOferta) return false;
+    if(!_esOfertaMia(o)) return false;
     const d=new Date(o.fechaOferta);
     const ahora=new Date();
     return d.getMonth()===ahora.getMonth()&&d.getFullYear()===ahora.getFullYear();
@@ -5821,11 +5855,12 @@ function renderAlertas(){
   const hoy=fechaLocal();
   const manana=getFechaManana();
   const estados_cerrados=["Ganada","Perdida","Descartada"];
-  const venc=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!estados_cerrados.includes(o.estado));
-  const proxManana=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio===manana&&!estados_cerrados.includes(o.estado));
-  const inact=getAlertasInactivas();
-  // Todos los recordatorios activos con fecha
-  const conFecha=ofertas.filter(o=>o.fechaRecordatorio&&!estados_cerrados.includes(o.estado));
+  // Solo avisos propios (admin ve todos)
+  const venc=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!estados_cerrados.includes(o.estado)&&_esOfertaMia(o));
+  const proxManana=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio===manana&&!estados_cerrados.includes(o.estado)&&_esOfertaMia(o));
+  const inact=getAlertasInactivas(); // ya filtra por usuario
+  // Todos los recordatorios activos con fecha propios
+  const conFecha=ofertas.filter(o=>o.fechaRecordatorio&&!estados_cerrados.includes(o.estado)&&_esOfertaMia(o));
 
   // ---- HELPER: tarjeta de alerta ----
   function tarjetaRecordatorio(o,estilo){
