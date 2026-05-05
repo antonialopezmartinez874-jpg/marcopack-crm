@@ -2926,32 +2926,31 @@ function renderStats(){
 // ===== ALERTAS INACTIVIDAD =====
 // Admin ve todas; comercial solo las suyas
 // ============================================================
-// _esOfertaMia(o) — determina si una oferta pertenece al
-// usuario que está conectado ahora mismo.
-//
-// Reglas (en orden de prioridad):
-//   1. Admin → ve TODAS las ofertas
-//   2. responsableUid coincide con currentUser.uid → ES MÍA
-//   3. creadoPor coincide con currentUser.uid → ES MÍA
-//   4. responsableNombre coincide (normalizado) con mi nombre → ES MÍA
-//   5. En cualquier otro caso → NO ES MÍA
+// _esOfertaMia(o) — para ALERTAS y LLAMADAS
+// TODOS los usuarios (incluido admin) ven ÚNICAMENTE las suyas.
+// Identificación por 3 capas (de más a menos fiable):
+//   1. responsableUid === currentUser.uid
+//   2. creadoPor      === currentUser.uid
+//   3. responsableNombre normalizado === mi nombre normalizado
 // ============================================================
 function _normNombre(s){
   return (s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ").trim();
 }
 function _esOfertaMia(o){
-  // Administrador ve todo
-  if(currentProfile?.rol==="admin") return true;
-  // Comprobación por UID exacto (lo más fiable)
   const miUid = currentUser?.uid;
   if(miUid){
     if(o.responsableUid && o.responsableUid === miUid) return true;
     if(o.creadoPor      && o.creadoPor      === miUid) return true;
   }
-  // Fallback: comparación de nombre normalizado (para ofertas antiguas sin UID)
   const miNombre = _normNombre(currentProfile?.nombre);
   if(miNombre && _normNombre(o.responsableNombre) === miNombre) return true;
   return false;
+}
+// _puedeVerOferta(o) — para la tabla general, kanban, mapa, estadísticas
+// Admin ve todo; el resto solo las suyas.
+function _puedeVerOferta(o){
+  if(currentProfile?.rol==="admin") return true;
+  return _esOfertaMia(o);
 }
 function getAlertasInactivas(){
   const hoy=new Date();
