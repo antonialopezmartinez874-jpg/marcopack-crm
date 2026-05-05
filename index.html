@@ -2925,10 +2925,33 @@ function renderStats(){
 
 // ===== ALERTAS INACTIVIDAD =====
 // Admin ve todas; comercial solo las suyas
+// ============================================================
+// _esOfertaMia(o) — determina si una oferta pertenece al
+// usuario que está conectado ahora mismo.
+//
+// Reglas (en orden de prioridad):
+//   1. Admin → ve TODAS las ofertas
+//   2. responsableUid coincide con currentUser.uid → ES MÍA
+//   3. creadoPor coincide con currentUser.uid → ES MÍA
+//   4. responsableNombre coincide (normalizado) con mi nombre → ES MÍA
+//   5. En cualquier otro caso → NO ES MÍA
+// ============================================================
+function _normNombre(s){
+  return (s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ").trim();
+}
 function _esOfertaMia(o){
+  // Administrador ve todo
   if(currentProfile?.rol==="admin") return true;
-  return (o.responsableUid&&o.responsableUid===currentUser?.uid)||
-         (o.responsableNombre&&o.responsableNombre===currentProfile?.nombre);
+  // Comprobación por UID exacto (lo más fiable)
+  const miUid = currentUser?.uid;
+  if(miUid){
+    if(o.responsableUid && o.responsableUid === miUid) return true;
+    if(o.creadoPor      && o.creadoPor      === miUid) return true;
+  }
+  // Fallback: comparación de nombre normalizado (para ofertas antiguas sin UID)
+  const miNombre = _normNombre(currentProfile?.nombre);
+  if(miNombre && _normNombre(o.responsableNombre) === miNombre) return true;
+  return false;
 }
 function getAlertasInactivas(){
   const hoy=new Date();
@@ -5743,7 +5766,8 @@ async function borrarTodosRecordatorios(){
   const rol=currentProfile?.rol;
   if(rol!=="admin"&&rol!=="comercial"){toast("⚠️ Sin permisos para borrar recordatorios","#f59e0b");return;}
   const hoy=fechaLocal();
-  const vencidos=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado));
+  // Solo borrar los recordatorios vencidos del usuario actual (admin borra todos los suyos)
+  const vencidos=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o));
   if(!vencidos.length){toast("ℹ️ No hay recordatorios vencidos","#3b82f6");return;}
   if(!confirm(`¿Borrar los ${vencidos.length} recordatorios vencidos? Las ofertas seguirán existiendo.`))return;
   const batch=db.batch();
