@@ -2427,6 +2427,8 @@ auth.onAuthStateChanged(async user=>{
       if(app) app.style.display="none";
       if(setup) setup.style.display="none";
       if(login) login.style.display="flex";
+      // Solo comprobar primer acceso si el login está mostrando la pantalla de acceso estándar
+      // (evitar llamadas a Firestore innecesarias después de un logout manual)
       comprobarPrimerAcceso();
     }
   }catch(e){
@@ -2528,33 +2530,29 @@ function showErr(msg){
   setTimeout(()=>el.style.display="none",6000);
 }
 async function doLogout(){
-  // ── Ocultar la app INMEDIATAMENTE para evitar que se quede "pillada" ──────
-  const appEl=document.getElementById("app");
-  if(appEl){
-    appEl.style.opacity="0";
-    appEl.style.pointerEvents="none";
-  }
+  // ── 1. Cambiar pantalla INMEDIATAMENTE — no esperar a Firebase ──────────
+  // Esto es lo que el usuario ve: la app desaparece al instante.
+  // onAuthStateChanged completará la transición cuando Firebase confirme.
+  const appEl   = document.getElementById("app");
+  const loginEl = document.getElementById("login-screen");
+  if(appEl)   appEl.style.display   = "none";
+  if(loginEl) loginEl.style.display = "flex";
 
-  // Detener presencia y listener de ofertas antes de todo
+  // ── 2. Detener listeners de tiempo real ─────────────────────────────────
   _presenceDetener();
   if(_ofertasUnsub){ try{ _ofertasUnsub(); }catch(_){} _ofertasUnsub=null; }
 
-  // ── FIX: guardar el lock ANTES de limpiar la variable ────────────────────
+  // ── 3. Liberar lock de edición (guardar ID ANTES de limpiar) ────────────
   const lockPendiente = window._editandoOfertaId || null;
   window._editandoOfertaId = null;
   if(lockPendiente) try{ await _liberarLockEdicion(lockPendiente); }catch(_){}
 
-  // Limpiar estado general
-  ofertas=[];
-  _smartNotifMostrada=false;
-  window._contadorSincronizado=false;
-
-  // Limpiar filtros de historial para que el siguiente usuario empiece limpio
-  histFiltro="todos";
-  histBusqueda="";
-  histUsuario="todos";
-
-  // Limpiar filtros de tabla
+  // ── 4. Limpiar todo el estado de la sesión ──────────────────────────────
+  ofertas = [];
+  _smartNotifMostrada = false;
+  window._contadorSincronizado = false;
+  window._vistaActualPresencia = null;
+  histFiltro="todos"; histBusqueda=""; histUsuario="todos";
   provinciasSeleccionadas.clear();
   paisesSeleccionados.clear();
   paginaActual=1;
@@ -2562,9 +2560,12 @@ async function doLogout(){
   _kanbanFiltroResp="";
   llBusqueda="";
   llCalDiaSel=null;
+  _compHistorial=[];
+  window._usuariosCache=[];
 
   try{
-    const ids=["busqueda","f-est","f-resp","f-tipo-filtro","f-distribuidor-filtro","f-referencia-filtro","f-imp-min","f-imp-max","f-fecha-desde","f-fecha-hasta"];
+    const ids=["busqueda","f-est","f-resp","f-tipo-filtro","f-distribuidor-filtro",
+               "f-referencia-filtro","f-imp-min","f-imp-max","f-fecha-desde","f-fecha-hasta"];
     ids.forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
     const lbl1=document.getElementById("importe-btn-label"); if(lbl1)lbl1.textContent="💶 Importe";
     const lbl2=document.getElementById("fecha-btn-label");   if(lbl2)lbl2.textContent="📅 Fecha";
@@ -2572,26 +2573,12 @@ async function doLogout(){
     const lbl4=document.getElementById("pais-btn-label");    if(lbl4)lbl4.textContent="🌍 Todos los países";
   }catch(_){}
 
-  // Destruir gráficas
-  _destroyStCustomChart();
-  _compHistorial=[];
+  try{ _destroyStCustomChart(); }catch(_){}
+  try{ _limpiarEstadoMSAL(); }catch(_){}
 
-  // Limpiar MSAL y caché de usuarios
-  _limpiarEstadoMSAL();
-  window._usuariosCache=[];
-  window._vistaActualPresencia=null;
-
-  // Cerrar sesión Firebase y redirigir
+  // ── 5. Cerrar sesión Firebase (en segundo plano, UI ya está limpia) ──────
   try{ await auth.signOut(); }catch(_){}
-
-  // Restaurar visibilidad (onAuthStateChanged mostrará el login)
-  if(appEl){
-    appEl.style.opacity="";
-    appEl.style.pointerEvents="";
-    appEl.style.display="none";
-  }
-  const loginEl=document.getElementById("login-screen");
-  if(loginEl) loginEl.style.display="flex";
+  // onAuthStateChanged (user===null) se disparará y confirmará el estado final
 }
 
 // ===== SELECTS =====
@@ -5046,7 +5033,11 @@ function renderLlamadas(){
   llHistSel.clear();
   const hoy=fechaLocal();
   const manana=getFechaManana();
-  const activas=ofertas.filter(o=>["Ganada","Perdida","Descartada"].includes(o.estado)?false:true);
+  // Solo ofertas activas del usuario actual (admin ve todas)
+  const activas=ofertas.filter(o=>{
+    if(["Ganada","Perdida","Descartada"].includes(o.estado)) return false;
+    return _esOfertaMia(o);
+  });
 
   // Filtro de búsqueda
   const q=llBusqueda.toLowerCase();
