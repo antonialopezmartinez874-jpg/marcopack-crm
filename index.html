@@ -902,7 +902,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       <div class="grid2">
         <div class="field"><label>Provincia</label><select id="f-prov-form"></select></div>
         <div class="field"><label>🌍 País</label>
-          <input id="f-pais-form" list="lista-paises" placeholder="Escribe o elige un país..." autocomplete="off"/>
+          <input id="f-pais-form" list="lista-paises" placeholder="España" autocomplete="off"/>
           <datalist id="lista-paises"></datalist>
         </div>
       </div>
@@ -2754,7 +2754,7 @@ function acSeleccionar(i){
   } else if(provSel && !provSel.value && e.provincia){
     provSel.value=e.provincia;
   }
-  const fpais=document.getElementById("f-pais-form"); if(fpais&&!fpais.value&&e.pais) fpais.value=e.pais;
+  const fpais=document.getElementById("f-pais-form"); if(fpais) fpais.value=e.pais||fpais.value||"España";
   set("f-tipo",e.tipoMaquina);
   set("f-distribuidor",e.distribuidor);
   dd.classList.remove("open");
