@@ -2754,7 +2754,8 @@ function acSeleccionar(i){
   } else if(provSel && !provSel.value && e.provincia){
     provSel.value=e.provincia;
   }
-  const fpais=document.getElementById("f-pais-form"); if(fpais) fpais.value=e.pais||fpais.value||"España";
+  // País: siempre España predeterminado — no sobreescribir desde datos de empresa
+  const fpais=document.getElementById("f-pais-form"); if(fpais && !fpais.value) fpais.value="España";
   set("f-tipo",e.tipoMaquina);
   set("f-distribuidor",e.distribuidor);
   dd.classList.remove("open");
@@ -6698,16 +6699,10 @@ async function importarDesdeWord(event){
     if(datos.fecha)       _set("f-fecha",      datos.fecha);
     if(datos.importe)     _set("f-importe",    datos.importe);
 
-    // País — España ya es predeterminado; solo sobreescribir si el Word indica otro
-    if(datos.pais && datos.pais!=="España"){
-      const elPais=document.getElementById("f-pais-form");
-      if(elPais){
-        elPais.value=datos.pais;
-        elPais.dispatchEvent(new Event("input",{bubbles:true}));
-        elPais.dispatchEvent(new Event("change",{bubbles:true}));
-        camposRellenados++;
-      }
-    }
+    // País — SIEMPRE España como predeterminado; el Word nunca sobreescribe este campo
+    // Se ignora cualquier valor de país que venga del documento Word
+    const elPais=document.getElementById("f-pais-form");
+    if(elPais && !elPais.value) elPais.value="España";
 
     // Provincia — matching normalizado (ignora acentos y mayúsculas)
     if(datos.provincia){
