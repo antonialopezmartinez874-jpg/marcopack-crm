@@ -737,6 +737,16 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
         </div>
       </div>
     </div>
+    <!-- Filtro Adjuntos Word/PDF -->
+    <select id="f-adjunto-filtro" onchange="paginaActual=1;renderVista()" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:7px 11px;color:var(--text);font-size:12px;font-family:inherit;transition:border-color .2s;min-width:180px">
+      <option value="">📎 Todos los adjuntos</option>
+      <option value="sin_word">⚠️ Sin Word adjunto</option>
+      <option value="sin_pdf">⚠️ Sin PDF adjunto</option>
+      <option value="sin_ambos">🚨 Sin Word ni PDF</option>
+      <option value="con_word">✅ Con Word adjunto</option>
+      <option value="con_pdf">✅ Con PDF adjunto</option>
+      <option value="con_ambos">✅ Con Word y PDF</option>
+    </select>
     <button class="btn-clear" onclick="limpiarFiltros()">✕ Limpiar todo</button>
     <!-- Contador de resultados -->
     <div id="filtro-count" style="color:var(--text3);font-size:11px;font-weight:600;padding:0 4px;align-self:center"></div>
@@ -2754,8 +2764,7 @@ function acSeleccionar(i){
   } else if(provSel && !provSel.value && e.provincia){
     provSel.value=e.provincia;
   }
-  // País: siempre España predeterminado — no sobreescribir desde datos de empresa
-  const fpais=document.getElementById("f-pais-form"); if(fpais && !fpais.value) fpais.value="España";
+  const fpais=document.getElementById("f-pais-form"); if(fpais) fpais.value=e.pais||fpais.value||"España";
   set("f-tipo",e.tipoMaquina);
   set("f-distribuidor",e.distribuidor);
   dd.classList.remove("open");
@@ -3016,6 +3025,7 @@ function getFiltradas(){
   const fImpMax=parseFloat(document.getElementById("f-imp-max")?.value)||Infinity;
   const fFechaDesde=document.getElementById("f-fecha-desde")?.value||"";
   const fFechaHasta=document.getElementById("f-fecha-hasta")?.value||"";
+  const fAdjunto=document.getElementById("f-adjunto-filtro")?.value||"";
   const resultado=ofertas.filter(o=>{
     const m=!q||[o.empresa,o.contacto,o.numeroOferta,o.provincia,o.descripcion,o.pais,o.tipoMaquina,o.referencia,o.distribuidor].some(v=>v?.toLowerCase().includes(q));
     const provOk=provinciasSeleccionadas.size===0||provinciasSeleccionadas.has(o.provincia);
@@ -3026,7 +3036,18 @@ function getFiltradas(){
     const imp=o.importe||0;
     const impOk=imp>=fImpMin&&(fImpMax===Infinity||imp<=fImpMax);
     const fechaOk=(!fFechaDesde||(o.fechaOferta&&o.fechaOferta>=fFechaDesde))&&(!fFechaHasta||(o.fechaOferta&&o.fechaOferta<=fFechaHasta));
-    return m&&provOk&&paisOk&&tipoOk&&distOk&&refOk&&impOk&&fechaOk&&(!fe||o.estado===fe)&&(!fr||o.responsableNombre===fr);
+    // Filtro adjuntos: detectar si tiene Word (.doc/.docx) o PDF (.pdf) entre sus archivos
+    const archs=o.archivos||[];
+    const tieneWord=archs.some(a=>/\.(doc|docx)$/i.test(a.name||""));
+    const tienePDF=archs.some(a=>/\.pdf$/i.test(a.name||""));
+    const adjOk = !fAdjunto
+      || (fAdjunto==="sin_word"  && !tieneWord)
+      || (fAdjunto==="sin_pdf"   && !tienePDF)
+      || (fAdjunto==="sin_ambos" && !tieneWord && !tienePDF)
+      || (fAdjunto==="con_word"  && tieneWord)
+      || (fAdjunto==="con_pdf"   && tienePDF)
+      || (fAdjunto==="con_ambos" && tieneWord && tienePDF);
+    return m&&provOk&&paisOk&&tipoOk&&distOk&&refOk&&impOk&&fechaOk&&adjOk&&(!fe||o.estado===fe)&&(!fr||o.responsableNombre===fr);
   }).sort((a,b)=>{
     const va=a[ordenCampo]??"",vb=b[ordenCampo]??"";
     if(ordenCampo==="numeroOferta"){
@@ -3057,7 +3078,8 @@ function hayFiltrosActivos(){
   const fImpMax=document.getElementById("f-imp-max")?.value||"";
   const fFD=document.getElementById("f-fecha-desde")?.value||"";
   const fFH=document.getElementById("f-fecha-hasta")?.value||"";
-  return !!(q||fe||fr||fTipo||fDist||fRef||fImpMin||fImpMax||fFD||fFH||provinciasSeleccionadas.size||paisesSeleccionados.size);
+  const fAdj=document.getElementById("f-adjunto-filtro")?.value||"";
+  return !!(q||fe||fr||fTipo||fDist||fRef||fImpMin||fImpMax||fFD||fFH||fAdj||provinciasSeleccionadas.size||paisesSeleccionados.size);
 }
 function actualizarLabelImporte(){
   const mn=document.getElementById("f-imp-min")?.value||"";
@@ -3100,7 +3122,7 @@ function toggleFechaDropdown(){
 }
 function limpiarFiltros(){
   document.getElementById("busqueda").value="";
-  ["f-est","f-resp","f-tipo-filtro","f-distribuidor-filtro","f-referencia-filtro","f-imp-min","f-imp-max","f-fecha-desde","f-fecha-hasta"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
+  ["f-est","f-resp","f-tipo-filtro","f-distribuidor-filtro","f-referencia-filtro","f-imp-min","f-imp-max","f-fecha-desde","f-fecha-hasta","f-adjunto-filtro"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
   provinciasSeleccionadas.clear();
   paisesSeleccionados.clear();
   actualizarLabelProv();
@@ -6699,10 +6721,16 @@ async function importarDesdeWord(event){
     if(datos.fecha)       _set("f-fecha",      datos.fecha);
     if(datos.importe)     _set("f-importe",    datos.importe);
 
-    // País — SIEMPRE España como predeterminado; el Word nunca sobreescribe este campo
-    // Se ignora cualquier valor de país que venga del documento Word
-    const elPais=document.getElementById("f-pais-form");
-    if(elPais && !elPais.value) elPais.value="España";
+    // País — España ya es predeterminado; solo sobreescribir si el Word indica otro
+    if(datos.pais && datos.pais!=="España"){
+      const elPais=document.getElementById("f-pais-form");
+      if(elPais){
+        elPais.value=datos.pais;
+        elPais.dispatchEvent(new Event("input",{bubbles:true}));
+        elPais.dispatchEvent(new Event("change",{bubbles:true}));
+        camposRellenados++;
+      }
+    }
 
     // Provincia — matching normalizado (ignora acentos y mayúsculas)
     if(datos.provincia){
