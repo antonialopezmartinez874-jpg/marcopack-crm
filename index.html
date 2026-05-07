@@ -2907,9 +2907,10 @@ function getFechaManana(){
 function renderStats(){
   const hoy=fechaLocal();
   const manana=getFechaManana();
-  // Recordatorios vencidos o que vencen mañana — solo los del usuario actual (admin ve todos)
-  const venc=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o)).length;
-  const proximos=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio===manana&&!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o)).length;
+  // Recordatorios vencidos o que vencen mañana — de TODOS los usuarios
+  // (visibilidad compartida para cobertura entre compañeros)
+  const venc=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado)).length;
+  const proximos=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio===manana&&!["Ganada","Perdida","Descartada"].includes(o.estado)).length;
   const totalRecordatorios=venc+proximos;
   const gan=ofertas.filter(o=>o.estado==="Ganada").length;
   const cerradas=ofertas.filter(o=>["Ganada","Perdida","Descartada"].includes(o.estado)).length;
@@ -2963,10 +2964,11 @@ function _puedeVerOferta(o){
   return _esOfertaMia(o);
 }
 function getAlertasInactivas(){
+  // Muestra alertas de inactividad de TODOS los usuarios:
+  // así si un compañero falta, el resto puede ver y atender sus ofertas sin actividad.
   const hoy=new Date();
   return ofertas.filter(o=>{
     if(["Ganada","Perdida","Descartada"].includes(o.estado))return false;
-    if(!_esOfertaMia(o)) return false;
     const ultima=o.fechaUltimaActividad?.toDate?o.fechaUltimaActividad.toDate():o.fechaUltimaActividad?new Date(o.fechaUltimaActividad):o.creadoEn?.toDate?o.creadoEn.toDate():null;
     if(!ultima)return false;
     const dias=Math.floor((hoy-ultima)/(1000*60*60*24));
@@ -2984,9 +2986,10 @@ function mostrarBannerRecordatorios(){
   if(bannerCerradoEn===hoyStr){banner.style.display="none";return;}
   const hoy=hoyStr;
   const manana=getFechaManana();
-  // Ofertas con recordatorio HOY o MAÑANA — solo las del usuario actual (admin ve todas)
-  const hoyLista=ofertas.filter(o=>o.fechaRecordatorio===hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o));
-  const mananaLista=ofertas.filter(o=>o.fechaRecordatorio===manana&&!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o));
+  // Ofertas con recordatorio HOY o MAÑANA — de TODOS los usuarios
+  // (si un compañero falta, cualquiera puede ver y atender sus recordatorios)
+  const hoyLista=ofertas.filter(o=>o.fechaRecordatorio===hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado));
+  const mananaLista=ofertas.filter(o=>o.fechaRecordatorio===manana&&!["Ganada","Perdida","Descartada"].includes(o.estado));
   if(hoyLista.length===0&&mananaLista.length===0){banner.style.display="none";return;}
   const tituloEl=document.getElementById("banner-rec-titulo");
   const listaEl=document.getElementById("banner-rec-lista");
@@ -3293,10 +3296,10 @@ function renderDashboard(){
   const totalPipeline=pend.reduce((s,o)=>s+(o.importe||0),0);
   const cerradasTotal=gan.length+perd.length;
   const tasa=cerradasTotal>0?Math.round(gan.length/cerradasTotal*100):0;
-  const venc=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoyStr&&!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o));
+  const venc=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoyStr&&!["Ganada","Perdida","Descartada"].includes(o.estado));
   const mananaStr=getFechaManana();
-  const proxManana=ofertas.filter(o=>o.fechaRecordatorio===mananaStr&&!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o));
-  const alertasInact=getAlertasInactivas(); // ya filtra por usuario
+  const proxManana=ofertas.filter(o=>o.fechaRecordatorio===mananaStr&&!["Ganada","Perdida","Descartada"].includes(o.estado));
+  const alertasInact=getAlertasInactivas(); // muestra de todos los usuarios
   const sinSeg=pend.filter(o=>!o.fechaRecordatorio&&!o.proximaAccion&&!o.fechaProximaAccion).length;
   const ultimas=ofertas.slice(0,5);
 
@@ -3405,12 +3408,12 @@ function renderDashboard(){
         ${venc.slice(0,3).map(o=>`
           <div style="background:var(--orange-bg);border:1px solid #fbd0b0;border-radius:8px;padding:8px 12px;margin-bottom:6px;cursor:pointer;font-size:12px" onclick="verDetalle('${o.id}')">
             <div style="color:#fb923c;font-weight:600">🔔 ${_esc(o.empresa)}</div>
-            <div style="color:var(--text3)">Recordatorio: ${new Date(o.fechaRecordatorio+"T12:00:00").toLocaleDateString("es-ES")}</div>
+            <div style="color:var(--text3)">Recordatorio: ${new Date(o.fechaRecordatorio+"T12:00:00").toLocaleDateString("es-ES")} &nbsp;·&nbsp; 👷 ${_esc(o.responsableNombre||"—")}</div>
           </div>`).join("")}
         ${alertasInact.slice(0,2).map(o=>`
           <div style="background:var(--red-bg);border:1px solid #fca5a5;border-radius:8px;padding:8px 12px;margin-bottom:6px;cursor:pointer;font-size:12px" onclick="verDetalle('${o.id}')">
             <div style="color:#ef4444;font-weight:600">⚠️ ${_esc(o.empresa)}</div>
-            <div style="color:var(--text3)">Sin actividad +${DIAS_ALERTA} días</div>
+            <div style="color:var(--text3)">Sin actividad +${DIAS_ALERTA} días &nbsp;·&nbsp; 👷 ${_esc(o.responsableNombre||"—")}</div>
           </div>`).join("")}
         ${venc.length===0&&alertasInact.length===0
           ?`<div style="color:#10b981;font-size:13px;text-align:center;padding:20px">✅ Sin alertas pendientes</div>`:""}
@@ -3828,10 +3831,10 @@ function mostrarSmartNotif(){
   const hoy=fechaLocal();
   const manana=getFechaManana();
   // Filtrar siempre por usuario actual (admin ve todo)
-  const vencidos=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o));
-  const hoyRec=ofertas.filter(o=>o.fechaRecordatorio===hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o));
-  const mananaRec=ofertas.filter(o=>o.fechaRecordatorio===manana&&!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o));
-  const inactivas=getAlertasInactivas(); // ya filtra por usuario
+  const vencidos=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado));
+  const hoyRec=ofertas.filter(o=>o.fechaRecordatorio===hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado));
+  const mananaRec=ofertas.filter(o=>o.fechaRecordatorio===manana&&!["Ganada","Perdida","Descartada"].includes(o.estado));
+  const inactivas=getAlertasInactivas(); // muestra de todos los usuarios
   // Pipeline propio (solo mis ofertas activas)
   const pipeline=ofertas.filter(o=>!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o));
   const totalPipeline=pipeline.reduce((s,o)=>s+(o.importe||0),0);
@@ -5788,8 +5791,8 @@ async function borrarTodosRecordatorios(){
   const rol=currentProfile?.rol;
   if(rol!=="admin"&&rol!=="comercial"){toast("⚠️ Sin permisos para borrar recordatorios","#f59e0b");return;}
   const hoy=fechaLocal();
-  // Solo borrar los recordatorios vencidos del usuario actual (admin borra todos los suyos)
-  const vencidos=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado)&&_esOfertaMia(o));
+  // Borrar los recordatorios vencidos de todos los usuarios (cobertura compartida entre compañeros)
+  const vencidos=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!["Ganada","Perdida","Descartada"].includes(o.estado));
   if(!vencidos.length){toast("ℹ️ No hay recordatorios vencidos","#3b82f6");return;}
   if(!confirm(`¿Borrar los ${vencidos.length} recordatorios vencidos? Las ofertas seguirán existiendo.`))return;
   const batch=db.batch();
@@ -5892,26 +5895,29 @@ function renderAlertas(){
   const hoy=fechaLocal();
   const manana=getFechaManana();
   const estados_cerrados=["Ganada","Perdida","Descartada"];
-  // Solo avisos propios (admin ve todos)
-  const venc=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!estados_cerrados.includes(o.estado)&&_esOfertaMia(o));
-  const proxManana=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio===manana&&!estados_cerrados.includes(o.estado)&&_esOfertaMia(o));
-  const inact=getAlertasInactivas(); // ya filtra por usuario
-  // Todos los recordatorios activos con fecha propios
-  const conFecha=ofertas.filter(o=>o.fechaRecordatorio&&!estados_cerrados.includes(o.estado)&&_esOfertaMia(o));
+  // Recordatorios de TODOS los usuarios — cobertura compartida entre compañeros
+  const venc=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio<=hoy&&!estados_cerrados.includes(o.estado));
+  const proxManana=ofertas.filter(o=>o.fechaRecordatorio&&o.fechaRecordatorio===manana&&!estados_cerrados.includes(o.estado));
+  const inact=getAlertasInactivas(); // muestra todos los usuarios
+  // Todos los recordatorios activos con fecha de todos los usuarios
+  const conFecha=ofertas.filter(o=>o.fechaRecordatorio&&!estados_cerrados.includes(o.estado));
 
   // ---- HELPER: tarjeta de alerta ----
   function tarjetaRecordatorio(o,estilo){
     const fechaFmt=new Date(o.fechaRecordatorio+"T12:00:00").toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"});
     const tel=o.telefonoMovil||o.telefono||"—";
+    const esPropia=_esOfertaMia(o);
+    const respLabel=o.responsableNombre||"—";
     return `<div class="alerta-item" style="${estilo}" onclick="verDetalle('${o.id}')">
       <div onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
         <input type="checkbox" class="rec-check" data-id="${o.id}" onclick="recToggle(event,'${o.id}')" style="accent-color:var(--accent);cursor:pointer;width:15px;height:15px"/>
         <span style="color:var(--text3);font-size:11px;font-weight:800">Seleccionar</span>
+        ${!esPropia?`<span style="background:#f0f6ff;color:var(--accent);border:1px solid #b8d0f5;border-radius:20px;padding:2px 9px;font-size:10px;font-weight:800">👷 ${_esc(respLabel)}</span>`:`<span style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:20px;padding:2px 9px;font-size:10px;font-weight:800">✅ Mía</span>`}
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:14px;margin-bottom:2px">${_esc(o.empresa)}</div>
-          <div style="color:var(--text3);font-size:12px;margin-bottom:4px">👤 ${_esc(o.contacto||"—")} &nbsp;·&nbsp; 📞 ${_esc(tel)} &nbsp;·&nbsp; 👷 ${_esc((o.responsableNombre||"—").split(" ")[0])}</div>
+          <div style="color:var(--text3);font-size:12px;margin-bottom:4px">👤 ${_esc(o.contacto||"—")} &nbsp;·&nbsp; 📞 ${_esc(tel)} &nbsp;·&nbsp; 👷 <strong style="color:var(--text2)">${_esc(respLabel)}</strong></div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
             <span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}55">${_esc(o.estado)}</span>
             <span style="font-size:11px;color:var(--text3)">📅 ${fechaFmt}</span>
@@ -5962,11 +5968,16 @@ function renderAlertas(){
         ${inact.map(o=>{
           const ultima=o.fechaUltimaActividad?.toDate?o.fechaUltimaActividad.toDate():o.creadoEn?.toDate?o.creadoEn.toDate():null;
           const dias=ultima?Math.floor((new Date()-ultima)/(864e5)):"?";
+          const esPropia=_esOfertaMia(o);
+          const respLabel=o.responsableNombre||"—";
           return `<div class="alerta-item" onclick="verDetalle('${o.id}')">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
               <div style="flex:1">
-                <div style="color:#c2490b;font-weight:700;font-size:14px;margin-bottom:2px">${_esc(o.empresa)}</div>
-                <div style="color:var(--text3);font-size:12px">📍 ${_esc(o.provincia||"—")} &nbsp;·&nbsp; 👷 ${_esc((o.responsableNombre||"—").split(" ")[0])} &nbsp;·&nbsp; <span style="color:#f97316;font-weight:600">${dias} días sin actividad</span></div>
+                <div style="display:flex;align-items:center;gap:7px;margin-bottom:2px">
+                  <span style="color:#c2490b;font-weight:700;font-size:14px">${_esc(o.empresa)}</span>
+                  ${!esPropia?`<span style="background:#f0f6ff;color:var(--accent);border:1px solid #b8d0f5;border-radius:20px;padding:1px 8px;font-size:10px;font-weight:800">👷 ${_esc(respLabel)}</span>`:`<span style="background:var(--green-bg);color:var(--green);border:1px solid #b7e4d1;border-radius:20px;padding:1px 8px;font-size:10px;font-weight:800">✅ Mía</span>`}
+                </div>
+                <div style="color:var(--text3);font-size:12px">📍 ${_esc(o.provincia||"—")} &nbsp;·&nbsp; 👷 <strong style="color:var(--text2)">${_esc(respLabel)}</strong> &nbsp;·&nbsp; <span style="color:#f97316;font-weight:600">${dias} días sin actividad</span></div>
                 <div style="margin-top:4px"><span class="badge" style="background:${CE[o.estado]}18;color:${CE[o.estado]};border:1px solid ${CE[o.estado]}55">${_esc(o.estado)}</span></div>
               </div>
               <button class="llamada-btn" onclick="event.stopPropagation();abrirLlamada('${o.id}')">📞 Llamar</button>
