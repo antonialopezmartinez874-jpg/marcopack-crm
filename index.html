@@ -2437,6 +2437,15 @@ auth.onAuthStateChanged(async user=>{
       if(app) app.style.display="none";
       if(setup) setup.style.display="none";
       if(login) login.style.display="flex";
+      // ── Resetear formulario de login (evitar que quede en "Verificando..." tras logout) ──
+      const _btnL=document.getElementById("btn-login");
+      if(_btnL){ _btnL.textContent="Entrar al CRM"; _btnL.disabled=false; }
+      const _elE=document.getElementById("login-email");
+      if(_elE) _elE.value="";
+      const _elP=document.getElementById("login-pass");
+      if(_elP) _elP.value="";
+      const _elErr=document.getElementById("login-error");
+      if(_elErr){ _elErr.style.display="none"; _elErr.textContent=""; }
       // Solo comprobar primer acceso si el login está mostrando la pantalla de acceso estándar
       // (evitar llamadas a Firestore innecesarias después de un logout manual)
       comprobarPrimerAcceso();
@@ -2547,6 +2556,16 @@ async function doLogout(){
   const loginEl = document.getElementById("login-screen");
   if(appEl)   appEl.style.display   = "none";
   if(loginEl) loginEl.style.display = "flex";
+
+  // ── Resetear formulario de login completamente (evitar bug visual al salir) ──
+  const btnLogin = document.getElementById("btn-login");
+  if(btnLogin){ btnLogin.textContent = "Entrar al CRM"; btnLogin.disabled = false; }
+  const loginEmail = document.getElementById("login-email");
+  if(loginEmail){ loginEmail.value = ""; loginEmail.blur(); }
+  const loginPass = document.getElementById("login-pass");
+  if(loginPass){ loginPass.value = ""; loginPass.blur(); }
+  const loginErr = document.getElementById("login-error");
+  if(loginErr){ loginErr.style.display = "none"; loginErr.textContent = ""; }
 
   // ── 2. Detener listeners de tiempo real ─────────────────────────────────
   _presenceDetener();
