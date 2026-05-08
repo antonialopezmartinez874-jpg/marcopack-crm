@@ -912,7 +912,7 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       <div class="grid2">
         <div class="field"><label>Provincia</label><select id="f-prov-form"></select></div>
         <div class="field"><label>🌍 País</label>
-          <input id="f-pais-form" list="lista-paises" placeholder="España" autocomplete="off"/>
+          <input id="f-pais-form" list="lista-paises" placeholder="España" value="España" autocomplete="off"/>
           <datalist id="lista-paises"></datalist>
         </div>
       </div>
@@ -2764,7 +2764,7 @@ function acSeleccionar(i){
   } else if(provSel && !provSel.value && e.provincia){
     provSel.value=e.provincia;
   }
-  const fpais=document.getElementById("f-pais-form"); if(fpais) fpais.value=e.pais||fpais.value||"España";
+  const fpais=document.getElementById("f-pais-form"); if(fpais) fpais.value=e.pais||"España";
   set("f-tipo",e.tipoMaquina);
   set("f-distribuidor",e.distribuidor);
   dd.classList.remove("open");
@@ -6732,7 +6732,7 @@ async function importarDesdeWord(event){
     if(datos.fecha)       _set("f-fecha",      datos.fecha);
     if(datos.importe)     _set("f-importe",    datos.importe);
 
-    // País — España ya es predeterminado; solo sobreescribir si el Word indica otro
+    // País — España siempre como predeterminado; solo sobreescribir si el Word indica explícitamente otro país
     if(datos.pais && datos.pais!=="España"){
       const elPais=document.getElementById("f-pais-form");
       if(elPais){
@@ -6741,6 +6741,10 @@ async function importarDesdeWord(event){
         elPais.dispatchEvent(new Event("change",{bubbles:true}));
         camposRellenados++;
       }
+    } else {
+      // Sin país detectado en el Word (o ya es España): forzar España como predeterminado
+      const elPais=document.getElementById("f-pais-form");
+      if(elPais && !elPais.value) elPais.value="España";
     }
 
     // Provincia — matching normalizado (ignora acentos y mayúsculas)
@@ -7295,7 +7299,7 @@ function abrirModal(o){
   document.getElementById("f-movil").value=o?.telefonoMovil||"";
   document.getElementById("f-email").value=o?.email||"";
   document.getElementById("f-prov-form").value=o?.provincia||"";
-  document.getElementById("f-pais-form").value=o?.pais||"España";
+  document.getElementById("f-pais-form").value=o?.pais||"España"; // España siempre como predeterminado
   document.getElementById("f-tipo").value=o?.tipoMaquina||"";
   document.getElementById("f-otros").value=o?.otros||"";
   document.getElementById("f-desc").value=o?.descripcion||"";
