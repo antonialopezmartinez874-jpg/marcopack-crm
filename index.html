@@ -7208,21 +7208,29 @@ function _extraerCamposWord(texto){
     const encontrado=PAISES.find(p=>p.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase()===paisNorm);
     datos.pais=encontrado||paisRaw;
   } else {
-    // Detectar países por texto libre (nombres en inglés frecuentes en ofertas de exportación)
-    const PAISES_EN={
-      "IVORY COAST":"Costa de Marfil","COTE D'IVOIRE":"Costa de Marfil","CÔTE D'IVOIRE":"Costa de Marfil",
+    // Detectar país SOLO en las primeras líneas del documento (zona de cabecera/dirección).
+    // Se exige coincidencia como palabra/frase completa para evitar falsos positivos
+    // con términos cortos como "UK" que pueden aparecer en cualquier texto.
+    const PAISES_EN_SEGUROS={
+      "IVORY COAST":"Costa de Marfil","COTE D'IVOIRE":"Costa de Marfil","COTE D'IVOIRE":"Costa de Marfil",
       "MOROCCO":"Marruecos","ALGERIA":"Argelia","TUNISIA":"Túnez","EGYPT":"Egipto",
       "NIGERIA":"Nigeria","GHANA":"Ghana","SENEGAL":"Senegal","CAMEROON":"Camerún",
       "FRANCE":"Francia","GERMANY":"Alemania","ITALY":"Italia","PORTUGAL":"Portugal",
-      "UNITED KINGDOM":"Reino Unido","UK":"Reino Unido","USA":"Estados Unidos",
-      "UNITED STATES":"Estados Unidos","MEXICO":"México","BRAZIL":"Brasil",
-      "COLOMBIA":"Colombia","PERU":"Perú","CHILE":"Chile","ARGENTINA":"Argentina",
+      "UNITED KINGDOM":"Reino Unido","GREAT BRITAIN":"Reino Unido",
+      "UNITED STATES OF AMERICA":"Estados Unidos","UNITED STATES":"Estados Unidos",
+      "MEXICO":"México","BRAZIL":"Brasil","COLOMBIA":"Colombia",
+      "PERU":"Perú","CHILE":"Chile","ARGENTINA":"Argentina",
     };
-    const textoUpper=texto.toUpperCase();
+    // Solo analizar las primeras 30 líneas (cabecera del doc, donde está la dirección)
+    // y exigir que el país aparezca como término completo (no como fragmento de otra palabra)
+    const lineasCabecera=lineas.slice(0,30).map(l=>l.toUpperCase());
     let paisDetectado="";
-    for(const [en,es] of Object.entries(PAISES_EN)){
-      if(textoUpper.includes(en)){ paisDetectado=es; break; }
+    for(const [en,es] of Object.entries(PAISES_EN_SEGUROS)){
+      const esc=en.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+      const regex=new RegExp("(?:^|[\\s,;|/\\(])" + esc + "(?:[\\s,;|/\\)]|$)");
+      if(lineasCabecera.some(l=>regex.test(l))){ paisDetectado=es; break; }
     }
+    // Si no se detecta un país extranjero claro → España por defecto
     datos.pais=paisDetectado||"España";
   }
 
