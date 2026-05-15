@@ -627,7 +627,8 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       <div id="rem-alert" class="alert-badge" style="display:none" onclick="setVista('alertas')"></div>
       <div class="user-badge">👤 <span id="uname"></span> · <span class="rol-badge" id="urol"></span></div>
       <button class="btn-sm" onclick="abrirMiCuenta()" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border)" title="Mi cuenta y configuración">⚙️ Mi cuenta</button>
-      <button class="btn-sm btn-excel" id="btn-excel-export" onclick="exportarExcel()" style="display:none">📤 Excel</button>
+      <label class="btn-sm btn-import" title="Importar Excel"><input type="file" accept=".xlsx,.xls,.csv" onchange="importarExcel(event)" style="display:none"/>📥 Importar</label>
+      <button class="btn-sm btn-excel" onclick="exportarExcel()">📤 Excel</button>
       <button class="btn-sm btn-add" onclick="abrirModal()">+ Nueva Oferta</button>
       <button class="btn-sm btn-logout" onclick="doLogout()">Salir</button>
     </div>
@@ -1086,6 +1087,15 @@ tbody td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
       <button class="btn-cancel" onclick="document.getElementById('modal-llamada').style.display='none'">Cancelar</button>
       <button class="btn-save" onclick="guardarLlamada()">Guardar llamada</button>
     </div>
+  </div>
+</div>
+
+<!-- MODAL IMPORTAR -->
+<div id="modal-import" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:600px">
+    <button class="modal-close" onclick="document.getElementById('modal-import').style.display='none'">✕</button>
+    <h2>📥 Importar desde Excel</h2>
+    <div id="import-body"></div>
   </div>
 </div>
 
@@ -2393,13 +2403,12 @@ auth.onAuthStateChanged(async user=>{
       if(ur) ur.textContent=currentProfile.rol||'comercial';
       const navAdmin=document.getElementById("nav-admin");
       if(navAdmin) navAdmin.style.display=(currentProfile.rol==="admin")?"block":"none";
-      // Botón Excel: solo visible para administradores
-      const btnExcel=document.getElementById("btn-excel-export");
-      if(btnExcel) btnExcel.style.display=(currentProfile.rol==="admin")?"inline-flex":"none";
       // Ocultar botones de escritura para rol lectura
       const btnAdd=document.querySelector('.btn-add');
+      const btnImport=document.querySelector('.btn-import');
       if(currentProfile.rol==="lectura"){
         if(btnAdd) btnAdd.style.display="none";
+        if(btnImport) btnImport.style.display="none";
       }
 
       poblarSelects();
@@ -6510,9 +6519,9 @@ function mostrarPrevistaImport(raw){
 async function ejecutarImport(datos){
   document.getElementById("import-progress").style.display="block";
   document.querySelector("#import-body .modal-footer").style.display="none";
-  // Reservar rango de números en una sola transacción atómica
-  const year=new Date().getFullYear();
-  const refCont=db.collection("contadores").doc("ofertas_"+year);
+  // Reservar rango de números en una sola transacción atómica (siempre para el año en curso)
+  const year=_anioActual();
+  const refCont=_docContador(year);
   let baseNum=0;
   await db.runTransaction(async tx=>{
     const doc=await tx.get(refCont);
@@ -6602,13 +6611,29 @@ function verDetalle(id){
 // ===== CONTADOR ATÓMICO DE OFERTAS (multi-usuario seguro) =====
 // Usa una transacción de Firestore para garantizar números únicos
 // aunque varios usuarios guarden al mismo tiempo.
-// El documento 'contadores/ofertas' guarda { ultimo: N } por año.
+// ============================================================
+// SISTEMA DE NUMERACIÓN CORRELATIVA POR AÑO
+// Cada año natural empieza desde OF-XXXX-001.
+// Documento Firestore: contadores/ofertas_YYYY  → { ultimo: N, year: YYYY }
+// Al cambiar de año el contador parte de 0 automáticamente
+// porque se usa un documento distinto para cada año.
+// ============================================================
+
+// Devuelve el año actual como número entero (2026, 2027, …)
+function _anioActual(){ return new Date().getFullYear(); }
+
+// Genera la clave del documento contador para un año dado
+function _docContador(year){ return db.collection("contadores").doc("ofertas_"+year); }
+
+// Genera el siguiente número de oferta para el año en curso.
+// Usa una transacción atómica para evitar duplicados en entorno multiusuario.
 async function _siguienteNumeroOferta(){
-  const year = new Date().getFullYear();
-  const ref   = db.collection("contadores").doc("ofertas_"+year);
+  const year = _anioActual();
+  const ref   = _docContador(year);
   let numero;
   await db.runTransaction(async tx => {
     const doc = await tx.get(ref);
+    // Si el documento no existe (primer uso del año) comenzamos en 0 → incrementa a 1
     const actual = doc.exists ? (doc.data().ultimo || 0) : 0;
     numero = actual + 1;
     tx.set(ref, { ultimo: numero, year }, { merge: true });
@@ -6616,51 +6641,55 @@ async function _siguienteNumeroOferta(){
   return `OF-${year}-${String(numero).padStart(3,"0")}`;
 }
 
-// Sincronizar el contador con el máximo real de la BD
-// (se llama una vez al iniciar sesión para que el contador
-//  no quede desfasado si se importaron ofertas manualmente)
+// Sincronizar el contador con el máximo real de la BD para el año en curso.
+// Se llama una vez al iniciar sesión y cada vez que se abre el modal de nueva oferta.
+// Garantiza coherencia si se importaron o borraron ofertas manualmente.
 async function _sincronizarContador(){
   try{
-    const year = new Date().getFullYear();
+    const year  = _anioActual();
     const prefix = `OF-${year}-`;
+    // Calcular el número más alto de oferta del año actual en memoria local
     const max = ofertas.reduce((m,o)=>{
-      if(!o.numeroOferta||!o.numeroOferta.startsWith(prefix)) return m;
-      const n=parseInt(o.numeroOferta.split("-")[2])||0;
-      return n>m?n:m;
-    },0);
-    if(!max) return; // sin ofertas de este año, no tocar
-    const ref = db.collection("contadores").doc("ofertas_"+year);
+      if(!o.numeroOferta || !o.numeroOferta.startsWith(prefix)) return m;
+      const n = parseInt(o.numeroOferta.split("-")[2]) || 0;
+      return n > m ? n : m;
+    }, 0);
+    const ref = _docContador(year);
     await db.runTransaction(async tx=>{
-      const doc=await tx.get(ref);
-      const actual=doc.exists?(doc.data().ultimo||0):0;
-      // Corregir en ambas direcciones: subir si hay ofertas más altas,
-      // bajar si el contador está por encima del máximo real (p.ej. tras cancelar creación)
-      if(max!==actual) tx.set(ref,{ultimo:max,year},{merge:true});
+      const doc   = await tx.get(ref);
+      const actual = doc.exists ? (doc.data().ultimo || 0) : 0;
+      // Si el max real es mayor que el contador → actualizar para evitar huecos
+      // Si el contador está por encima del max real (cancelaciones) → corregir también
+      // Si max===0 y no existe el doc → no crear (se creará al guardar la primera oferta del año)
+      if(max > 0 && max !== actual){
+        tx.set(ref, { ultimo: max, year }, { merge: true });
+      }
     });
   }catch(e){ console.warn('[CRM] _sincronizarContador:', e.message); }
 }
 
-// Versión local (solo para el placeholder del campo, sin tocar la BD)
+// Vista previa del próximo número (sin consumirlo).
+// Muestra el placeholder en el campo Nº Oferta al abrir el modal.
 function _previewNumeroOferta(){
-  const year = new Date().getFullYear();
-  // Leer el contador real de Firestore y actualizar el placeholder cuando llegue
-  db.collection("contadores").doc("ofertas_"+year).get().then(doc=>{
-    const ultimo = doc.exists ? (doc.data().ultimo||0) : 0;
-    const siguiente = String(ultimo+1).padStart(3,"0");
+  const year   = _anioActual();
+  const prefix = `OF-${year}-`;
+  // Actualizar el placeholder de forma asíncrona desde Firestore (más preciso)
+  _docContador(year).get().then(doc=>{
+    const ultimo   = doc.exists ? (doc.data().ultimo || 0) : 0;
+    const siguiente = String(ultimo + 1).padStart(3,"0");
     const campo = document.getElementById("f-num");
     if(campo && !editandoId && !campo.value){
       campo.placeholder = `OF-${year}-${siguiente}`;
     }
   }).catch(()=>{});
-  // Placeholder provisional mientras llega Firestore: usar SOLO ofertas del año actual
-  // para evitar que ofertas de años anteriores adelanten el contador
-  const prefix = `OF-${year}-`;
-  const max = ofertas.reduce((m,o)=>{
+  // Placeholder inmediato (sincrónico) calculado sobre los datos en memoria,
+  // usando ÚNICAMENTE ofertas del año actual para que el año nuevo empiece en 001
+  const maxLocal = ofertas.reduce((m,o)=>{
     if(!o.numeroOferta || !o.numeroOferta.startsWith(prefix)) return m;
-    const n=parseInt(o.numeroOferta.split("-")[2])||0;
-    return n>m?n:m;
-  },0);
-  return `OF-${year}-${String(max+1).padStart(3,"0")}`;
+    const n = parseInt(o.numeroOferta.split("-")[2]) || 0;
+    return n > m ? n : m;
+  }, 0);
+  return `OF-${year}-${String(maxLocal + 1).padStart(3,"0")}`;
 }
 
 // ===== IMPORTAR DESDE WORD (v2 — mejorado) =====
@@ -7102,7 +7131,16 @@ function _extraerCamposWord(texto){
       if(!esNumeroPropio(telLimpio)) datos.telefono=telLimpio;
     }
   }
-  // Sin fallback: si no hay teléfono fijo etiquetado, se deja vacío.
+  if(!datos.telefono){
+    for(const l of lineas){
+      // Números internacionales (+225...) o españoles (8xx, 9xx)
+      const m=l.match(/([+]\d{1,3}[\s.\-]?\d[\d\s.\-]{6,}|\b[89]\d{2}[\s.\-]?\d{2}[\s.\-]?\d{2}[\s.\-]?\d{2}\b)/);
+      if(m){
+        const telLimpio=m[1].replace(/[\s.\-]/g,"");
+        if(!esNumeroPropio(telLimpio)){ datos.telefono=telLimpio; break; }
+      }
+    }
+  }
 
   /* ══════════════════════════════════════════════════════════════
      ── MÓVIL ───────────────────────────────────────────────────
@@ -7199,29 +7237,21 @@ function _extraerCamposWord(texto){
     const encontrado=PAISES.find(p=>p.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase()===paisNorm);
     datos.pais=encontrado||paisRaw;
   } else {
-    // Detectar país SOLO en las primeras líneas del documento (zona de cabecera/dirección).
-    // Se exige coincidencia como palabra/frase completa para evitar falsos positivos
-    // con términos cortos como "UK" que pueden aparecer en cualquier texto.
-    const PAISES_EN_SEGUROS={
-      "IVORY COAST":"Costa de Marfil","COTE D'IVOIRE":"Costa de Marfil","COTE D'IVOIRE":"Costa de Marfil",
+    // Detectar países por texto libre (nombres en inglés frecuentes en ofertas de exportación)
+    const PAISES_EN={
+      "IVORY COAST":"Costa de Marfil","COTE D'IVOIRE":"Costa de Marfil","CÔTE D'IVOIRE":"Costa de Marfil",
       "MOROCCO":"Marruecos","ALGERIA":"Argelia","TUNISIA":"Túnez","EGYPT":"Egipto",
       "NIGERIA":"Nigeria","GHANA":"Ghana","SENEGAL":"Senegal","CAMEROON":"Camerún",
       "FRANCE":"Francia","GERMANY":"Alemania","ITALY":"Italia","PORTUGAL":"Portugal",
-      "UNITED KINGDOM":"Reino Unido","GREAT BRITAIN":"Reino Unido",
-      "UNITED STATES OF AMERICA":"Estados Unidos","UNITED STATES":"Estados Unidos",
-      "MEXICO":"México","BRAZIL":"Brasil","COLOMBIA":"Colombia",
-      "PERU":"Perú","CHILE":"Chile","ARGENTINA":"Argentina",
+      "UNITED KINGDOM":"Reino Unido","UK":"Reino Unido","USA":"Estados Unidos",
+      "UNITED STATES":"Estados Unidos","MEXICO":"México","BRAZIL":"Brasil",
+      "COLOMBIA":"Colombia","PERU":"Perú","CHILE":"Chile","ARGENTINA":"Argentina",
     };
-    // Solo analizar las primeras 30 líneas (cabecera del doc, donde está la dirección)
-    // y exigir que el país aparezca como término completo (no como fragmento de otra palabra)
-    const lineasCabecera=lineas.slice(0,30).map(l=>l.toUpperCase());
+    const textoUpper=texto.toUpperCase();
     let paisDetectado="";
-    for(const [en,es] of Object.entries(PAISES_EN_SEGUROS)){
-      const esc=en.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
-      const regex=new RegExp("(?:^|[\\s,;|/\\(])" + esc + "(?:[\\s,;|/\\)]|$)");
-      if(lineasCabecera.some(l=>regex.test(l))){ paisDetectado=es; break; }
+    for(const [en,es] of Object.entries(PAISES_EN)){
+      if(textoUpper.includes(en)){ paisDetectado=es; break; }
     }
-    // Si no se detecta un país extranjero claro → España por defecto
     datos.pais=paisDetectado||"España";
   }
 
@@ -7725,12 +7755,8 @@ function mcTab(tab){
     btn.style.color=activo?"var(--accent)":"var(--text3)";
     btn.style.fontWeight=activo?"700":"600";
   });
-  if(tab==="usuarios"&&currentProfile.rol!=="admin"){
+  if((tab==="usuarios"||tab==="onedrive")&&currentProfile.rol!=="admin"){
     toast("⚠️ Solo administradores pueden acceder a esta sección","#f59e0b");
-    return;
-  }
-  if(tab==="onedrive"&&currentProfile.rol!=="admin"&&currentProfile.rol!=="comercial"){
-    toast("⚠️ Solo administradores y comerciales pueden acceder a esta sección","#f59e0b");
     return;
   }
   if(tab==="perfil") mcRenderPerfil();
@@ -7975,7 +8001,7 @@ async function mcCrearUsuario(){
 
 
 function mcRenderOneDrive(){
-  if(currentProfile.rol!=="admin"&&currentProfile.rol!=="comercial"){toast("⚠️ Solo administradores y comerciales","#f59e0b");return;}
+  if(currentProfile.rol!=="admin"){toast("⚠️ Solo administradores","#f59e0b");return;}
   const body=document.getElementById("micuenta-body");
   body.innerHTML=`
     <div style="display:grid;gap:14px">
