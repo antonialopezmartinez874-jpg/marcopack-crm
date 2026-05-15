@@ -7756,7 +7756,7 @@ function mcTab(tab){
     btn.style.fontWeight=activo?"700":"600";
   });
   if(tab==="usuarios"&&currentProfile.rol!=="admin"){
-    toast("⚠️ Solo administradores pueden gestionar usuarios","#f59e0b");
+    toast("⚠️ Solo administradores pueden acceder a esta sección","#f59e0b");
     return;
   }
   if(tab==="onedrive"&&currentProfile.rol!=="admin"&&currentProfile.rol!=="comercial"){
@@ -7840,11 +7840,6 @@ async function mcRenderPerfil(){
             <button onclick="mcTab('usuarios')" style="background:var(--accent);color:white;border:none;border-radius:8px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">👥 Gestionar usuarios</button>
             <button onclick="mcTab('onedrive')" style="background:var(--purple-bg);color:var(--purple);border:1px solid #c4b5fd;border-radius:8px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">☁️ OneDrive</button>
           </div>
-        </div>`:currentProfile.rol==="comercial"?`
-        <div style="background:var(--purple-bg);border:1px solid #c4b5fd;border-radius:12px;padding:16px">
-          <div style="color:var(--purple);font-weight:700;font-size:13px;margin-bottom:8px">☁️ OneDrive</div>
-          <div style="color:var(--text3);font-size:12px;margin-bottom:12px;line-height:1.6">Conecta y gestiona los archivos adjuntos de tus ofertas en OneDrive.</div>
-          <button onclick="mcTab('onedrive')" style="background:var(--purple-bg);color:var(--purple);border:1px solid #c4b5fd;border-radius:8px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;width:100%">☁️ Ir a OneDrive</button>
         </div>`:`
         <div style="background:linear-gradient(135deg,#f0f6ff,#f7f9ff);border:2px solid var(--accent);border-radius:12px;padding:16px">
           <div style="color:var(--accent);font-weight:700;font-size:14px;margin-bottom:6px">👑 Convertirte en Administrador</div>
